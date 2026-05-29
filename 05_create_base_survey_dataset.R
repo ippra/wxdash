@@ -1,4 +1,4 @@
-library(ltm)
+# library(ltm)
 library(data.table)
 library(readxl)
 library(sf)
@@ -53,6 +53,13 @@ WX24 <- read_csv(paste0(downloads, "WX24_data_wtd.csv")) %>%
          end_date = as.Date(end_date),
          rand_aft = as.character(rand_aft),
          rand_eve = as.character(rand_aft))
+WX25 <- read_csv(paste0(downloads, "WX25_data_wtd.csv")) %>% 
+  mutate(survey_year = "2025", 
+         survey_hazard = "WX",
+         survey_language = "English", 
+         end_date = as.Date(end_date),
+         rand_aft = as.character(rand_aft),
+         rand_eve = as.character(rand_aft))
 
 TC20 <- read_csv(paste0(downloads, "TC20_data_wtd.csv")) %>% 
   mutate(survey_year = "2020",
@@ -75,6 +82,11 @@ TC24 <- read_csv(paste0(downloads, "TC24_data_wtd.csv")) %>%
          survey_hazard = "TC",
          survey_language = "English", 
          end_date = as.Date(end_date))
+TC25 <- read_csv(paste0(downloads, "TC25_data_wtd.csv")) %>% 
+  mutate(survey_year = "2025",
+         survey_hazard = "TC",
+         survey_language = "English", 
+         end_date = as.Date(end_date))
 
 WW21 <- read_csv(paste0(downloads, "WW21_data_wtd.csv")) %>% 
   mutate(survey_year = "2021",
@@ -93,9 +105,39 @@ WW24 <- read_csv(paste0(downloads, "WW24_data_wtd.csv")) %>%
          survey_hazard = "WW",
          survey_language = "English", 
          end_date = as.Date(end_date))
+WW25 <- read_csv(paste0(downloads, "WW25_data_wtd.csv")) %>% 
+  mutate(survey_year = "2025",
+         survey_hazard = "WW",
+         survey_language = "English", 
+         end_date = as.Date(end_date_utc))
 
-survey_data <- rbindlist(list(WX17, WX18, WX19, WX20, WX21, WX22, WX23, WX24, TC20, TC21, TC22, TC23, TC24, WW21, WW22, WW23, WW24), fill = TRUE)
-survey_data %>% count(survey_hazard, survey_year)
+FL24 <- read_csv(paste0(downloads, "FL24_data_wtd.csv")) %>% 
+  mutate(survey_year = "2024",
+         survey_hazard = "FL",
+         survey_language = "English")
+FL25 <- read_csv(paste0(downloads, "FL25_data_wtd.csv")) %>% 
+  mutate(survey_year = "2025",
+         survey_hazard = "FL",
+         survey_language = "English")
+
+survey_data <- rbindlist(list(WX17, WX18, WX19, WX20, WX21, WX22, WX23, WX24, WX25,
+                              TC20, TC21, TC22, TC23, TC24, TC25,
+                              WW21, WW22, WW23, WW24, WW25,
+                              FL24, FL25), fill = TRUE, ignore.attr = TRUE)
+
+# Quick map of zipcode centroids in survey_data
+zip_centroids <- tigris::zctas(year = 2020) %>%
+  st_centroid() %>%
+  mutate(zip = ZCTA5CE20) %>%
+  filter(zip %in% unique(survey_data$zip))
+
+ggplot() +
+  borders("state", colour = "gray50", fill = NA) +
+  geom_sf(data = zip_centroids, size = 1, alpha = 0.5, color = "steelblue") +
+  coord_sf(xlim = c(-125, -66), ylim = c(24, 50)) +
+  theme_minimal() +
+  labs(title = "Survey Respondent Zipcode Centroids")
+
 
 # Identify respondent FIPS, CWA, and Region ------------------
 zip_to_county <- read_excel(paste0(downloads, "ZIP_COUNTY_032025.xlsx"), 
