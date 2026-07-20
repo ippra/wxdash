@@ -4,8 +4,8 @@ library(readxl)
 library(sf)
 library(tidyverse)
 
-downloads <- "/Users/josephripberger/Dropbox (Univ. of Oklahoma)/Severe Weather and Society Dashboard/local files/downloads/" # define locally!!!
-outputs <- "/Users/josephripberger/Dropbox (Univ. of Oklahoma)/Severe Weather and Society Dashboard/local files/outputs/" # define locally!!!
+downloads <- "/Users/jtr/Library/CloudStorage/Dropbox-Univ.ofOklahoma/Joe Ripberger/Severe Weather and Society Dashboard/local files/downloads/" # define locally!!!
+outputs <- "/Users/jtr/Library/CloudStorage/Dropbox-Univ.ofOklahoma/Joe Ripberger/Severe Weather and Society Dashboard/local files/outputs/" # define locally!!!
 
 # Import Survey Data -----------------------------
 WX17 <- read_csv(paste0(downloads, "WX17_data_wtd.csv")) %>% 
@@ -138,7 +138,6 @@ ggplot() +
   theme_minimal() +
   labs(title = "Survey Respondent Zipcode Centroids")
 
-
 # Identify respondent FIPS, CWA, and Region ------------------
 zip_to_county <- read_excel(paste0(downloads, "ZIP_COUNTY_032025.xlsx"), 
                             col_types = c("text", "text", "text", "text", "numeric", "numeric", "numeric", "numeric")) # https://www.huduser.gov/portal/datasets/usps_crosswalk.html
@@ -149,7 +148,7 @@ zip_to_county <- zip_to_county %>%
 
 survey_data$zip <- str_pad(survey_data$zip, 5, side = "left", pad = 0)
 survey_data <- left_join(survey_data, zip_to_county, by = c("zip" = "ZIP")) 
-survey_data <- drop_na(survey_data, FIPS) # drops 121 respondents (invalid zipcodes)
+survey_data <- drop_na(survey_data, FIPS) # invalid zipcodes
 
 county_to_cwa_data <- read_sf(paste0(outputs, "county_to_cwa_data.csv"))
 survey_data <- left_join(survey_data, county_to_cwa_data %>% select(FIPS = GEOID, CWA), by = "FIPS")
