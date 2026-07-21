@@ -1,12 +1,12 @@
 library(tidyverse)
 library(sf)
 
-downloads <- "/Users/josephripberger/Dropbox (Univ. of Oklahoma)/Severe Weather and Society Dashboard/local files/downloads/" # define locally!!!
-outputs <- "/Users/josephripberger/Dropbox (Univ. of Oklahoma)/Severe Weather and Society Dashboard/local files/outputs/" # define locally!!!
+downloads <- "/Users/jtr/Library/CloudStorage/Dropbox-Univ.ofOklahoma/Joe Ripberger/Severe Weather and Society Dashboard/local files/downloads/" # define locally!!!
+outputs <- "/Users/jtr/Library/CloudStorage/Dropbox-Univ.ofOklahoma/Joe Ripberger/Severe Weather and Society Dashboard/local files/outputs/" # define locally!!!
 
 # Import Shapefiles -----------------
-cnty_shp <- st_read("~/Univ. of Oklahoma Dropbox/Joe Ripberger/nws_product_climatology/wwa_data/wwa_shiny_app/data/cb_2023_us_county_500k") |> st_transform(crs = 5070)
-cwa_cnty_shp <- st_read("~/Dropbox (Univ. of Oklahoma)/Severe Weather and Society Dashboard/local files/downloads/c_18mr25") |> st_transform(crs = 5070)
+cnty_shp <- st_read(paste0(downloads, "cb_2023_us_county_500k")) |> st_transform(crs = 5070)
+cwa_cnty_shp <- st_read(paste0(downloads, "c_18mr25")) |> st_transform(crs = 5070)
 
 cwa_cnty_data <- cwa_cnty_shp |> 
   st_drop_geometry() |> 
