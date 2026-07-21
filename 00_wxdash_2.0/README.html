@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.9.38">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>readme</title>
+<style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="README_files/libs/clipboard/clipboard.min.js"></script>
+<script src="README_files/libs/quarto-html/quarto.js" type="module"></script>
+<script src="README_files/libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="README_files/libs/quarto-html/popper.min.js"></script>
+<script src="README_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="README_files/libs/quarto-html/anchor.min.js"></script>
+<link href="README_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="README_files/libs/quarto-html/quarto-syntax-highlighting-15634bcf2e68342d4ad2dfa704d543f6.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="README_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="README_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="README_files/libs/bootstrap/bootstrap-138a6193a3bd40baf1e627da441a4734.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+
+
+</head>
+
+<body class="fullcontent quarto-light">
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+
+<main class="content" id="quarto-document-content">
+
+
+
+
+<section id="wxdash-2.0-base-dataset-pipeline" class="level1">
+<h1>wxdash 2.0 — Base Dataset Pipeline</h1>
+<p>Data-preparation pipeline for the <strong>Severe Weather and Society Dashboard (wxdash 2.0)</strong>. The scripts in this folder build a set of “base” datasets that are joined together into a single respondent-level survey file (<code>base_survey_data.csv</code>) used by the dashboard and downstream analysis.</p>
+<p>This README is the working record of <strong>what each script does</strong> and <strong>where the project stands</strong>. Update the <a href="#status--progress">Status &amp; Progress</a> section as work moves forward.</p>
+<hr>
+<section id="how-the-pipeline-fits-together" class="level2">
+<h2 class="anchored" data-anchor-id="how-the-pipeline-fits-together">How the pipeline fits together</h2>
+<p>Each script reads raw inputs from a local <code>downloads/</code> folder and writes derived tables to a local <code>outputs/</code> folder (both live in Dropbox — see <a href="#setup">Setup</a>). Later scripts consume the outputs of earlier ones. Script <code>05</code> is the final join that produces the master file.</p>
+<pre><code>                       ┌─────────────────────────────┐
+ raw shapefiles ─────► │ 01  county → CWA crosswalk   │ ─► county_to_cwa_data.csv ─┐
+                       └─────────────────────────────┘                            │
+ IEM watch/warn ─────► ┌─────────────────────────────┐                            │
+   (CSV)               │ 02  CWA alert counts         │ ─► base_cwa_alert_data.csv ┤
+                       └─────────────────────────────┘                            │
+ IEM watch/warn ─────► ┌─────────────────────────────┐                            │
+   (shapefiles)        │ 03  county alert counts      │ ─► base_county_alert_data.csv
+                       └─────────────────────────────┘                            │
+ Census + SVI + ─────► ┌─────────────────────────────┐   base_cwa_census_data.csv │
+ storm events          │ 04  census / SVI / events    │ ─► base_county_census_data.csv
+                       └─────────────────────────────┘                            │
+ Survey CSVs + ──────► ┌─────────────────────────────┐                            │
+ ZIP crosswalk +       │ 05  base survey dataset      │ ◄──────────────────────────┘
+ risk + all above      │     (final join + IRT scores)│ ─► base_survey_data.csv
+                       └─────────────────────────────┘</code></pre>
+<hr>
+</section>
+<section id="scripts" class="level2">
+<h2 class="anchored" data-anchor-id="scripts">Scripts</h2>
+<section id="create_county_to_cwa_dataset.r" class="level3">
+<h3 class="anchored" data-anchor-id="create_county_to_cwa_dataset.r"><code>01_create_county_to_cwa_dataset.R</code></h3>
+<p>Builds the <strong>county → NWS County Warning Area (CWA)</strong> crosswalk that ties respondents and county data to a forecast office.</p>
+<ul>
+<li><strong>Inputs:</strong> US county shapefile (<code>cb_2023_us_county_500k</code>); NWS CWA/county shapefile (<code>c_18mr25</code>).</li>
+<li><strong>Logic:</strong> keeps the first CWA for counties spanning multiple CWAs; hard-codes fixes for Florida Keys (<code>12087</code> → <code>KEY</code>), Connecticut planning regions, and Hawaii’s Kalawao County.</li>
+<li><strong>Output:</strong> <code>county_to_cwa_data.csv</code></li>
+</ul>
+</section>
+<section id="create_base_cwa_storm_alert_dataset.r" class="level3">
+<h3 class="anchored" data-anchor-id="create_base_cwa_storm_alert_dataset.r"><code>02_create_base_cwa_storm_alert_dataset.R</code></h3>
+<p>Counts, per <strong>CWA</strong>, the number of <strong>days</strong> with at least one watch/warning issued, by hazard category.</p>
+<ul>
+<li><strong>Inputs:</strong> Iowa Environmental Mesonet (IEM) archived watch/warning <strong>CSVs</strong> (files matching <code>*_all</code>). Source: <a href="https://mesonet.agron.iastate.edu/request/gis/watchwarn.phtml" class="uri">https://mesonet.agron.iastate.edu/request/gis/watchwarn.phtml</a></li>
+<li><strong>Logic:</strong> maps VTEC <code>PHENOM</code> codes to categories (HEAT, COLD, SNOW, ICE, TORN, WIND, FLOOD, HURR, FIRE); dedupes to one row per WFO/category/day; pivots to wide counts. Reads the CSV attributes (not the ~1 GB shapefile) for speed.</li>
+<li><strong>Output:</strong> <code>base_cwa_alert_data.csv</code></li>
+</ul>
+</section>
+<section id="create_base_county_storm_alert_dataset.r" class="level3">
+<h3 class="anchored" data-anchor-id="create_base_county_storm_alert_dataset.r"><code>03_create_base_county_storm_alert_dataset.R</code></h3>
+<p>Same idea as <code>02</code> but at the <strong>county (FIPS)</strong> level, using the polygon geometry to intersect warnings with counties.</p>
+<ul>
+<li><strong>Inputs:</strong> IEM watch/warning <strong>shapefiles</strong> (<code>*_all</code>); US county shapefile (<code>cb_2023_us_county_20m</code>).</li>
+<li><strong>Logic:</strong> spatially intersects each warning polygon with counties (<code>st_intersects</code>), maps <code>PHENOM</code> → category, dedupes to county/category/day, counts, and pivots wide. Processes one year-file at a time with <code>gc()</code> to manage memory.</li>
+<li><strong>Output:</strong> <code>base_county_alert_data.csv</code></li>
+</ul>
+</section>
+<section id="create_base_census_dataset.r" class="level3">
+<h3 class="anchored" data-anchor-id="create_base_census_dataset.r"><code>04_create_base_census_dataset.R</code></h3>
+<p>Builds <strong>demographic, storm-event, and social-vulnerability</strong> context at both county and CWA levels.</p>
+<ul>
+<li><strong>Inputs:</strong> Census population estimates (<code>cc-est2021-all.csv</code>, <code>cc-est2022-all.csv</code>, downloaded over HTTP); CDC/ATSDR <strong>SVI 2020</strong> (<code>SVI_2020_US_county.csv</code>); NWS county shapefile (<code>c_03mr20</code>); <strong>storm-event tables</strong> (<code>base_cwa_storm_data.csv</code>, <code>base_county_storm_data.csv</code>).</li>
+<li><strong>Logic:</strong> collapses population into 36 demographic cells (sex × 3 age groups × Hispanic × 3 race groups), computes cell proportions; joins storm events; population-weights county SVI up to CWA level. Excludes Alaska &amp; Hawaii from census. Prefixes CWA/county columns.</li>
+<li><strong>Outputs:</strong> <code>base_cwa_census_data.csv</code>, <code>base_county_census_data.csv</code></li>
+<li>⚠️ <strong>Dependency gap:</strong> reads <code>base_cwa_storm_data.csv</code> / <code>base_county_storm_data.csv</code>, which <strong>no script in this folder produces</strong> (see <a href="#known-gaps--todos">Known gaps</a>).</li>
+</ul>
+</section>
+<section id="create_base_survey_dataset.r" class="level3">
+<h3 class="anchored" data-anchor-id="create_base_survey_dataset.r"><code>05_create_base_survey_dataset.R</code></h3>
+<p>The <strong>master join</strong>: assembles all survey waves and enriches each respondent with geography, alerts, risk, census, and IRT-based latent measures.</p>
+<ul>
+<li><strong>Inputs:</strong> weighted survey CSVs by hazard/year:
+<ul>
+<li><strong>WX</strong> (severe weather / tornado) 2017–2025</li>
+<li><strong>TC</strong> (tropical cyclone) 2020–2025</li>
+<li><strong>WW</strong> (winter weather) 2021–2025</li>
+<li><strong>FL</strong> (flood) 2024–2025</li>
+<li>HUD ZIP→county crosswalk (<code>ZIP_COUNTY_032025.xlsx</code>); outputs of <code>01</code>–<code>04</code>; FEMA risk tables (<code>base_cwa_risk_data.csv</code>, <code>base_county_risk_data.csv</code>).</li>
+</ul></li>
+<li><strong>Logic:</strong> stacks all waves (<code>rbindlist(fill = TRUE)</code>, with per-wave type/scale fixes); geocodes ZIP → FIPS (highest residential ratio) → CWA; recodes demographics; left-joins alert, FEMA risk, and census/SVI tables; fits IRT models (<code>ltm</code>/<code>grm</code>) for reception, subjective &amp; objective comprehension, response, trust, readiness, and efficacy, joining factor scores by <code>p_id</code>.</li>
+<li><strong>Output:</strong> <code>base_survey_data.csv</code></li>
+<li>⚠️ <strong>Dependency gap:</strong> reads <code>base_cwa_risk_data.csv</code> / <code>base_county_risk_data.csv</code>, which <strong>no script in this folder produces</strong> (see <a href="#known-gaps--todos">Known gaps</a>).</li>
+</ul>
+<hr>
+</section>
+</section>
+<section id="setup" class="level2">
+<h2 class="anchored" data-anchor-id="setup">Setup</h2>
+<p>Each script defines two local paths at the top — set these to your machine:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>downloads <span class="ot">&lt;-</span> <span class="st">".../Severe Weather and Society Dashboard/local files/downloads/"</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>outputs   <span class="ot">&lt;-</span> <span class="st">".../Severe Weather and Society Dashboard/local files/outputs/"</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><strong>Note:</strong> scripts <code>01</code>–<code>04</code> currently point at <code>/Users/josephripberger/Dropbox (Univ. of Oklahoma)/...</code> while <code>05</code> points at <code>/Users/jtr/Library/CloudStorage/Dropbox-Univ.ofOklahoma/...</code>. These should be reconciled (ideally to a single config sourced by all scripts).</p>
+<p><strong>Packages:</strong> <code>tidyverse</code>, <code>data.table</code>, <code>sf</code>, <code>lubridate</code>, <code>readxl</code>, <code>car</code>, <code>ltm</code>, <code>tigris</code>.</p>
+<p><strong>Run order:</strong> <code>01</code> → <code>02</code> → <code>03</code> → <code>04</code> → <code>05</code> (plus the missing storm/risk scripts before <code>04</code>/<code>05</code>).</p>
+<hr>
+</section>
+<section id="data-dependency-map" class="level2">
+<h2 class="anchored" data-anchor-id="data-dependency-map">Data dependency map</h2>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 18%">
+<col style="width: 63%">
+<col style="width: 18%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Script</th>
+<th>Reads (key derived inputs)</th>
+<th>Writes</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>01</td>
+<td>shapefiles only</td>
+<td><code>county_to_cwa_data.csv</code></td>
+</tr>
+<tr class="even">
+<td>02</td>
+<td>IEM watch/warn CSVs</td>
+<td><code>base_cwa_alert_data.csv</code></td>
+</tr>
+<tr class="odd">
+<td>03</td>
+<td>IEM watch/warn shapefiles, county shp</td>
+<td><code>base_county_alert_data.csv</code></td>
+</tr>
+<tr class="even">
+<td>04</td>
+<td>Census/SVI, <code>base_*_storm_data.csv</code> ⚠️</td>
+<td><code>base_cwa_census_data.csv</code>, <code>base_county_census_data.csv</code></td>
+</tr>
+<tr class="odd">
+<td>05</td>
+<td>survey CSVs, <code>county_to_cwa_data.csv</code>, <code>base_*_alert_data.csv</code>, <code>base_*_census_data.csv</code>, <code>base_*_risk_data.csv</code> ⚠️</td>
+<td><code>base_survey_data.csv</code></td>
+</tr>
+</tbody>
+</table>
+<hr>
+</section>
+<section id="known-gaps-todos" class="level2">
+<h2 class="anchored" data-anchor-id="known-gaps-todos">Known gaps / TODOs</h2>
+<ul class="task-list">
+<li><label><input type="checkbox"><strong>Missing storm-event script</strong> — <code>04</code> consumes <code>base_cwa_storm_data.csv</code> / <code>base_county_storm_data.csv</code>; the script that builds these is not in this folder.</label></li>
+<li><label><input type="checkbox"><strong>Missing FEMA risk script</strong> — <code>05</code> consumes <code>base_cwa_risk_data.csv</code> / <code>base_county_risk_data.csv</code>; the script that builds these is not in this folder.</label></li>
+<li><label><input type="checkbox"><strong>Reconcile <code>downloads</code>/<code>outputs</code> paths</strong> across <code>01</code>–<code>05</code> (currently two different users/roots).</label></li>
+<li><label><input type="checkbox"><strong><code>05</code> line 1:</strong> <code>library(ltm)</code> is commented out, but <code>grm()</code> / <code>ltm()</code> are called bare — confirm <code>ltm</code> is attached or uncomment.</label></li>
+<li><label><input type="checkbox"><strong><code>05</code> lines 55 &amp; 62:</strong> likely copy-paste bug — <code>rand_eve = as.character(rand_aft)</code> sets <code>rand_eve</code> from <code>rand_aft</code> (should be <code>rand_eve</code>).</label></li>
+<li><label><input type="checkbox"><strong><code>04</code> SVI:</strong> consider updating hard-coded fixes / revisit RIO ARRIBA (35039) imputation (currently commented out).</label></li>
+</ul>
+<hr>
+</section>
+<section id="status-progress" class="level2">
+<h2 class="anchored" data-anchor-id="status-progress">Status &amp; Progress</h2>
+<p>Update this as the project moves. Suggested convention: ✅ done · 🚧 in progress · ⬜ not started.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 42%">
+<col style="width: 30%">
+<col style="width: 26%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Component</th>
+<th>Status</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>01 county → CWA crosswalk</td>
+<td>✅</td>
+<td>Stable.</td>
+</tr>
+<tr class="even">
+<td>02 CWA alert counts</td>
+<td>✅</td>
+<td>Stable.</td>
+</tr>
+<tr class="odd">
+<td>03 county alert counts</td>
+<td>✅</td>
+<td>Stable.</td>
+</tr>
+<tr class="even">
+<td>04 census / SVI / events</td>
+<td>🚧</td>
+<td>Depends on missing storm script; SVI still on 2020 data.</td>
+</tr>
+<tr class="odd">
+<td>05 base survey dataset</td>
+<td>🚧</td>
+<td>Added 2025 waves (WX/TC/WW/FL); depends on missing risk script.</td>
+</tr>
+<tr class="even">
+<td>Storm-event script</td>
+<td>⬜</td>
+<td>Not in repo.</td>
+</tr>
+<tr class="odd">
+<td>FEMA risk script</td>
+<td>⬜</td>
+<td>Not in repo.</td>
+</tr>
+</tbody>
+</table>
+<section id="changelog" class="level3">
+<h3 class="anchored" data-anchor-id="changelog">Changelog</h3>
+<ul>
+<li><strong>2026-07-20</strong> — Added 2025 survey waves (WX25, TC25, WW25, FL25) to script <code>05</code>. Created this README.</li>
+</ul>
+</section>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp('/' + window.location.host + '/');
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>
