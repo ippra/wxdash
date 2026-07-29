@@ -21,7 +21,7 @@ cwa_cnty_data |> filter(!FIPS %in% cnty_shp$GEOID) |> tibble() |> print(n = Inf)
 cnty_shp |> filter(!GEOID %in% cwa_cnty_data$FIPS) |> print(n = Inf) # n = 10 (CT Planning Regions, HI Kalawao County) # fix below
 
 cnty_shp <- cnty_shp |> 
-  left_join(cwa_cnty_data |> select(FIPS, CWA), by = c("GEOID" = "FIPS")) |> 
+  left_join(cwa_cnty_data |> select(FIPS, CWA, NWS_REGION = REGION), by = c("GEOID" = "FIPS")) |> 
   mutate(CWA = case_when(
     NAMELSAD %in% c("Northwest Hills Planning Region") ~ "ALY",
     NAMELSAD %in% c("Capitol Planning Region", 
