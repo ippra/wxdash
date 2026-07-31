@@ -1,5 +1,6 @@
 # library(ltm)
 library(data.table)
+library(readxl)
 library(tidyverse)
 
 # psych is required. It is called as psych::alpha() rather than attached,
@@ -7,6 +8,7 @@ library(tidyverse)
 
 downloads <- "/Users/jtr/Library/CloudStorage/Dropbox-Univ.ofOklahoma/Joe Ripberger/Severe Weather and Society Dashboard/local files/downloads/" # define locally!!!
 outputs <- "/Users/jtr/Library/CloudStorage/Dropbox-Univ.ofOklahoma/Joe Ripberger/Severe Weather and Society Dashboard/local files/outputs/" # define locally!!!
+location_files <- "/Users/jtr/Library/CloudStorage/Dropbox-Univ.ofOklahoma/Joe Ripberger/WX25/WX25 Raw Data/location_files/" # define locally!!!
 
 # Import Survey Data -----------------------------------------------------------
 WX17 <- read_csv(paste0(downloads, "WX17_data_wtd.csv")) |>
@@ -14,14 +16,7 @@ WX17 <- read_csv(paste0(downloads, "WX17_data_wtd.csv")) |>
     survey_year = "2017",
     survey_hazard = "WX",
     survey_language = "English",
-    p_id = as.character(p_id),
-    nws_region = case_when(
-      region == 1 ~ "Eastern Region",
-      region == 2 ~ "Southern Region",
-      region == 3 ~ "Central Region",
-      region == 4 ~ "Western Region"
-    )
-  ) |>
+    p_id = as.character(p_id)) |>
   select(-c(rec_all:rec_time)) |>  # remove because scale changes form 1-7 to 1-5 in 2018/2019
   select(-c(resp_ignore:resp_unsure)) # remove because scale changes form 1-7 to 1-5 in 2018/2019
 WX18 <- read_csv(paste0(downloads, "WX18_data_wtd.csv")) |>
@@ -168,6 +163,7 @@ survey_data <- rbindlist(list(WX17, WX18, WX19, WX20, WX21, WX22, WX23, WX24, WX
                               TC20, TC21, TC22, TC23, TC24, TC25,
                               WW21, WW22, WW23, WW24, WW25,
                               FL24, FL25), fill = TRUE, ignore.attr = TRUE)
+survey_data <- as_tibble(survey_data)
 
 # Ten of the source files store zip as a number, which drops the leading zero on
 # every 0xxxx code (CT, MA, ME, NH, NJ, RI, VT). rbindlist coerces the mix to
@@ -180,7 +176,130 @@ survey_data <- survey_data |>
                   width = 5, side = "left", pad = "0")
   )
 
-survey_data |> summarise(n = n(), n_id = n_distinct(p_id)) 
+survey_data |> summarise(n = n(), n_id = n_distinct(p_id))
+
+# Add County and CWA -----------------------------------------------------------
+# Temporary. This belongs in the individual compile files and will move there;
+# it lives here for now so the older surveys do not have to be revisited. The
+# methodology matches WX25/WX25 Raw Data/english_files/compile_dataset.R.
+# zip is already padded to five characters above, so it is not re-padded here.
+zip_to_county <- read_excel(
+  paste0(location_files, "ZIP_COUNTY_122025.xlsx"),
+  col_types = c("text", "text", "text", "text",
+                "numeric", "numeric", "numeric", "numeric")
+) |> # https://www.huduser.gov/portal/datasets/usps_crosswalk.html
+  select(ZIP, FIPS = COUNTY, RES_RATIO) |>
+  arrange(ZIP, -RES_RATIO) |>
+  distinct(ZIP, .keep_all = TRUE)
+
+survey_data <- survey_data |>
+  left_join(zip_to_county |> select(-RES_RATIO), by = c("zip" = "ZIP"))
+
+# A self-reported state that disagrees with the state implied by the zip is
+# almost always a zip entry error, and would break county-within-state nesting
+# in multilevel models. TC22 carries no state column, so a missing state means
+# the check cannot be run rather than that it failed, and those respondents are
+# kept. WX25's version has no such case and so does not need that condition.
+state_fips_names <- c(
+  "01" = "Alabama", "02" = "Alaska", "04" = "Arizona", "05" = "Arkansas",
+  "06" = "California", "08" = "Colorado", "09" = "Connecticut", "10" = "Delaware",
+  "11" = "Washington, D.C.", "12" = "Florida", "13" = "Georgia", "15" = "Hawaii",
+  "16" = "Idaho", "17" = "Illinois", "18" = "Indiana", "19" = "Iowa",
+  "20" = "Kansas", "21" = "Kentucky", "22" = "Louisiana", "23" = "Maine",
+  "24" = "Maryland", "25" = "Massachusetts", "26" = "Michigan", "27" = "Minnesota",
+  "28" = "Mississippi", "29" = "Missouri", "30" = "Montana", "31" = "Nebraska",
+  "32" = "Nevada", "33" = "New Hampshire", "34" = "New Jersey", "35" = "New Mexico",
+  "36" = "New York", "37" = "North Carolina", "38" = "North Dakota", "39" = "Ohio",
+  "40" = "Oklahoma", "41" = "Oregon", "42" = "Pennsylvania", "44" = "Rhode Island",
+  "45" = "South Carolina", "46" = "South Dakota", "47" = "Tennessee", "48" = "Texas",
+  "49" = "Utah", "50" = "Vermont", "51" = "Virginia", "53" = "Washington",
+  "54" = "West Virginia", "55" = "Wisconsin", "56" = "Wyoming")
+
+survey_data <- survey_data |>
+  mutate(state_from_zip = unname(
+    state_fips_names[str_pad(substr(FIPS, 1, 2), 2, side = "left", pad = "0")]
+  ))
+
+survey_data |>
+  filter(!is.na(state), !is.na(state_from_zip), state != state_from_zip) |>
+  count(survey_hazard, state, state_from_zip)
+
+survey_data <- survey_data |>
+  filter(is.na(state) | is.na(state_from_zip) | state == state_from_zip) |>
+  select(-state_from_zip)
+
+county_to_cwa_data <- read_csv(
+  paste0(outputs, "county_to_cwa_data.csv"),
+  col_types = cols_only(GEOID = col_character(), CWA = col_character())
+)
+
+survey_data <- survey_data |>
+  left_join(county_to_cwa_data, by = c("FIPS" = "GEOID"))
+
+# Census Margin Categories -----------------------------------------------------
+# Temporary, as above. Cells and labels match get_margins.R in acs_survey_weights
+# and the poststrat tables written by 04, so the survey and the census margins
+# share the same cells and can be joined for raking and MRP.
+survey_data <- survey_data |>
+  mutate(
+    AGE_GROUP = case_when(
+      between(age, 18, 29) ~ "(1) 18-29",
+      between(age, 30, 49) ~ "(2) 30-49",
+      between(age, 50, 64) ~ "(3) 50-64",
+      age >= 65            ~ "(4) 65+",
+      .default = NA_character_
+    ),
+    EDUC_GROUP = case_when(
+      edu %in% 1:2 ~ "(1) HS or less",
+      edu %in% 3:5 ~ "(2) Some college / 2-yr degree",
+      edu %in% 6:8 ~ "(3) 4-yr / post-graduate degree",
+      .default = NA_character_
+    ),
+    GENDER_GROUP = case_when(
+      gend == 1 ~ "(1) Male",
+      gend == 0 ~ "(2) Female",
+      .default = NA_character_
+    ),
+    INCOME_GROUP = case_when(
+      income == 1 ~ "(1) < $50,000",
+      income >= 2 ~ "(2) >= $50,000",
+      .default = NA_character_
+    ),
+    # Other spans race 3:7, not WX25's 3:6. The pre-2023 instruments carry a
+    # seventh race category that was renumbered to 6 later; without the 7 the
+    # recode would silently drop 86 respondents across eleven surveys.
+    RACE_GROUP = case_when(
+      hisp == 1                 ~ "(3) Hispanic",
+      hisp == 0 & race == 1     ~ "(1) White",
+      hisp == 0 & race == 2     ~ "(2) Black",
+      hisp == 0 & race %in% 3:7 ~ "(4) Other",
+      .default = NA_character_
+    ),
+    # Taken from FIPS rather than the self-reported state WX25 uses, because
+    # TC22 has no state column. The two agree wherever both exist, since the
+    # check above dropped the cases where they disagreed. Alaska and Hawaii are
+    # left NA because the ACS benchmarks are CONUS only.
+    STATE_NAME = unname(
+      state_fips_names[str_pad(substr(FIPS, 1, 2), 2, side = "left", pad = "0")]
+    ),
+    CENSUS_REGION = case_when(
+      STATE_NAME %in% c("Connecticut", "Maine", "Massachusetts", "New Hampshire",
+                        "Rhode Island", "Vermont", "New Jersey", "New York",
+                        "Pennsylvania") ~ "(1) Northeast",
+      STATE_NAME %in% c("Illinois", "Indiana", "Michigan", "Ohio", "Wisconsin",
+                        "Iowa", "Kansas", "Minnesota", "Missouri", "Nebraska",
+                        "North Dakota", "South Dakota") ~ "(2) Midwest",
+      STATE_NAME %in% c("Delaware", "Florida", "Georgia", "Maryland",
+                        "North Carolina", "South Carolina", "Virginia",
+                        "Washington, D.C.", "West Virginia", "Alabama",
+                        "Kentucky", "Mississippi", "Tennessee", "Arkansas",
+                        "Louisiana", "Oklahoma", "Texas") ~ "(3) South",
+      STATE_NAME %in% c("Arizona", "Colorado", "Idaho", "Montana", "Nevada",
+                        "New Mexico", "Utah", "Wyoming", "California", "Oregon",
+                        "Washington") ~ "(4) West",
+      .default = NA_character_
+    )
+  )
 
 # Alert Data -------------------------------------------------------------------
 cwa_alert_data <- read_csv(paste0(outputs, "base_cwa_alert_data.csv"))
@@ -189,8 +308,8 @@ county_alert_data <- read_csv(paste0(outputs, "base_county_alert_data.csv"))
 cwa_alert_data <- cwa_alert_data |> rename_at(vars(FLOOD:HURR), ~paste0("CWA_", .))
 county_alert_data <- county_alert_data |> rename_at(vars(COLD:TORN), ~paste0("FIPS_", .))
 
-# survey_data <- left_join(survey_data, cwa_alert_data, by = c("CWA" = "WFO")) # waiting on this
-# survey_data <- left_join(survey_data, county_alert_data, by = c("FIPS" = "GEOID")) # waiting on this
+survey_data <- left_join(survey_data, cwa_alert_data, by = c("CWA" = "WFO")) # waiting on this
+survey_data <- left_join(survey_data, county_alert_data, by = c("FIPS" = "GEOID")) # waiting on this
 
 # Census Data ------------------------------------------------------------------
 # cwa_census_data <- read_csv(paste0(outputs, "base_cwa_census_data.csv"))
@@ -266,3 +385,4 @@ cor(fl_recep_data |> select(-p_id, -fl_recep_scale), use = "pairwise.complete.ob
 psych::alpha(fl_recep_data |> select(-p_id, -fl_recep_scale), use = "pairwise.complete.obs")
 survey_data <- left_join(survey_data, fl_recep_data |> select(p_id, fl_recep_scale), by = "p_id")
 
+write_csv(survey_data, paste0(outputs, "base_survey_data_NEW.csv"))
