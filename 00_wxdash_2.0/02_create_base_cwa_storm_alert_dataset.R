@@ -5,10 +5,10 @@ library(lubridate)
 downloads <- "/Users/jtr/Library/CloudStorage/Dropbox-Univ.ofOklahoma/Joe Ripberger/Severe Weather and Society Dashboard/local files/downloads/" # define locally!!!
 outputs <- "/Users/jtr/Library/CloudStorage/Dropbox-Univ.ofOklahoma/Joe Ripberger/Severe Weather and Society Dashboard/local files/outputs/" # define locally!!!
 
-# Locate Watch/Warning Data ----------------------
+# Locate Watch/Warning Data ----------------------------------------------------
 wwa_paths <- list.files(downloads, full.names = TRUE, pattern = "_all") # source: https://mesonet.agron.iastate.edu/request/gis/watchwarn.phtml
 
-# Function to Process Watch/Warning CSVs ----------
+# Function to Process Watch/Warning CSVs ---------------------------------------
 process_wwa_summary <- function(dir_path) {
   file_year <- str_extract(basename(dir_path), "\\d{4}")
   cat("Processing file for year:", file_year, "\n")
@@ -66,15 +66,11 @@ for (path in wwa_paths) {
 combined_summary <- bind_rows(summary_list)
 
 # Aggregate final results
-result_summary <- combined_summary %>%
-  filter(!is.na(CATEGORY)) %>%
-  group_by(WFO, CATEGORY) %>%
-  summarise(day_count = sum(day_count), .groups = "drop") %>%
-  pivot_wider(
-    names_from = CATEGORY,
-    values_from = day_count,
-    values_fill = 0
-  )
+result_summary <- combined_summary |>
+  filter(!is.na(CATEGORY)) |>
+  group_by(WFO, CATEGORY) |>
+  summarise(day_count = sum(day_count), .groups = "drop") |>
+  pivot_wider(names_from = CATEGORY, values_from = day_count, values_fill = 0)
 
 # Save results
 write_csv(result_summary, paste0(outputs, "base_cwa_alert_data.csv"))

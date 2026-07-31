@@ -6,12 +6,12 @@ sf_use_s2(FALSE)
 downloads <- "/Users/jtr/Library/CloudStorage/Dropbox-Univ.ofOklahoma/Joe Ripberger/Severe Weather and Society Dashboard/local files/downloads/" # define locally!!!
 outputs <- "/Users/jtr/Library/CloudStorage/Dropbox-Univ.ofOklahoma/Joe Ripberger/Severe Weather and Society Dashboard/local files/outputs/" # define locally!!!
 
-# Import Shapefiles -----------------------------
+# Import Shapefiles ------------------------------------------------------------
 wwa_paths <- list.files(downloads, full.names = TRUE, pattern = "_all") # source: https://mesonet.agron.iastate.edu/request/gis/watchwarn.phtml
 cnty_shp <- st_read(paste0(downloads, "cb_2023_us_county_20m")) |>
   st_transform(crs = 5070)
 
-# Function to Process Shapefiles -----------------
+# Function to Process Shapefiles -----------------------------------------------
 process_wwa_year <- function(shp_path) {
   year <- str_extract(basename(shp_path), "\\d{4}")
   cat("Processing file for year:", year, "\n")
@@ -96,20 +96,20 @@ for (path in wwa_paths) {
 combined_summary <- bind_rows(all_joined)
 
 # Aggregate final results
-result_summary <- cnty_shp %>%
-  st_drop_geometry() %>%
-  select(GEOID, NAME, NAMELSAD, STUSPS, STATE_NAME) %>%
+result_summary <- cnty_shp |>
+  st_drop_geometry() |>
+  select(GEOID, NAME, NAMELSAD, STUSPS, STATE_NAME) |>
   left_join(
-    combined_summary %>%
-      drop_na(CATEGORY) %>%
-      count(GEOID, CATEGORY, name = "day_count") %>%
+    combined_summary |>
+      drop_na(CATEGORY) |>
+      count(GEOID, CATEGORY, name = "day_count") |>
       pivot_wider(
         names_from = CATEGORY,
         values_from = day_count,
         values_fill = 0
       ),
     by = "GEOID"
-  ) %>%
+  ) |>
   mutate(across(
     -c(GEOID, NAME, NAMELSAD, STUSPS, STATE_NAME),
     ~ replace_na(.x, 0)
