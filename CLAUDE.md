@@ -45,10 +45,29 @@ this standard when you are already editing it for another reason.
 - Comments beginning with an identifier, function name, acronym or URL keep
   their natural case (`# expand_grid() returns ...`, `# B19001 counts ...`).
 
+### Console output
+
+Do not wrap inspection output in `print()`, `message()` or `cat()`. Write the
+bare expression and let R auto-print it, as `05` does:
+
+```r
+cor(to_recep_data |> select(-p_id, -to_recep_scale), use = "pairwise.complete.obs")
+psych::alpha(to_recep_data |> select(-p_id, -to_recep_scale), use = "pairwise.complete.obs")
+```
+
+Three exceptions, all present in the current scripts:
+
+- `message()` plus `stop()` for guards that must halt a build — see below.
+- `cat()` for progress inside a long loop, as in `02` and `03`.
+- `|> print(n = Inf)` at the end of a pipe when a tibble would otherwise be
+  truncated, as in `01`.
+
 ### Guards over silence
 
-Data-quality checks print a one-line summary every run and stop on failure,
-rather than filtering problems away quietly. Follow the pattern in `04`:
+This is the exception to the rule above. Data-quality checks report a one-line
+summary and stop on failure, rather than filtering problems away quietly. Use
+them in build scripts that write files, not in exploratory sections. Follow the
+pattern in `04`:
 
 ```r
 message("CWA: ", nrow(cwa_check), " CWAs; max proportion error ", ...)
