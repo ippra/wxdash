@@ -19,10 +19,6 @@ state_fips_exclude <- c("02", "15", "72") # Alaska, Hawaii, Puerto Rico
 ipf_seed_constant <- 0.01
 ipf_iterations <- 1000
 ipf_tolerance <- 0.00000001
-# Totals are all scaled to ADULT_POP, so they agree up to floating-point error.
-# mipfp's default margin check (1e-10, absolute) trips on that dust for large
-# counties and silently renormalizes them to probabilities, so loosen it to a
-# sub-person tolerance: huge next to rounding error, negligible next to a person.
 ipf_margin_tolerance <- 0.001
 
 # Survey Categories -------------------------
@@ -35,7 +31,7 @@ income_levels <- c("(1) < $50,000", "(2) >= $50,000")
 # Census API Key -------------------------
 # census_api_key("YOUR KEY", install = TRUE)
 
-# 1. Cell Lookup -------------------------
+# Cell Lookup -------------------------
 cell_lookup <- expand_grid(
   AGE_GROUP = age_levels,
   GENDER_GROUP = gender_levels,
