@@ -312,19 +312,48 @@ survey_data <- left_join(survey_data, cwa_alert_data, by = c("CWA" = "WFO")) # w
 survey_data <- left_join(survey_data, county_alert_data, by = c("FIPS" = "GEOID")) # waiting on this
 
 # Census Data ------------------------------------------------------------------
-# cwa_census_data <- read_csv(paste0(outputs, "base_cwa_census_data.csv"))
-# county_census_data <- read_csv(paste0(outputs, "base_county_census_data.csv"))
+# Social Vulnerability Index. These files are the old poststrat tables, so they
+# hold one row per area per demographic cell and the SVI columns repeat; taking
+# distinct() on the area gives one row each. Only the EP_/RPL_ range is selected
+# because the files also carry alert counts under the same CWA_/FIPS_ hazard
+# names joined above, which would collide.
+cwa_census_data <- read_csv(paste0(outputs, "base_cwa_census_data.csv"),
+                            show_col_types = FALSE)
+county_census_data <- read_csv(
+  paste0(outputs, "base_county_census_data.csv"),
+  col_types = cols(FIPS = col_character(), .default = col_guess())
+)
 
-# cwa_svi_data <- cwa_census_data |>
-#   select(CWA, CWA_EP_POV150:CWA_RPL_THEMES) |>
-#   distinct(CWA, .keep_all = TRUE)
+cwa_svi_data <- cwa_census_data |>
+  select(CWA, CWA_EP_POV150:CWA_RPL_THEMES) |>
+  distinct(CWA, .keep_all = TRUE)
 
-# county_svi_data <- county_census_data |>
-#   select(FIPS, FIPS_EP_POV150:FIPS_RPL_THEMES) |>
-#   distinct(FIPS, .keep_all = TRUE)
+county_svi_data <- county_census_data |>
+  select(FIPS, FIPS_EP_POV150:FIPS_RPL_THEMES) |>
+  distinct(FIPS, .keep_all = TRUE)
 
-# survey_data <- left_join(survey_data, cwa_svi_data, by = "CWA")
-# survey_data <- left_join(survey_data, county_svi_data, by = "FIPS")
+survey_data <- survey_data |>
+  left_join(cwa_svi_data, by = "CWA") |>
+  left_join(county_svi_data, by = "FIPS")
+
+# Risk Data --------------------------------------------------------------------
+# FEMA National Risk Index. Every hazard column here shares a name with an alert
+# count joined above -- CWA_TORN, FIPS_HURR and so on -- but means something
+# different: modelled risk rather than observed warning counts. They are
+# prefixed RISK_ so the two never silently overwrite one another.
+cwa_risk_data <- read_csv(paste0(outputs, "base_cwa_risk_data.csv"),
+                          show_col_types = FALSE) |>
+  rename_with(~str_replace(.x, "^CWA_", "CWA_RISK_"), .cols = -CWA)
+
+county_risk_data <- read_csv(
+  paste0(outputs, "base_county_risk_data.csv"),
+  col_types = cols(FIPS = col_character(), .default = col_guess())
+) |>
+  rename_with(~str_replace(.x, "^FIPS_", "FIPS_RISK_"), .cols = -FIPS)
+
+survey_data <- survey_data |>
+  left_join(cwa_risk_data, by = "CWA") |>
+  left_join(county_risk_data, by = "FIPS")
 
 # Measures for Models ----------------------------------------------------------
 to_recep_data <- survey_data |>
