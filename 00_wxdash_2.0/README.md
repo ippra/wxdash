@@ -18,11 +18,13 @@ Two files, both long format, one row per area per measure:
 
 | file | rows | contents |
 |---|---|---|
-| `07_county_estimates.csv` | 12,436 | 3,109 counties × 4 measures |
-| `07_cwa_estimates.csv` | 464 | 116 CWAs × 4 measures |
+| `07_county_estimates.csv` | 74,616 | 3,109 counties × 24 measures |
+| `07_cwa_estimates.csv` | 2,784 | 116 CWAs × 24 measures |
 
-The four measures are composite scales, each the mean of several 1–5 survey
-items about receiving warning information for a hazard:
+Twenty-four measures in four families. Twelve are composite scales, each the
+mean of several 1–5 survey items; twelve are single 1–5 risk perception items.
+
+**Reception** — how well warning information reaches the respondent:
 
 | code | hazard | survey years |
 |---|---|---|
@@ -30,6 +32,18 @@ items about receiving warning information for a hazard:
 | `HU_RECEP` | tropical cyclone | 2020–2025 |
 | `WW_RECEP` | winter weather | 2021–2025 |
 | `FL_RECEP` | flood | 2024–2025 |
+
+**Comprehension** — whether they understand what warning products mean:
+`TO_SUBJ_COMP`, `HU_SUBJ_COMP`, `WW_SUBJ_COMP`, `FL_SUBJ_COMP`, over the same
+years as their reception counterparts.
+
+**Response** — what they do when a warning arrives: `TO_RESP`, `HU_RESP`,
+`WW_RESP`, `FL_RESP`.
+
+**Risk perception** — how risky they rate a hazard where they live, one item
+each: `RISK_TOR`, `RISK_HUR`, `RISK_SURGE`, `RISK_SNOW`, `RISK_ICE`,
+`RISK_COLD`, `RISK_HEAT`, `RISK_FLOOD`, `RISK_FIRE`, `RISK_DROUGHT`,
+`RISK_HAIL`, `RISK_LIGNT`.
 
 The two geographies are consistent by construction: both come from the same set
 of cell-level predictions, and `07` verifies that population-weighting a CWA's
@@ -178,11 +192,25 @@ non-missing responses.
 
 ### `06_fit_models.R`
 
-Fits one multilevel model per measure.
+Fits one multilevel model per measure, twenty-four in all.
 
 Each takes the same form: the five poststratification demographics as fixed
-effects, county and CWA warning counts for the relevant hazard, county social
-vulnerability, and random intercepts for CWA, county and survey year.
+effects, a measure of hazard exposure, county social vulnerability, and random
+intercepts for CWA, county and survey year.
+
+Hazard exposure is the county and CWA warning-day counts for the relevant
+hazard, except for drought, hail and lightning. NWS issues no warning for those
+— hail and lightning fold into severe thunderstorm — so those three carry a
+FEMA NRI annualized frequency instead, which is county-level only.
+
+NRI frequencies are not added to the models that already have alert counts.
+Against their own counts they correlate 0.92 for cold and 0.93 for hurricane,
+which is duplication rather than a second measurement.
+
+Social vulnerability enters as the overall SVI percentile rather than its four
+themes. Splitting them raises AIC in 21 of 24 models, and Theme 3 (racial and
+ethnic minority status) is the only one that reaches significance in more than
+a handful — four terms for one signal.
 
 Because county FIPS codes are globally unique, `(1 | CWA) + (1 | FIPS)` is
 already a nested hierarchy — the county effect is a deviation from its CWA, not
@@ -194,7 +222,7 @@ Their county effect shrinks to zero, so their estimate is demographic
 composition plus the CWA effect plus county covariates. That is real
 information, but it is not measurement.
 
-**Writes** `06_models/` — four `.rds` fit objects.
+**Writes** `06_models/` — twenty-four `.rds` fit objects.
 
 ### `07_predict_estimates.R`
 
@@ -266,20 +294,40 @@ Re-running only the tail is common and safe: if the survey data has not changed,
 
 ## Interpreting the estimates
 
-**The geographic signal is small.** Across the four measures, county and CWA
-random effects account for between 0.6% and 3.9% of total variance. County
-estimates span roughly 0.3 to 0.7 points on a 1–5 scale. Differences between
-counties are real but modest, and a map with a stretched color scale will
-overstate them. A common scale across measures avoids this.
+**The families differ enormously in how much they vary across counties.** County
+and CWA random effects account for this share of total variance:
+
+| family | geographic variance | county estimate spread |
+|---|---|---|
+| risk perception | 3.0 – 29.5% | 1.5 – 3.5 points |
+| comprehension | 2.8 – 7.4% | 0.8 – 1.1 points |
+| response | 1.0 – 3.1% | 0.3 – 0.6 points |
+| reception | 0.1 – 2.9% | 0.3 – 0.7 points |
+
+Risk perception is where places genuinely differ — whether you face snow or
+wildfire is largely determined by where you live. Reception and response are
+mostly individual, and their county estimates span a third of a point on a 1–5
+scale.
+
+**Use one color scale across measures.** Scaling each map to its own range makes
+a 0.33-point reception spread look as differentiated as a 3.5-point risk spread.
+They are not comparable, and a per-measure scale implies they are.
 
 **Estimates carry no uncertainty.** Given that most counties contribute no
 respondents, the interval around a county estimate is substantially wider than
 the spread between counties. Treat the estimates as central tendencies, not as
-precise county-level measurements.
+precise county-level measurements. This matters most for the reception and
+response measures, where the spread is smallest.
 
-**Two of the four models report singular fits**, reflecting the same near-zero
-geographic variance. Fixed effects and predictions remain usable; variance
-components at the boundary should not be interpreted.
+**Four models report singular fits** — a variance component pinned at zero.
+`hu_recep` has no county variance, `ww_resp` no CWA variance, and `fl_subj_comp`
+and `risk_surge` no year variance, the last because flood was fielded in only
+two years. Fixed effects and predictions remain usable; the boundary variance
+components should not be interpreted.
+
+**`ww_resp` is the one to treat cautiously.** Its CWA variance is zero while its
+year variance is the largest in the set, so it varies over time rather than
+across places — the opposite of what a map is for.
 
 ---
 

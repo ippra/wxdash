@@ -8,9 +8,10 @@ source(here::here("00_wxdash_2.0", "00_paths.R"))
 survey_data <- read.csv(paste0(outputs, "05_survey_responses.csv")) |> tibble() # use read.csv because of a parsing issue
 
 # Model Design -----------------------------------------------------------------
-# Twelve models: three constructs (reception, comprehension, response) for each
-# of four hazards. Every model has the same form, differing only in the outcome
-# and in which hazard's warning counts are carried.
+# Twenty-four models. Three constructs -- reception, comprehension, response --
+# for each of four hazards, plus twelve risk perception items. Every model has
+# the same form, differing only in the outcome and in which hazard exposure
+# measure it carries.
 #
 # FIPS is globally unique, so (1 | CWA) + (1 | FIPS) is already a nested
 # hierarchy: the county term is a deviation from its CWA, not a competing
