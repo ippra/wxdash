@@ -333,7 +333,7 @@ county_covariates <- read_csv(
 
 survey_data <- left_join(survey_data, county_covariates, by = "FIPS")
 
-# Measures for Models ----------------------------------------------------------
+# Reception Scales -------------------------------------------------------------
 to_recep_data <- survey_data |>
   filter(survey_hazard == "WX", survey_year != "2017") |>
   select(p_id, rec_all, rec_soon, rec_miss, rec_area, rec_time) |>
@@ -345,7 +345,7 @@ to_recep_data <- survey_data |>
     # (positive). Do not make the reverse-coding uniform across the four scales.
     across(c(rec_miss, rec_area, rec_time), ~6 - .),
     to_recep_scale = if_else(
-      rowSums(!is.na(pick(rec_all, rec_soon, rec_miss, rec_area, rec_time))) >= 4,
+      rowSums(!is.na(pick(rec_all, rec_soon, rec_miss, rec_area, rec_time))) >= 2,
       rowMeans(pick(rec_all, rec_soon, rec_miss, rec_area, rec_time), na.rm = TRUE),
       NA_real_))
 cor(to_recep_data |> select(-p_id, -to_recep_scale), use = "pairwise.complete.obs")
@@ -359,7 +359,7 @@ hu_recep_data <- survey_data |>
     # rec_time is positively worded in TC/WW/FL, so it is not reversed here.
     across(c(rec_miss, rec_screen), ~6 - .),
     hu_recep_scale = if_else(
-      rowSums(!is.na(pick(rec_most, rec_miss, rec_time, rec_screen))) >= 3,
+      rowSums(!is.na(pick(rec_most, rec_miss, rec_time, rec_screen))) >= 2,
       rowMeans(pick(rec_most, rec_miss, rec_time, rec_screen), na.rm = TRUE),
       NA_real_))
 cor(hu_recep_data |> select(-p_id, -hu_recep_scale), use = "pairwise.complete.obs")
@@ -372,7 +372,7 @@ ww_recep_data <- survey_data |>
   mutate(
     across(c(rec_miss, rec_screen), ~6 - .),
     ww_recep_scale = if_else(
-      rowSums(!is.na(pick(rec_most, rec_miss, rec_time, rec_screen))) >= 3,
+      rowSums(!is.na(pick(rec_most, rec_miss, rec_time, rec_screen))) >= 2,
       rowMeans(pick(rec_most, rec_miss, rec_time, rec_screen), na.rm = TRUE),
       NA_real_))
 cor(ww_recep_data |> select(-p_id, -ww_recep_scale), use = "pairwise.complete.obs")
@@ -391,5 +391,109 @@ fl_recep_data <- survey_data |>
 cor(fl_recep_data |> select(-p_id, -fl_recep_scale), use = "pairwise.complete.obs")
 psych::alpha(fl_recep_data |> select(-p_id, -fl_recep_scale), use = "pairwise.complete.obs")
 survey_data <- left_join(survey_data, fl_recep_data |> select(p_id, fl_recep_scale), by = "p_id")
+
+# Comprehension Scales ---------------------------------------------------------
+
+to_subj_comp_data <- survey_data |>
+  filter(survey_hazard == "WX", survey_year != "2017") |>
+  select(p_id, alert_und, tor_watchwarn_und, tor_map_und, tor_radar_und, svr_watchwarn_und) |>
+  mutate(
+    to_subj_comp_scale = if_else(
+      rowSums(!is.na(pick(alert_und, tor_watchwarn_und, tor_map_und, tor_radar_und, svr_watchwarn_und))) >= 2,
+      rowMeans(pick(alert_und, tor_watchwarn_und, tor_map_und, tor_radar_und, svr_watchwarn_und), na.rm = TRUE),
+      NA_real_))
+cor(to_subj_comp_data |> select(-p_id, -to_subj_comp_scale), use = "pairwise.complete.obs")
+psych::alpha(to_subj_comp_data |> select(-p_id, -to_subj_comp_scale), use = "pairwise.complete.obs")
+survey_data <- left_join(survey_data, to_subj_comp_data |> select(p_id, to_subj_comp_scale), by = "p_id")
+
+hu_subj_comp_data <- survey_data |>
+  filter(survey_hazard == "TC") |>
+  select(p_id, alert_und, huralerts, hur_map_und, tor_watchwarn_und, flood_watchwarn_und, flood_srg_und) |>
+  mutate(
+    hu_subj_comp_scale = if_else(
+      rowSums(!is.na(pick(alert_und, huralerts, hur_map_und, tor_watchwarn_und, flood_watchwarn_und, flood_srg_und))) >= 2,
+      rowMeans(pick(alert_und, huralerts, hur_map_und, tor_watchwarn_und, flood_watchwarn_und, flood_srg_und), na.rm = TRUE),
+      NA_real_))
+cor(hu_subj_comp_data |> select(-p_id, -hu_subj_comp_scale), use = "pairwise.complete.obs")
+psych::alpha(hu_subj_comp_data |> select(-p_id, -hu_subj_comp_scale), use = "pairwise.complete.obs")
+survey_data <- left_join(survey_data, hu_subj_comp_data |> select(p_id, hu_subj_comp_scale), by = "p_id")
+
+ww_subj_comp_data <- survey_data |>
+  filter(survey_hazard == "WW") |>
+  select(p_id, wwalerts, ice_warn_und, bliz_warn_und, cold_warn_und, squall_warn_und) |>
+  mutate(
+    ww_subj_comp_scale = if_else(
+      rowSums(!is.na(pick(wwalerts, ice_warn_und, bliz_warn_und, cold_warn_und, squall_warn_und))) >= 2,
+      rowMeans(pick(wwalerts, ice_warn_und, bliz_warn_und, cold_warn_und, squall_warn_und), na.rm = TRUE),
+      NA_real_))
+cor(ww_subj_comp_data |> select(-p_id, -ww_subj_comp_scale), use = "pairwise.complete.obs")
+psych::alpha(ww_subj_comp_data |> select(-p_id, -ww_subj_comp_scale), use = "pairwise.complete.obs")
+survey_data <- left_join(survey_data, ww_subj_comp_data |> select(p_id, ww_subj_comp_scale), by = "p_id")
+
+fl_subj_comp_data <- survey_data |>
+  filter(survey_hazard == "FL") |>
+  select(p_id, alert_und, flood_wwa_und, flash_wwa_und, flood_srg_und, flood_map_und) |>
+  mutate(
+    fl_subj_comp_scale = if_else(
+      rowSums(!is.na(pick(alert_und, flood_wwa_und, flash_wwa_und, flood_srg_und, flood_map_und))) >= 2,
+      rowMeans(pick(alert_und, flood_wwa_und, flash_wwa_und, flood_srg_und, flood_map_und), na.rm = TRUE),
+      NA_real_))
+cor(fl_subj_comp_data |> select(-p_id, -fl_subj_comp_scale), use = "pairwise.complete.obs")
+psych::alpha(fl_subj_comp_data |> select(-p_id, -fl_subj_comp_scale), use = "pairwise.complete.obs")
+survey_data <- left_join(survey_data, fl_subj_comp_data |> select(p_id, fl_subj_comp_scale), by = "p_id")
+
+# Response Scales --------------------------------------------------------------
+
+to_resp_data <- survey_data |>
+  filter(survey_hazard == "WX", survey_year != "2017") |>
+  select(p_id, resp_ignore, resp_prot, resp_busy, resp_unsure) |>
+  mutate(
+    across(c(resp_ignore, resp_busy, resp_unsure), ~6 - .),
+    to_resp_scale = if_else(
+      rowSums(!is.na(pick(resp_ignore, resp_prot, resp_busy, resp_unsure))) >= 2,
+      rowMeans(pick(resp_ignore, resp_prot, resp_busy, resp_unsure), na.rm = TRUE),
+      NA_real_))
+cor(to_resp_data |> select(-p_id, -to_resp_scale), use = "pairwise.complete.obs")
+psych::alpha(to_resp_data |> select(-p_id, -to_resp_scale), use = "pairwise.complete.obs")
+survey_data <- left_join(survey_data, to_resp_data |> select(p_id, to_resp_scale), by = "p_id")
+
+hu_resp_data <- survey_data |>
+  filter(survey_hazard == "TC") |>
+  select(p_id, resp_ignore, resp_usually, resp_more) |>
+  mutate(
+    across(c(resp_ignore, resp_usually, resp_more), ~6 - .),
+    hu_resp_scale = if_else(
+      rowSums(!is.na(pick(resp_ignore, resp_usually, resp_more))) >= 2,
+      rowMeans(pick(resp_ignore, resp_usually, resp_more), na.rm = TRUE),
+      NA_real_))
+cor(hu_resp_data |> select(-p_id, -hu_resp_scale), use = "pairwise.complete.obs")
+psych::alpha(hu_resp_data |> select(-p_id, -hu_resp_scale), use = "pairwise.complete.obs")
+survey_data <- left_join(survey_data, hu_resp_data |> select(p_id, hu_resp_scale), by = "p_id")
+
+ww_resp_data <- survey_data |>
+  filter(survey_hazard == "WW") |>
+  select(p_id, resp_ignore, resp_always, resp_more) |>
+  mutate(
+    across(c(resp_ignore, resp_more), ~6 - .),
+    ww_resp_scale = if_else(
+      rowSums(!is.na(pick(resp_ignore, resp_always, resp_more))) >= 2,
+      rowMeans(pick(resp_ignore, resp_always, resp_more), na.rm = TRUE),
+      NA_real_))
+cor(ww_resp_data |> select(-p_id, -ww_resp_scale), use = "pairwise.complete.obs")
+psych::alpha(ww_resp_data |> select(-p_id, -ww_resp_scale), use = "pairwise.complete.obs")
+survey_data <- left_join(survey_data, ww_resp_data |> select(p_id, ww_resp_scale), by = "p_id")
+
+fl_resp_data <- survey_data |>
+  filter(survey_hazard == "FL") |>
+  select(p_id, resp_ignore_fl, resp_always_fl, resp_know_fl) |>
+  mutate(
+    across(c(resp_ignore_fl, resp_know_fl), ~6 - .),
+    fl_resp_scale = if_else(
+      rowSums(!is.na(pick(resp_ignore_fl, resp_always_fl, resp_know_fl))) >= 2,
+      rowMeans(pick(resp_ignore_fl, resp_always_fl, resp_know_fl), na.rm = TRUE),
+      NA_real_))
+cor(fl_resp_data |> select(-p_id, -fl_resp_scale), use = "pairwise.complete.obs")
+psych::alpha(fl_resp_data |> select(-p_id, -fl_resp_scale), use = "pairwise.complete.obs")
+survey_data <- left_join(survey_data, fl_resp_data |> select(p_id, fl_resp_scale), by = "p_id")
 
 write_csv(survey_data, paste0(outputs, "05_survey_responses.csv"))
