@@ -11,6 +11,26 @@ hu_recep_fit <- read_rds(paste0(outputs, "06_models/hu_recep_fit.rds"))
 ww_recep_fit <- read_rds(paste0(outputs, "06_models/ww_recep_fit.rds"))
 fl_recep_fit <- read_rds(paste0(outputs, "06_models/fl_recep_fit.rds"))
 
+to_subj_comp_fit <- read_rds(paste0(outputs, "06_models/to_subj_comp_fit.rds"))
+hu_subj_comp_fit <- read_rds(paste0(outputs, "06_models/hu_subj_comp_fit.rds"))
+ww_subj_comp_fit <- read_rds(paste0(outputs, "06_models/ww_subj_comp_fit.rds"))
+fl_subj_comp_fit <- read_rds(paste0(outputs, "06_models/fl_subj_comp_fit.rds"))
+
+to_resp_fit <- read_rds(paste0(outputs, "06_models/to_resp_fit.rds"))
+hu_resp_fit <- read_rds(paste0(outputs, "06_models/hu_resp_fit.rds"))
+ww_resp_fit <- read_rds(paste0(outputs, "06_models/ww_resp_fit.rds"))
+fl_resp_fit <- read_rds(paste0(outputs, "06_models/fl_resp_fit.rds"))
+
+risk_tor_fit <- read_rds(paste0(outputs, "06_models/risk_tor_fit.rds"))
+risk_hur_fit <- read_rds(paste0(outputs, "06_models/risk_hur_fit.rds"))
+risk_surge_fit <- read_rds(paste0(outputs, "06_models/risk_surge_fit.rds"))
+risk_snow_fit <- read_rds(paste0(outputs, "06_models/risk_snow_fit.rds"))
+risk_ice_fit <- read_rds(paste0(outputs, "06_models/risk_ice_fit.rds"))
+risk_cold_fit <- read_rds(paste0(outputs, "06_models/risk_cold_fit.rds"))
+risk_heat_fit <- read_rds(paste0(outputs, "06_models/risk_heat_fit.rds"))
+risk_flood_fit <- read_rds(paste0(outputs, "06_models/risk_flood_fit.rds"))
+risk_fire_fit <- read_rds(paste0(outputs, "06_models/risk_fire_fit.rds"))
+
 # Poststratification Frame -----------------------------------------------------
 # The table from 04 carries demographics and population but none of the area
 # covariates, which are county- and CWA-level and would repeat across all 192
