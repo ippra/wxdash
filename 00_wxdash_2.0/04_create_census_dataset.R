@@ -7,8 +7,7 @@ options(scipen = 999)
 options(max.print = 99999)
 "%ni%" <- Negate("%in%")
 
-downloads <- "/Users/jtr/Library/CloudStorage/Dropbox-Univ.ofOklahoma/Joe Ripberger/Severe Weather and Society Dashboard/local files/downloads/" # define locally!!!
-outputs <- "/Users/jtr/Library/CloudStorage/Dropbox-Univ.ofOklahoma/Joe Ripberger/Severe Weather and Society Dashboard/local files/outputs/" # define locally!!!
+source(here::here("00_wxdash_2.0", "00_paths.R"))
 
 # Project Settings -------------------------------------------------------------
 acs_year <- 2024 # ACS 5-year release

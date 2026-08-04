@@ -6,9 +6,7 @@ library(tidyverse)
 # psych is required. It is called as psych::alpha() rather than attached,
 # because attaching it masks several dplyr and ggplot2 functions.
 
-downloads <- "/Users/jtr/Library/CloudStorage/Dropbox-Univ.ofOklahoma/Joe Ripberger/Severe Weather and Society Dashboard/local files/downloads/" # define locally!!!
-outputs <- "/Users/jtr/Library/CloudStorage/Dropbox-Univ.ofOklahoma/Joe Ripberger/Severe Weather and Society Dashboard/local files/outputs/" # define locally!!!
-location_files <- "/Users/jtr/Library/CloudStorage/Dropbox-Univ.ofOklahoma/Joe Ripberger/WX25/WX25 Raw Data/location_files/" # define locally!!!
+source(here::here("00_wxdash_2.0", "00_paths.R"))
 
 # Import Survey Data -----------------------------------------------------------
 WX17 <- read_csv(paste0(downloads, "WX17_data_wtd.csv")) |>

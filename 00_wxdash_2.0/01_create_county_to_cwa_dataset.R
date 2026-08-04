@@ -1,8 +1,7 @@
 library(tidyverse)
 library(sf)
 
-downloads <- "/Users/jtr/Library/CloudStorage/Dropbox-Univ.ofOklahoma/Joe Ripberger/Severe Weather and Society Dashboard/local files/downloads/" # define locally!!!
-outputs <- "/Users/jtr/Library/CloudStorage/Dropbox-Univ.ofOklahoma/Joe Ripberger/Severe Weather and Society Dashboard/local files/outputs/" # define locally!!!
+source(here::here("00_wxdash_2.0", "00_paths.R"))
 
 # Import Shapefiles ------------------------------------------------------------
 cnty_shp <- st_read(paste0(downloads, "cb_2025_us_county_20m")) |> st_transform(crs = 5070)

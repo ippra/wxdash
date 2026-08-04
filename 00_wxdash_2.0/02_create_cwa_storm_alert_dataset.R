@@ -2,8 +2,7 @@ library(tidyverse)
 library(data.table)
 library(lubridate)
 
-downloads <- "/Users/jtr/Library/CloudStorage/Dropbox-Univ.ofOklahoma/Joe Ripberger/Severe Weather and Society Dashboard/local files/downloads/" # define locally!!!
-outputs <- "/Users/jtr/Library/CloudStorage/Dropbox-Univ.ofOklahoma/Joe Ripberger/Severe Weather and Society Dashboard/local files/outputs/" # define locally!!!
+source(here::here("00_wxdash_2.0", "00_paths.R"))
 
 # Locate Watch/Warning Data ----------------------------------------------------
 wwa_paths <- list.files(downloads, full.names = TRUE, pattern = "_all") # source: https://mesonet.agron.iastate.edu/request/gis/watchwarn.phtml

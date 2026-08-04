@@ -1,7 +1,7 @@
 library(tidyverse)
 library(lme4)
 
-outputs <- "/Users/jtr/Library/CloudStorage/Dropbox-Univ.ofOklahoma/Joe Ripberger/Severe Weather and Society Dashboard/local files/outputs/" # define locally!!!
+source(here::here("00_wxdash_2.0", "00_paths.R"))
 
 # Model Fits -------------------------------------------------------------------
 # Saved by 06. Reading them rather than refitting keeps these estimates tied to

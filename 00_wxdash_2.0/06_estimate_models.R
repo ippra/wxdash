@@ -1,8 +1,7 @@
 library(tidyverse)
 library(lme4)
 
-downloads <- "/Users/jtr/Library/CloudStorage/Dropbox-Univ.ofOklahoma/Joe Ripberger/Severe Weather and Society Dashboard/local files/downloads/" # define locally!!!
-outputs <- "/Users/jtr/Library/CloudStorage/Dropbox-Univ.ofOklahoma/Joe Ripberger/Severe Weather and Society Dashboard/local files/outputs/" # define locally!!!
+source(here::here("00_wxdash_2.0", "00_paths.R"))
 
 # Survey Data ------------------------------------------------------------------
 survey_data <- read.csv(paste0(outputs, "base_survey_data_NEW.csv")) |> tibble() # use read.csv because of a parsing issue
