@@ -1,169 +1,303 @@
-# wxdash 2.0 — Base Dataset Pipeline
+# Severe Weather and Society Dashboard — Estimation Pipeline
 
-Data-preparation pipeline for the **Severe Weather and Society Dashboard (wxdash 2.0)**.
-The scripts in this folder build a set of "base" datasets that are joined together into a
-single respondent-level survey file (`base_survey_data.csv`) used by the dashboard and
-downstream analysis.
+This directory builds small-area estimates of how the American public receives
+severe weather information. It combines the Severe Weather and Society Survey
+with Census microdata, National Weather Service warning records, and county
+social and hazard indicators, then uses multilevel regression and
+poststratification (MRP) to produce an estimate for every county in the
+contiguous United States and every NWS County Warning Area (CWA).
 
-This README is the working record of **what each script does** and **where the project
-stands**. Update the [Status & Progress](#status--progress) section as work moves forward.
-
----
-
-## How the pipeline fits together
-
-Each script reads raw inputs from a local `downloads/` folder and writes derived tables to
-a local `outputs/` folder (both live in Dropbox — see [Setup](#setup)). Later scripts consume
-the outputs of earlier ones. Script `05` is the final join that produces the master file.
-
-```
-                       ┌─────────────────────────────┐
- raw shapefiles ─────► │ 01  county → CWA crosswalk   │ ─► county_to_cwa_data.csv ─┐
-                       └─────────────────────────────┘                            │
- IEM watch/warn ─────► ┌─────────────────────────────┐                            │
-   (CSV)               │ 02  CWA alert counts         │ ─► base_cwa_alert_data.csv ┤
-                       └─────────────────────────────┘                            │
- IEM watch/warn ─────► ┌─────────────────────────────┐                            │
-   (shapefiles)        │ 03  county alert counts      │ ─► base_county_alert_data.csv
-                       └─────────────────────────────┘                            │
- Census + SVI + ─────► ┌─────────────────────────────┐   base_cwa_census_data.csv │
- storm events          │ 04  census / SVI / events    │ ─► base_county_census_data.csv
-                       └─────────────────────────────┘                            │
- Survey CSVs + ──────► ┌─────────────────────────────┐                            │
- ZIP crosswalk +       │ 05  base survey dataset      │ ◄──────────────────────────┘
- risk + all above      │     (final join + IRT scores)│ ─► base_survey_data.csv
-                       └─────────────────────────────┘
-```
+The pipeline is seven R scripts, run in order. Each output file is named for the
+script that wrote it, so `03_county_alert_counts.csv` came from `03`.
 
 ---
 
-## Scripts
+## What it produces
 
-### `01_create_county_to_cwa_dataset.R`
-Builds the **county → NWS County Warning Area (CWA)** crosswalk that ties respondents and
-county data to a forecast office.
+Two files, both long format, one row per area per measure:
 
-- **Inputs:** US county shapefile (`cb_2023_us_county_500k`); NWS CWA/county shapefile (`c_18mr25`).
-- **Logic:** keeps the first CWA for counties spanning multiple CWAs; hard-codes fixes for
-  Florida Keys (`12087` → `KEY`), Connecticut planning regions, and Hawaii's Kalawao County.
-- **Output:** `county_to_cwa_data.csv`
+| file | rows | contents |
+|---|---|---|
+| `07_county_estimates.csv` | 12,436 | 3,109 counties × 4 measures |
+| `07_cwa_estimates.csv` | 464 | 116 CWAs × 4 measures |
 
-### `02_create_cwa_storm_alert_dataset.R`
-Counts, per **CWA**, the number of **days** with at least one watch/warning issued, by hazard
-category.
+The four measures are composite scales, each the mean of several 1–5 survey
+items about receiving warning information for a hazard:
 
-- **Inputs:** Iowa Environmental Mesonet (IEM) archived watch/warning **CSVs** (files matching `*_all`).
-  Source: <https://mesonet.agron.iastate.edu/request/gis/watchwarn.phtml>
-- **Logic:** maps VTEC `PHENOM` codes to categories (HEAT, COLD, SNOW, ICE, TORN, WIND, FLOOD,
-  HURR, FIRE); dedupes to one row per WFO/category/day; pivots to wide counts. Reads the CSV
-  attributes (not the ~1 GB shapefile) for speed.
-- **Output:** `base_cwa_alert_data.csv`
+| code | hazard | survey years |
+|---|---|---|
+| `TO_RECEP` | tornado | 2018–2025 |
+| `HU_RECEP` | tropical cyclone | 2020–2025 |
+| `WW_RECEP` | winter weather | 2021–2025 |
+| `FL_RECEP` | flood | 2024–2025 |
 
-### `03_create_county_storm_alert_dataset.R`
-Same idea as `02` but at the **county (FIPS)** level, using the polygon geometry to intersect
-warnings with counties.
+The two geographies are consistent by construction: both come from the same set
+of cell-level predictions, and `07` verifies that population-weighting a CWA's
+county estimates reproduces its CWA estimate.
 
-- **Inputs:** IEM watch/warning **shapefiles** (`*_all`); US county shapefile (`cb_2023_us_county_20m`).
-- **Logic:** spatially intersects each warning polygon with counties (`st_intersects`), maps
-  `PHENOM` → category, dedupes to county/category/day, counts, and pivots wide. Processes one
-  year-file at a time with `gc()` to manage memory.
-- **Output:** `base_county_alert_data.csv`
+---
 
-### `04_create_census_dataset.R`
-Builds **demographic, storm-event, and social-vulnerability** context at both county and CWA
-levels.
+## Data sources
 
-- **Inputs:** Census population estimates (`cc-est2021-all.csv`, `cc-est2022-all.csv`, downloaded
-  over HTTP); CDC/ATSDR **SVI 2020** (`SVI_2020_US_county.csv`); NWS county shapefile (`c_03mr20`);
-  **storm-event tables** (`base_cwa_storm_data.csv`, `base_county_storm_data.csv`).
-- **Logic:** collapses population into 36 demographic cells (sex × 3 age groups × Hispanic ×
-  3 race groups), computes cell proportions; joins storm events; population-weights county SVI
-  up to CWA level. Excludes Alaska & Hawaii from census. Prefixes CWA/county columns.
-- **Outputs:** `base_cwa_census_data.csv`, `base_county_census_data.csv`
-- ⚠️ **Dependency gap:** reads `base_cwa_storm_data.csv` / `base_county_storm_data.csv`, which
-  **no script in this folder produces** (see [Known gaps](#known-gaps--todos)).
+All inputs are downloaded manually into a single `downloads/` directory, except
+the ACS county tables, which are pulled through the Census API at run time. No
+data is stored in this repository.
+
+### Survey data
+
+| files | source |
+|---|---|
+| `WX17`–`WX25`, `TC20`–`TC25`, `WW21`–`WW25`, `FL24`–`FL25`, each `_data_wtd.csv` (22 files) | [Severe Weather and Society Survey, Harvard Dataverse](https://dataverse.harvard.edu/dataverse/wxsurvey) |
+
+Prefixes denote the survey instrument: `WX` general severe weather, `TC`
+tropical cyclone, `WW` winter weather, `FL` flood. The `_wtd` suffix indicates
+the released file carries survey weights. 35,600 respondents across 22 waves
+survive processing.
+
+### Geography
+
+| file | source |
+|---|---|
+| `c_16ap26/` — NWS county and CWA boundaries | [weather.gov/gis/Counties](https://www.weather.gov/gis/Counties) |
+| `cb_2025_us_county_20m/` — Census county boundaries, 20m generalization | [Census cartographic boundary files](https://www.census.gov/geographies/mapping-files/time-series/geo/cartographic-boundary.html) |
+| `ZIP_COUNTY_122025.xlsx` — ZIP to county crosswalk | [HUD USPS crosswalk](https://www.huduser.gov/portal/datasets/usps_crosswalk.html) |
+
+The HUD crosswalk is read from a separate directory, not from `downloads/`. See
+**Configuration**.
+
+### Warning records
+
+| files | source |
+|---|---|
+| `2010_all/` … `2025_all/` — archived watch, warning and advisory polygons, one directory per year | [Iowa Environmental Mesonet, Iowa State University](https://mesonet.agron.iastate.edu/request/gis/watchwarn.phtml) |
+
+By far the largest inputs, roughly 1.3 GB per year. VTEC phenomenon codes are
+grouped into nine hazard categories following
+[pyIEM's VTEC reference](https://github.com/akrherz/pyIEM/blob/main/src/pyiem/nws/vtec.py).
+
+### Population and area characteristics
+
+| file | source |
+|---|---|
+| `usa_00035.xml` + `usa_00035.dat.gz` — ACS microdata | [IPUMS USA](https://usa.ipums.org), collection `usa`, sample `us2024c` (2020–2024 ACS 5-year) |
+| ACS county tables B01001, B03002, B15001, B19001 | Census API via `tidycensus`, `acs5`, year 2024 |
+| `SVI_2022_US_county.csv` — Social Vulnerability Index | [CDC/ATSDR SVI](https://www.atsdr.cdc.gov/place-health/php/svi/) |
+| `NRI_Table_Counties/NRI_Table_Counties.csv` — National Risk Index | [FEMA NRI](https://hazards.fema.gov/nri/data-resources), December 2025 release |
+
+The IPUMS extract definition is reproduced as a comment in `04`, so the exact
+extract can be rebuilt. IPUMS assigns a new number to each extract, so the
+filename in the script must be updated to match when it is.
+
+---
+
+## The scripts
+
+### `00_paths.R`
+
+Defines `downloads`, `outputs` and `location_files`. Every other script sources
+it, so directory locations exist in exactly one place. Not a pipeline step.
+
+### `01_create_county_cwa_crosswalk.R`
+
+Assigns each county to one NWS County Warning Area.
+
+Counties spanning multiple CWAs are assigned to the first listed. Two
+corrections are applied by hand: mainland Monroe County, Florida is assigned to
+Key West, and Connecticut's nine planning regions are assigned individually,
+because the NWS county file still uses Connecticut's retired county geography
+and would otherwise leave the entire state unmatched.
+
+**Writes** `01_county_cwa_crosswalk.csv` — 3,222 counties and their CWA.
+
+### `02_create_cwa_alert_dataset.R`
+
+Counts warning days per CWA per hazard, 2010–2025.
+
+Reads the attribute CSV inside each yearly archive rather than the shapefile,
+since the CWA is already an attribute and no geometry is needed. Counts are
+distinct **days**, not events, so a hazard producing twenty warnings in one day
+counts once.
+
+**Writes** `02_cwa_alert_counts.csv` — 124 CWAs × 9 hazard categories.
+
+### `03_create_county_alert_dataset.R`
+
+The same counts at county level.
+
+This one needs geometry: warning polygons are intersected against county
+boundaries in EPSG:5070 (Albers equal area), so a county is credited when any
+part of it was covered. This is the slowest script in the pipeline by a wide
+margin.
+
+**Writes** `03_county_alert_counts.csv` — 3,222 counties × 9 hazard categories.
+
+### `04_create_poststrat_dataset.R`
+
+Builds the poststratification table: how many adults of each demographic type
+live in each county.
+
+Demographics are crossed into 192 cells — 4 age groups × 2 genders × 4 race and
+ethnicity groups × 3 education levels × 2 income levels. County totals for age,
+gender, race and education come from ACS tables, but the ACS does not publish
+the full 192-way cross. Iterative proportional fitting reconciles a state-level
+seed built from IPUMS microdata against the county margins, producing cell
+counts that agree with every published marginal.
+
+The donor microdata is filtered to adults in households, excluding group
+quarters. Alaska, Hawaii and Puerto Rico are excluded throughout.
+
+The script also assembles the county covariate lookup from SVI and NRI. This is
+kept separate from the poststratification table rather than joined into it: the
+table has 192 rows per county, so joining 607 columns would store every county
+value 192 times and turn a 106 MB file into roughly 3.5 GB.
+
+Convergence is checked across all 3,109 counties, and the script halts if any
+county fails to converge or has no CWA.
+
+**Writes** `04_county_poststrat_2024.csv` (596,928 rows) and
+`04_county_covariates.csv` (3,232 counties × 608 columns).
 
 ### `05_create_survey_dataset.R`
-The **master join**: assembles all survey waves and enriches each respondent with geography,
-alerts, risk, census, and IRT-based latent measures.
 
-- **Inputs:** weighted survey CSVs by hazard/year:
-  - **WX** (severe weather / tornado) 2017–2025
-  - **TC** (tropical cyclone) 2020–2025
-  - **WW** (winter weather) 2021–2025
-  - **FL** (flood) 2024–2025
-  - HUD ZIP→county crosswalk (`ZIP_COUNTY_032025.xlsx`); outputs of `01`–`04`; FEMA risk tables
-    (`base_cwa_risk_data.csv`, `base_county_risk_data.csv`).
-- **Logic:** stacks all waves (`rbindlist(fill = TRUE)`, with per-wave type/scale fixes);
-  geocodes ZIP → FIPS (highest residential ratio) → CWA; recodes demographics; left-joins alert,
-  FEMA risk, and census/SVI tables; fits IRT models (`ltm`/`grm`) for reception, subjective &
-  objective comprehension, response, trust, readiness, and efficacy, joining factor scores by `p_id`.
-- **Output:** `base_survey_data.csv`
-- ⚠️ **Dependency gap:** reads `base_cwa_risk_data.csv` / `base_county_risk_data.csv`, which
-  **no script in this folder produces** (see [Known gaps](#known-gaps--todos)).
+Combines the 22 survey waves into one respondent-level file.
+
+Waves differ in structure, so this script reconciles them. ZIP codes stored as
+numbers lose their leading zero and are repaired to five digits; several columns
+change type between years. Respondents are assigned a county from their ZIP
+using the HUD crosswalk, taking the county with the largest residential share,
+then a CWA from that county. Where a respondent's self-reported state disagrees
+with the state implied by their ZIP, the record is dropped as a data-entry
+error.
+
+Demographics are recoded to match the poststratification categories exactly.
+Alert counts and county covariates are joined on. The four reception scales are
+built last, each the mean of its items, requiring a minimum number of
+non-missing responses.
+
+**Writes** `05_survey_responses.csv` — 35,600 respondents.
+
+### `06_fit_models.R`
+
+Fits one multilevel model per measure.
+
+Each takes the same form: the five poststratification demographics as fixed
+effects, county and CWA warning counts for the relevant hazard, county social
+vulnerability, and random intercepts for CWA, county and survey year.
+
+Because county FIPS codes are globally unique, `(1 | CWA) + (1 | FIPS)` is
+already a nested hierarchy — the county effect is a deviation from its CWA, not
+a competing effect. A county with two respondents shrinks toward its CWA rather
+than toward the national mean.
+
+Between 42% and 75% of counties have no respondents, depending on the measure.
+Their county effect shrinks to zero, so their estimate is demographic
+composition plus the CWA effect plus county covariates. That is real
+information, but it is not measurement.
+
+**Writes** `06_models/` — four `.rds` fit objects.
+
+### `07_predict_estimates.R`
+
+Predicts every cell and aggregates to both geographies.
+
+The area covariates the models need are joined onto the poststratification table
+here rather than stored in it. A missing predictor would silently produce `NA`
+and drop that county, so the script checks for gaps before predicting.
+
+The survey-year random effect is excluded from prediction, so estimates describe
+an average year rather than whichever years a hazard happened to be fielded in.
+Counties and CWAs absent from the fit are allowed as new levels.
+
+County estimates are the population-weighted mean over the 192 cells; CWA
+estimates are the population-weighted mean over every cell in the CWA. Both come
+from the same prediction set, and the script verifies that rebuilding the CWA
+figures from county estimates reproduces them to within 1e-8.
+
+**Writes** `07_county_estimates.csv` and `07_cwa_estimates.csv`.
 
 ---
 
-## Setup
+## Configuration
 
-Each script defines two local paths at the top — set these to your machine:
+Data lives outside the repository. Two roots are set once per machine in
+`~/.Renviron`:
 
-```r
-downloads <- ".../Severe Weather and Society Dashboard/local files/downloads/"
-outputs   <- ".../Severe Weather and Society Dashboard/local files/outputs/"
+```
+WXDASH_LOCAL="/path/to/local files"
+WX25_RAW="/path/to/WX25 Raw Data"
 ```
 
-**Note:** scripts `01`–`04` currently point at `/Users/josephripberger/Dropbox (Univ. of Oklahoma)/...`
-while `05` points at `/Users/jtr/Library/CloudStorage/Dropbox-Univ.ofOklahoma/...`. These should be
-reconciled (ideally to a single config sourced by all scripts).
+`00_paths.R` derives three directories from these:
 
-**Packages:** `tidyverse`, `data.table`, `sf`, `lubridate`, `readxl`, `car`, `ltm`, `tigris`.
+- `downloads/` — everything listed under **Data sources**
+- `outputs/` — everything the pipeline writes
+- `location_files/` — the HUD ZIP crosswalk, which lives with the survey
+  project rather than this one
 
-**Run order:** `01` → `02` → `03` → `04` → `05` (plus the missing storm/risk scripts before `04`/`05`).
+`.Renviron` is read once at R startup, so restart the session after editing it.
+A Census API key is required as `CENSUS_API_KEY`, and an IPUMS key as
+`IPUMS_API_KEY` if you rebuild the microdata extract.
 
----
-
-## Data dependency map
-
-| Script | Reads (key derived inputs) | Writes |
-|--------|----------------------------|--------|
-| 01 | shapefiles only | `county_to_cwa_data.csv` |
-| 02 | IEM watch/warn CSVs | `base_cwa_alert_data.csv` |
-| 03 | IEM watch/warn shapefiles, county shp | `base_county_alert_data.csv` |
-| 04 | Census/SVI, `base_*_storm_data.csv` ⚠️ | `base_cwa_census_data.csv`, `base_county_census_data.csv` |
-| 05 | survey CSVs, `county_to_cwa_data.csv`, `base_*_alert_data.csv`, `base_*_census_data.csv`, `base_*_risk_data.csv` ⚠️ | `base_survey_data.csv` |
+**Packages:** `tidyverse`, `data.table`, `sf`, `lubridate`, `readxl`, `here`,
+`ipumsr`, `tidycensus`, `mipfp`, `lme4`, `psych`.
 
 ---
 
-## Known gaps / TODOs
+## Running it
 
-- [ ] **Missing storm-event script** — `04` consumes `base_cwa_storm_data.csv` /
-      `base_county_storm_data.csv`; the script that builds these is not in this folder.
-- [ ] **Missing FEMA risk script** — `05` consumes `base_cwa_risk_data.csv` /
-      `base_county_risk_data.csv`; the script that builds these is not in this folder.
-- [ ] **Reconcile `downloads`/`outputs` paths** across `01`–`05` (currently two different users/roots).
-- [ ] **`05` line 1:** `library(ltm)` is commented out, but `grm()` / `ltm()` are called bare —
-      confirm `ltm` is attached or uncomment.
-- [ ] **`05` lines 55 & 62:** likely copy-paste bug — `rand_eve = as.character(rand_aft)` sets
-      `rand_eve` from `rand_aft` (should be `rand_eve`).
-- [ ] **`04` SVI:** consider updating hard-coded fixes / revisit RIO ARRIBA (35039) imputation
-      (currently commented out).
+```r
+source("01_create_county_cwa_crosswalk.R")
+source("02_create_cwa_alert_dataset.R")
+source("03_create_county_alert_dataset.R")   # slowest by far
+source("04_create_poststrat_dataset.R")
+source("05_create_survey_dataset.R")
+source("06_fit_models.R")
+source("07_predict_estimates.R")
+```
+
+`01` through `03` depend only on downloaded data and can run in any order. `04`
+needs `01`. `05` needs `01` through `04`. `06` needs `05`. `07` needs `02`,
+`03`, `04` and `06`.
+
+Re-running only the tail is common and safe: if the survey data has not changed,
+`06` and `07` can be run on their own.
 
 ---
 
-## Status & Progress
+## Interpreting the estimates
 
-Update this as the project moves. Suggested convention: ✅ done · 🚧 in progress · ⬜ not started.
+**The geographic signal is small.** Across the four measures, county and CWA
+random effects account for between 0.6% and 3.9% of total variance. County
+estimates span roughly 0.3 to 0.7 points on a 1–5 scale. Differences between
+counties are real but modest, and a map with a stretched color scale will
+overstate them. A common scale across measures avoids this.
 
-| Component | Status | Notes |
-|-----------|--------|-------|
-| 01 county → CWA crosswalk | ✅ | Stable. |
-| 02 CWA alert counts | ✅ | Stable. |
-| 03 county alert counts | ✅ | Stable. |
-| 04 census / SVI / events | 🚧 | Depends on missing storm script; SVI still on 2020 data. |
-| 05 base survey dataset | 🚧 | Added 2025 waves (WX/TC/WW/FL); depends on missing risk script. |
-| Storm-event script | ⬜ | Not in repo. |
-| FEMA risk script | ⬜ | Not in repo. |
+**Estimates carry no uncertainty.** Given that most counties contribute no
+respondents, the interval around a county estimate is substantially wider than
+the spread between counties. Treat the estimates as central tendencies, not as
+precise county-level measurements.
 
-### Changelog
-- **2026-07-20** — Added 2025 survey waves (WX25, TC25, WW25, FL25) to script `05`. Created this README.
+**Two of the four models report singular fits**, reflecting the same near-zero
+geographic variance. Fixed effects and predictions remain usable; variance
+components at the boundary should not be interpreted.
+
+---
+
+## Data quality notes
+
+Several checks are built in and will halt a run rather than produce a quietly
+wrong file: IPF convergence across all counties, counties with no CWA, missing
+predictors before prediction, and agreement between the county and CWA
+estimates.
+
+Two recurring hazards are worth knowing when extending this code.
+
+**Sparse columns and type guessing.** Several NRI hazard columns are empty for
+thousands of rows before their first value. R's default 1,000-row type guess
+reads them as logical and silently converts every real value to `NA`. Reads of
+those files pass `guess_max = Inf`.
+
+**Vintage alignment.** The county boundaries, the CWA crosswalk, the alert
+counts and the ACS release must all describe the same set of counties.
+Connecticut's 2022 shift from counties to planning regions is the case that
+breaks most often.

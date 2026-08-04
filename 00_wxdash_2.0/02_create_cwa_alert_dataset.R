@@ -72,4 +72,4 @@ result_summary <- combined_summary |>
   pivot_wider(names_from = CATEGORY, values_from = day_count, values_fill = 0)
 
 # Save results
-write_csv(result_summary, paste0(outputs, "base_cwa_alert_data.csv"))
+write_csv(result_summary, paste0(outputs, "02_cwa_alert_counts.csv"))

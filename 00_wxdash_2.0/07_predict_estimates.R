@@ -6,10 +6,10 @@ source(here::here("00_wxdash_2.0", "00_paths.R"))
 # Model Fits -------------------------------------------------------------------
 # Saved by 06. Reading them rather than refitting keeps these estimates tied to
 # the models that were reviewed there.
-to_recep_fit <- read_rds(paste0(outputs, "models/to_recep_fit.rds"))
-hu_recep_fit <- read_rds(paste0(outputs, "models/hu_recep_fit.rds"))
-ww_recep_fit <- read_rds(paste0(outputs, "models/ww_recep_fit.rds"))
-fl_recep_fit <- read_rds(paste0(outputs, "models/fl_recep_fit.rds"))
+to_recep_fit <- read_rds(paste0(outputs, "06_models/to_recep_fit.rds"))
+hu_recep_fit <- read_rds(paste0(outputs, "06_models/hu_recep_fit.rds"))
+ww_recep_fit <- read_rds(paste0(outputs, "06_models/ww_recep_fit.rds"))
+fl_recep_fit <- read_rds(paste0(outputs, "06_models/fl_recep_fit.rds"))
 
 # Poststratification Frame -----------------------------------------------------
 # The table from 04 carries demographics and population but none of the area
@@ -20,7 +20,7 @@ fl_recep_fit <- read_rds(paste0(outputs, "models/fl_recep_fit.rds"))
 # them explicitly avoids the leftover hazard columns arriving unprefixed, which
 # is what happens in 05 where COLD, FIRE and WIND fall outside the rename range.
 poststrat_data <- read_csv(
-  paste0(outputs, "base_county_poststrat_data_2024.csv"),
+  paste0(outputs, "04_county_poststrat_2024.csv"),
   col_types = cols(
     STATE = col_character(),
     COUNTY = col_character(),
@@ -31,21 +31,21 @@ poststrat_data <- read_csv(
 )
 
 county_alert_data <- read_csv(
-  paste0(outputs, "base_county_alert_data.csv"),
+  paste0(outputs, "03_county_alert_counts.csv"),
   col_types = cols(GEOID = col_character(), .default = col_guess())
 ) |>
   select(FIPS = GEOID, TORN, HURR, SNOW, ICE, FLOOD) |>
   rename_with(~paste0("FIPS_", .x), .cols = -FIPS)
 
 cwa_alert_data <- read_csv(
-  paste0(outputs, "base_cwa_alert_data.csv"),
+  paste0(outputs, "02_cwa_alert_counts.csv"),
   col_types = cols(WFO = col_character(), .default = col_guess())
 ) |>
   select(CWA = WFO, TORN, HURR, SNOW, ICE, FLOOD) |>
   rename_with(~paste0("CWA_", .x), .cols = -CWA)
 
 county_covariates <- read_csv(
-  paste0(outputs, "base_county_covariates.csv"),
+  paste0(outputs, "04_county_covariates.csv"),
   col_types = cols(FIPS = col_character(), .default = col_guess()),
   guess_max = Inf
 ) |> # guess_max as in 04: four NRI *_EVNTS columns start empty
@@ -81,7 +81,7 @@ message("Poststrat frame: ", format(nrow(poststrat_data), big.mark = ","),
 # Cell Predictions -------------------------------------------------------------
 # re.form keeps the CWA and county effects and drops (1 | survey_year), so each
 # estimate describes an average year rather than whichever years that outcome
-# happened to be fielded in -- tornado ran 2017-2025, flood only 2024-2025.
+# happened to be fielded in -- tornado ran 2018-2025, flood only 2024-2025.
 #
 # allow.new.levels covers counties and CWAs with no respondents. Their random
 # effect is zero, leaving demographic composition plus the area covariates.
@@ -148,5 +148,5 @@ if (max(agreement_check$gap) > 1e-8) {
 # Output Data ------------------------------------------------------------------
 # Long format, one row per area per measure, matching what the previous
 # generation of prediction scripts produced.
-write_csv(county_estimates, paste0(outputs, "base_county_estimates.csv"))
-write_csv(cwa_estimates, paste0(outputs, "base_cwa_estimates.csv"))
+write_csv(county_estimates, paste0(outputs, "07_county_estimates.csv"))
+write_csv(cwa_estimates, paste0(outputs, "07_cwa_estimates.csv"))

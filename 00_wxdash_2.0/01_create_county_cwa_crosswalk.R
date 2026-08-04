@@ -34,4 +34,4 @@ cnty_shp <- cnty_shp |>
 )
 
 # Write Data -------------------------------------------------------------------
-write_csv(cnty_shp |> st_drop_geometry(), paste0(outputs, "county_to_cwa_data.csv"))
+write_csv(cnty_shp |> st_drop_geometry(), paste0(outputs, "01_county_cwa_crosswalk.csv"))

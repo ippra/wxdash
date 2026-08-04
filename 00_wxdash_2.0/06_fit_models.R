@@ -4,7 +4,7 @@ library(lme4)
 source(here::here("00_wxdash_2.0", "00_paths.R"))
 
 # Survey Data ------------------------------------------------------------------
-survey_data <- read.csv(paste0(outputs, "base_survey_data_NEW.csv")) |> tibble() # use read.csv because of a parsing issue
+survey_data <- read.csv(paste0(outputs, "05_survey_responses.csv")) |> tibble() # use read.csv because of a parsing issue
 
 # survey_data$scale_risk_heat <- scale(survey_data$risk_heat)
 # survey_data$scale_risk_drought <- scale(survey_data$risk_drought)
@@ -121,9 +121,9 @@ summary(fl_recep_fit)
 # Output Models ----------------------------------------------------------------
 # 07 reads these rather than refitting, so the published estimates stay tied to
 # the fits reviewed above and 07 stays cheap to re-run.
-dir.create(paste0(outputs, "models"), showWarnings = FALSE)
+dir.create(paste0(outputs, "06_models"), showWarnings = FALSE)
 
-write_rds(to_recep_fit, paste0(outputs, "models/to_recep_fit.rds"))
-write_rds(hu_recep_fit, paste0(outputs, "models/hu_recep_fit.rds"))
-write_rds(ww_recep_fit, paste0(outputs, "models/ww_recep_fit.rds"))
-write_rds(fl_recep_fit, paste0(outputs, "models/fl_recep_fit.rds"))
+write_rds(to_recep_fit, paste0(outputs, "06_models/to_recep_fit.rds"))
+write_rds(hu_recep_fit, paste0(outputs, "06_models/hu_recep_fit.rds"))
+write_rds(ww_recep_fit, paste0(outputs, "06_models/ww_recep_fit.rds"))
+write_rds(fl_recep_fit, paste0(outputs, "06_models/fl_recep_fit.rds"))

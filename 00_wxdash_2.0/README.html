@@ -85,217 +85,266 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 
 
-<section id="wxdash-2.0-base-dataset-pipeline" class="level1">
-<h1>wxdash 2.0 — Base Dataset Pipeline</h1>
-<p>Data-preparation pipeline for the <strong>Severe Weather and Society Dashboard (wxdash 2.0)</strong>. The scripts in this folder build a set of “base” datasets that are joined together into a single respondent-level survey file (<code>base_survey_data.csv</code>) used by the dashboard and downstream analysis.</p>
-<p>This README is the working record of <strong>what each script does</strong> and <strong>where the project stands</strong>. Update the <a href="#status--progress">Status &amp; Progress</a> section as work moves forward.</p>
+<section id="severe-weather-and-society-dashboard-estimation-pipeline" class="level1">
+<h1>Severe Weather and Society Dashboard — Estimation Pipeline</h1>
+<p>This directory builds small-area estimates of how the American public receives severe weather information. It combines the Severe Weather and Society Survey with Census microdata, National Weather Service warning records, and county social and hazard indicators, then uses multilevel regression and poststratification (MRP) to produce an estimate for every county in the contiguous United States and every NWS County Warning Area (CWA).</p>
+<p>The pipeline is seven R scripts, run in order. Each output file is named for the script that wrote it, so <code>03_county_alert_counts.csv</code> came from <code>03</code>.</p>
 <hr>
-<section id="how-the-pipeline-fits-together" class="level2">
-<h2 class="anchored" data-anchor-id="how-the-pipeline-fits-together">How the pipeline fits together</h2>
-<p>Each script reads raw inputs from a local <code>downloads/</code> folder and writes derived tables to a local <code>outputs/</code> folder (both live in Dropbox — see <a href="#setup">Setup</a>). Later scripts consume the outputs of earlier ones. Script <code>05</code> is the final join that produces the master file.</p>
-<pre><code>                       ┌─────────────────────────────┐
- raw shapefiles ─────► │ 01  county → CWA crosswalk   │ ─► county_to_cwa_data.csv ─┐
-                       └─────────────────────────────┘                            │
- IEM watch/warn ─────► ┌─────────────────────────────┐                            │
-   (CSV)               │ 02  CWA alert counts         │ ─► base_cwa_alert_data.csv ┤
-                       └─────────────────────────────┘                            │
- IEM watch/warn ─────► ┌─────────────────────────────┐                            │
-   (shapefiles)        │ 03  county alert counts      │ ─► base_county_alert_data.csv
-                       └─────────────────────────────┘                            │
- Census + SVI + ─────► ┌─────────────────────────────┐   base_cwa_census_data.csv │
- storm events          │ 04  census / SVI / events    │ ─► base_county_census_data.csv
-                       └─────────────────────────────┘                            │
- Survey CSVs + ──────► ┌─────────────────────────────┐                            │
- ZIP crosswalk +       │ 05  base survey dataset      │ ◄──────────────────────────┘
- risk + all above      │     (final join + IRT scores)│ ─► base_survey_data.csv
-                       └─────────────────────────────┘</code></pre>
+<section id="what-it-produces" class="level2">
+<h2 class="anchored" data-anchor-id="what-it-produces">What it produces</h2>
+<p>Two files, both long format, one row per area per measure:</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>file</th>
+<th>rows</th>
+<th>contents</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>07_county_estimates.csv</code></td>
+<td>12,436</td>
+<td>3,109 counties × 4 measures</td>
+</tr>
+<tr class="even">
+<td><code>07_cwa_estimates.csv</code></td>
+<td>464</td>
+<td>116 CWAs × 4 measures</td>
+</tr>
+</tbody>
+</table>
+<p>The four measures are composite scales, each the mean of several 1–5 survey items about receiving warning information for a hazard:</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>code</th>
+<th>hazard</th>
+<th>survey years</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>TO_RECEP</code></td>
+<td>tornado</td>
+<td>2017–2025</td>
+</tr>
+<tr class="even">
+<td><code>HU_RECEP</code></td>
+<td>tropical cyclone</td>
+<td>2020–2025</td>
+</tr>
+<tr class="odd">
+<td><code>WW_RECEP</code></td>
+<td>winter weather</td>
+<td>2021–2025</td>
+</tr>
+<tr class="even">
+<td><code>FL_RECEP</code></td>
+<td>flood</td>
+<td>2024–2025</td>
+</tr>
+</tbody>
+</table>
+<p>The two geographies are consistent by construction: both come from the same set of cell-level predictions, and <code>07</code> verifies that population-weighting a CWA’s county estimates reproduces its CWA estimate.</p>
 <hr>
 </section>
-<section id="scripts" class="level2">
-<h2 class="anchored" data-anchor-id="scripts">Scripts</h2>
-<section id="create_county_to_cwa_dataset.r" class="level3">
-<h3 class="anchored" data-anchor-id="create_county_to_cwa_dataset.r"><code>01_create_county_to_cwa_dataset.R</code></h3>
-<p>Builds the <strong>county → NWS County Warning Area (CWA)</strong> crosswalk that ties respondents and county data to a forecast office.</p>
-<ul>
-<li><strong>Inputs:</strong> US county shapefile (<code>cb_2023_us_county_500k</code>); NWS CWA/county shapefile (<code>c_18mr25</code>).</li>
-<li><strong>Logic:</strong> keeps the first CWA for counties spanning multiple CWAs; hard-codes fixes for Florida Keys (<code>12087</code> → <code>KEY</code>), Connecticut planning regions, and Hawaii’s Kalawao County.</li>
-<li><strong>Output:</strong> <code>county_to_cwa_data.csv</code></li>
-</ul>
+<section id="data-sources" class="level2">
+<h2 class="anchored" data-anchor-id="data-sources">Data sources</h2>
+<p>All inputs are downloaded manually into a single <code>downloads/</code> directory, except the ACS county tables, which are pulled through the Census API at run time. No data is stored in this repository.</p>
+<section id="survey-data" class="level3">
+<h3 class="anchored" data-anchor-id="survey-data">Survey data</h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>files</th>
+<th>source</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>WX17</code>–<code>WX25</code>, <code>TC20</code>–<code>TC25</code>, <code>WW21</code>–<code>WW25</code>, <code>FL24</code>–<code>FL25</code>, each <code>_data_wtd.csv</code> (22 files)</td>
+<td><a href="https://dataverse.harvard.edu/dataverse/wxsurvey">Severe Weather and Society Survey, Harvard Dataverse</a></td>
+</tr>
+</tbody>
+</table>
+<p>Prefixes denote the survey instrument: <code>WX</code> general severe weather, <code>TC</code> tropical cyclone, <code>WW</code> winter weather, <code>FL</code> flood. The <code>_wtd</code> suffix indicates the released file carries survey weights. 35,600 respondents across 22 waves survive processing.</p>
 </section>
-<section id="create_cwa_storm_alert_dataset.r" class="level3">
-<h3 class="anchored" data-anchor-id="create_cwa_storm_alert_dataset.r"><code>02_create_cwa_storm_alert_dataset.R</code></h3>
-<p>Counts, per <strong>CWA</strong>, the number of <strong>days</strong> with at least one watch/warning issued, by hazard category.</p>
-<ul>
-<li><strong>Inputs:</strong> Iowa Environmental Mesonet (IEM) archived watch/warning <strong>CSVs</strong> (files matching <code>*_all</code>). Source: <a href="https://mesonet.agron.iastate.edu/request/gis/watchwarn.phtml" class="uri">https://mesonet.agron.iastate.edu/request/gis/watchwarn.phtml</a></li>
-<li><strong>Logic:</strong> maps VTEC <code>PHENOM</code> codes to categories (HEAT, COLD, SNOW, ICE, TORN, WIND, FLOOD, HURR, FIRE); dedupes to one row per WFO/category/day; pivots to wide counts. Reads the CSV attributes (not the ~1 GB shapefile) for speed.</li>
-<li><strong>Output:</strong> <code>base_cwa_alert_data.csv</code></li>
-</ul>
+<section id="geography" class="level3">
+<h3 class="anchored" data-anchor-id="geography">Geography</h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>file</th>
+<th>source</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>c_16ap26/</code> — NWS county and CWA boundaries</td>
+<td><a href="https://www.weather.gov/gis/Counties">weather.gov/gis/Counties</a></td>
+</tr>
+<tr class="even">
+<td><code>cb_2025_us_county_20m/</code> — Census county boundaries, 20m generalization</td>
+<td><a href="https://www.census.gov/geographies/mapping-files/time-series/geo/cartographic-boundary.html">Census cartographic boundary files</a></td>
+</tr>
+<tr class="odd">
+<td><code>ZIP_COUNTY_122025.xlsx</code> — ZIP to county crosswalk</td>
+<td><a href="https://www.huduser.gov/portal/datasets/usps_crosswalk.html">HUD USPS crosswalk</a></td>
+</tr>
+</tbody>
+</table>
+<p>The HUD crosswalk is read from a separate directory, not from <code>downloads/</code>. See <strong>Configuration</strong>.</p>
 </section>
-<section id="create_county_storm_alert_dataset.r" class="level3">
-<h3 class="anchored" data-anchor-id="create_county_storm_alert_dataset.r"><code>03_create_county_storm_alert_dataset.R</code></h3>
-<p>Same idea as <code>02</code> but at the <strong>county (FIPS)</strong> level, using the polygon geometry to intersect warnings with counties.</p>
-<ul>
-<li><strong>Inputs:</strong> IEM watch/warning <strong>shapefiles</strong> (<code>*_all</code>); US county shapefile (<code>cb_2023_us_county_20m</code>).</li>
-<li><strong>Logic:</strong> spatially intersects each warning polygon with counties (<code>st_intersects</code>), maps <code>PHENOM</code> → category, dedupes to county/category/day, counts, and pivots wide. Processes one year-file at a time with <code>gc()</code> to manage memory.</li>
-<li><strong>Output:</strong> <code>base_county_alert_data.csv</code></li>
-</ul>
+<section id="warning-records" class="level3">
+<h3 class="anchored" data-anchor-id="warning-records">Warning records</h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>files</th>
+<th>source</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>2010_all/</code> … <code>2025_all/</code> — archived watch, warning and advisory polygons, one directory per year</td>
+<td><a href="https://mesonet.agron.iastate.edu/request/gis/watchwarn.phtml">Iowa Environmental Mesonet, Iowa State University</a></td>
+</tr>
+</tbody>
+</table>
+<p>By far the largest inputs, roughly 1.3 GB per year. VTEC phenomenon codes are grouped into nine hazard categories following <a href="https://github.com/akrherz/pyIEM/blob/main/src/pyiem/nws/vtec.py">pyIEM’s VTEC reference</a>.</p>
 </section>
-<section id="create_census_dataset.r" class="level3">
-<h3 class="anchored" data-anchor-id="create_census_dataset.r"><code>04_create_census_dataset.R</code></h3>
-<p>Builds <strong>demographic, storm-event, and social-vulnerability</strong> context at both county and CWA levels.</p>
-<ul>
-<li><strong>Inputs:</strong> Census population estimates (<code>cc-est2021-all.csv</code>, <code>cc-est2022-all.csv</code>, downloaded over HTTP); CDC/ATSDR <strong>SVI 2020</strong> (<code>SVI_2020_US_county.csv</code>); NWS county shapefile (<code>c_03mr20</code>); <strong>storm-event tables</strong> (<code>base_cwa_storm_data.csv</code>, <code>base_county_storm_data.csv</code>).</li>
-<li><strong>Logic:</strong> collapses population into 36 demographic cells (sex × 3 age groups × Hispanic × 3 race groups), computes cell proportions; joins storm events; population-weights county SVI up to CWA level. Excludes Alaska &amp; Hawaii from census. Prefixes CWA/county columns.</li>
-<li><strong>Outputs:</strong> <code>base_cwa_census_data.csv</code>, <code>base_county_census_data.csv</code></li>
-<li>⚠️ <strong>Dependency gap:</strong> reads <code>base_cwa_storm_data.csv</code> / <code>base_county_storm_data.csv</code>, which <strong>no script in this folder produces</strong> (see <a href="#known-gaps--todos">Known gaps</a>).</li>
-</ul>
+<section id="population-and-area-characteristics" class="level3">
+<h3 class="anchored" data-anchor-id="population-and-area-characteristics">Population and area characteristics</h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>file</th>
+<th>source</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>usa_00035.xml</code> + <code>usa_00035.dat.gz</code> — ACS microdata</td>
+<td><a href="https://usa.ipums.org">IPUMS USA</a>, collection <code>usa</code>, sample <code>us2024c</code> (2020–2024 ACS 5-year)</td>
+</tr>
+<tr class="even">
+<td>ACS county tables B01001, B03002, B15001, B19001</td>
+<td>Census API via <code>tidycensus</code>, <code>acs5</code>, year 2024</td>
+</tr>
+<tr class="odd">
+<td><code>SVI_2022_US_county.csv</code> — Social Vulnerability Index</td>
+<td><a href="https://www.atsdr.cdc.gov/place-health/php/svi/">CDC/ATSDR SVI</a></td>
+</tr>
+<tr class="even">
+<td><code>NRI_Table_Counties/NRI_Table_Counties.csv</code> — National Risk Index</td>
+<td><a href="https://hazards.fema.gov/nri/data-resources">FEMA NRI</a>, December 2025 release</td>
+</tr>
+</tbody>
+</table>
+<p>The IPUMS extract definition is reproduced as a comment in <code>04</code>, so the exact extract can be rebuilt. IPUMS assigns a new number to each extract, so the filename in the script must be updated to match when it is.</p>
+<hr>
+</section>
+</section>
+<section id="the-scripts" class="level2">
+<h2 class="anchored" data-anchor-id="the-scripts">The scripts</h2>
+<section id="paths.r" class="level3">
+<h3 class="anchored" data-anchor-id="paths.r"><code>00_paths.R</code></h3>
+<p>Defines <code>downloads</code>, <code>outputs</code> and <code>location_files</code>. Every other script sources it, so directory locations exist in exactly one place. Not a pipeline step.</p>
+</section>
+<section id="create_county_cwa_crosswalk.r" class="level3">
+<h3 class="anchored" data-anchor-id="create_county_cwa_crosswalk.r"><code>01_create_county_cwa_crosswalk.R</code></h3>
+<p>Assigns each county to one NWS County Warning Area.</p>
+<p>Counties spanning multiple CWAs are assigned to the first listed. Two corrections are applied by hand: mainland Monroe County, Florida is assigned to Key West, and Connecticut’s nine planning regions are assigned individually, because the NWS county file still uses Connecticut’s retired county geography and would otherwise leave the entire state unmatched.</p>
+<p><strong>Writes</strong> <code>01_county_cwa_crosswalk.csv</code> — 3,222 counties and their CWA.</p>
+</section>
+<section id="create_cwa_alert_dataset.r" class="level3">
+<h3 class="anchored" data-anchor-id="create_cwa_alert_dataset.r"><code>02_create_cwa_alert_dataset.R</code></h3>
+<p>Counts warning days per CWA per hazard, 2010–2025.</p>
+<p>Reads the attribute CSV inside each yearly archive rather than the shapefile, since the CWA is already an attribute and no geometry is needed. Counts are distinct <strong>days</strong>, not events, so a hazard producing twenty warnings in one day counts once.</p>
+<p><strong>Writes</strong> <code>02_cwa_alert_counts.csv</code> — 124 CWAs × 9 hazard categories.</p>
+</section>
+<section id="create_county_alert_dataset.r" class="level3">
+<h3 class="anchored" data-anchor-id="create_county_alert_dataset.r"><code>03_create_county_alert_dataset.R</code></h3>
+<p>The same counts at county level.</p>
+<p>This one needs geometry: warning polygons are intersected against county boundaries in EPSG:5070 (Albers equal area), so a county is credited when any part of it was covered. This is the slowest script in the pipeline by a wide margin.</p>
+<p><strong>Writes</strong> <code>03_county_alert_counts.csv</code> — 3,222 counties × 9 hazard categories.</p>
+</section>
+<section id="create_poststrat_dataset.r" class="level3">
+<h3 class="anchored" data-anchor-id="create_poststrat_dataset.r"><code>04_create_poststrat_dataset.R</code></h3>
+<p>Builds the poststratification table: how many adults of each demographic type live in each county.</p>
+<p>Demographics are crossed into 192 cells — 4 age groups × 2 genders × 4 race and ethnicity groups × 3 education levels × 2 income levels. County totals for age, gender, race and education come from ACS tables, but the ACS does not publish the full 192-way cross. Iterative proportional fitting reconciles a state-level seed built from IPUMS microdata against the county margins, producing cell counts that agree with every published marginal.</p>
+<p>The donor microdata is filtered to adults in households, excluding group quarters. Alaska, Hawaii and Puerto Rico are excluded throughout.</p>
+<p>The script also assembles the county covariate lookup from SVI and NRI. This is kept separate from the poststratification table rather than joined into it: the table has 192 rows per county, so joining 507 columns would store every county value 192 times and turn a 106 MB file into roughly 3.5 GB.</p>
+<p>Convergence is checked across all 3,109 counties, and the script halts if any county fails to converge or has no CWA.</p>
+<p><strong>Writes</strong> <code>04_county_poststrat_2024.csv</code> (596,928 rows) and <code>04_county_covariates.csv</code> (3,232 counties × 508 columns).</p>
 </section>
 <section id="create_survey_dataset.r" class="level3">
 <h3 class="anchored" data-anchor-id="create_survey_dataset.r"><code>05_create_survey_dataset.R</code></h3>
-<p>The <strong>master join</strong>: assembles all survey waves and enriches each respondent with geography, alerts, risk, census, and IRT-based latent measures.</p>
+<p>Combines the 22 survey waves into one respondent-level file.</p>
+<p>Waves differ in structure, so this script reconciles them. ZIP codes stored as numbers lose their leading zero and are repaired to five digits; several columns change type between years. Respondents are assigned a county from their ZIP using the HUD crosswalk, taking the county with the largest residential share, then a CWA from that county. Where a respondent’s self-reported state disagrees with the state implied by their ZIP, the record is dropped as a data-entry error.</p>
+<p>Demographics are recoded to match the poststratification categories exactly. Alert counts and county covariates are joined on. The four reception scales are built last, each the mean of its items, requiring a minimum number of non-missing responses.</p>
+<p><strong>Writes</strong> <code>05_survey_responses.csv</code> — 35,600 respondents.</p>
+</section>
+<section id="fit_models.r" class="level3">
+<h3 class="anchored" data-anchor-id="fit_models.r"><code>06_fit_models.R</code></h3>
+<p>Fits one multilevel model per measure.</p>
+<p>Each takes the same form: the five poststratification demographics as fixed effects, county and CWA warning counts for the relevant hazard, county social vulnerability, and random intercepts for CWA, county and survey year.</p>
+<p>Because county FIPS codes are globally unique, <code>(1 | CWA) + (1 | FIPS)</code> is already a nested hierarchy — the county effect is a deviation from its CWA, not a competing effect. A county with two respondents shrinks toward its CWA rather than toward the national mean.</p>
+<p>Between 42% and 75% of counties have no respondents, depending on the measure. Their county effect shrinks to zero, so their estimate is demographic composition plus the CWA effect plus county covariates. That is real information, but it is not measurement.</p>
+<p><strong>Writes</strong> <code>06_models/</code> — four <code>.rds</code> fit objects.</p>
+</section>
+<section id="predict_estimates.r" class="level3">
+<h3 class="anchored" data-anchor-id="predict_estimates.r"><code>07_predict_estimates.R</code></h3>
+<p>Predicts every cell and aggregates to both geographies.</p>
+<p>The area covariates the models need are joined onto the poststratification table here rather than stored in it. A missing predictor would silently produce <code>NA</code> and drop that county, so the script checks for gaps before predicting.</p>
+<p>The survey-year random effect is excluded from prediction, so estimates describe an average year rather than whichever years a hazard happened to be fielded in. Counties and CWAs absent from the fit are allowed as new levels.</p>
+<p>County estimates are the population-weighted mean over the 192 cells; CWA estimates are the population-weighted mean over every cell in the CWA. Both come from the same prediction set, and the script verifies that rebuilding the CWA figures from county estimates reproduces them to within 1e-8.</p>
+<p><strong>Writes</strong> <code>07_county_estimates.csv</code> and <code>07_cwa_estimates.csv</code>.</p>
+<hr>
+</section>
+</section>
+<section id="configuration" class="level2">
+<h2 class="anchored" data-anchor-id="configuration">Configuration</h2>
+<p>Data lives outside the repository. Two roots are set once per machine in <code>~/.Renviron</code>:</p>
+<pre><code>WXDASH_LOCAL="/path/to/local files"
+WX25_RAW="/path/to/WX25 Raw Data"</code></pre>
+<p><code>00_paths.R</code> derives three directories from these:</p>
 <ul>
-<li><strong>Inputs:</strong> weighted survey CSVs by hazard/year:
-<ul>
-<li><strong>WX</strong> (severe weather / tornado) 2017–2025</li>
-<li><strong>TC</strong> (tropical cyclone) 2020–2025</li>
-<li><strong>WW</strong> (winter weather) 2021–2025</li>
-<li><strong>FL</strong> (flood) 2024–2025</li>
-<li>HUD ZIP→county crosswalk (<code>ZIP_COUNTY_032025.xlsx</code>); outputs of <code>01</code>–<code>04</code>; FEMA risk tables (<code>base_cwa_risk_data.csv</code>, <code>base_county_risk_data.csv</code>).</li>
-</ul></li>
-<li><strong>Logic:</strong> stacks all waves (<code>rbindlist(fill = TRUE)</code>, with per-wave type/scale fixes); geocodes ZIP → FIPS (highest residential ratio) → CWA; recodes demographics; left-joins alert, FEMA risk, and census/SVI tables; fits IRT models (<code>ltm</code>/<code>grm</code>) for reception, subjective &amp; objective comprehension, response, trust, readiness, and efficacy, joining factor scores by <code>p_id</code>.</li>
-<li><strong>Output:</strong> <code>base_survey_data.csv</code></li>
-<li>⚠️ <strong>Dependency gap:</strong> reads <code>base_cwa_risk_data.csv</code> / <code>base_county_risk_data.csv</code>, which <strong>no script in this folder produces</strong> (see <a href="#known-gaps--todos">Known gaps</a>).</li>
+<li><code>downloads/</code> — everything listed under <strong>Data sources</strong></li>
+<li><code>outputs/</code> — everything the pipeline writes</li>
+<li><code>location_files/</code> — the HUD ZIP crosswalk, which lives with the survey project rather than this one</li>
 </ul>
+<p><code>.Renviron</code> is read once at R startup, so restart the session after editing it. A Census API key is required as <code>CENSUS_API_KEY</code>, and an IPUMS key as <code>IPUMS_API_KEY</code> if you rebuild the microdata extract.</p>
+<p><strong>Packages:</strong> <code>tidyverse</code>, <code>data.table</code>, <code>sf</code>, <code>lubridate</code>, <code>readxl</code>, <code>here</code>, <code>ipumsr</code>, <code>tidycensus</code>, <code>mipfp</code>, <code>lme4</code>, <code>psych</code>.</p>
 <hr>
 </section>
-</section>
-<section id="setup" class="level2">
-<h2 class="anchored" data-anchor-id="setup">Setup</h2>
-<p>Each script defines two local paths at the top — set these to your machine:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>downloads <span class="ot">&lt;-</span> <span class="st">".../Severe Weather and Society Dashboard/local files/downloads/"</span></span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>outputs   <span class="ot">&lt;-</span> <span class="st">".../Severe Weather and Society Dashboard/local files/outputs/"</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p><strong>Note:</strong> scripts <code>01</code>–<code>04</code> currently point at <code>/Users/josephripberger/Dropbox (Univ. of Oklahoma)/...</code> while <code>05</code> points at <code>/Users/jtr/Library/CloudStorage/Dropbox-Univ.ofOklahoma/...</code>. These should be reconciled (ideally to a single config sourced by all scripts).</p>
-<p><strong>Packages:</strong> <code>tidyverse</code>, <code>data.table</code>, <code>sf</code>, <code>lubridate</code>, <code>readxl</code>, <code>car</code>, <code>ltm</code>, <code>tigris</code>.</p>
-<p><strong>Run order:</strong> <code>01</code> → <code>02</code> → <code>03</code> → <code>04</code> → <code>05</code> (plus the missing storm/risk scripts before <code>04</code>/<code>05</code>).</p>
+<section id="running-it" class="level2">
+<h2 class="anchored" data-anchor-id="running-it">Running it</h2>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">source</span>(<span class="st">"01_create_county_cwa_crosswalk.R"</span>)</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="fu">source</span>(<span class="st">"02_create_cwa_alert_dataset.R"</span>)</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="fu">source</span>(<span class="st">"03_create_county_alert_dataset.R"</span>)   <span class="co"># slowest by far</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="fu">source</span>(<span class="st">"04_create_poststrat_dataset.R"</span>)</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="fu">source</span>(<span class="st">"05_create_survey_dataset.R"</span>)</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="fu">source</span>(<span class="st">"06_fit_models.R"</span>)</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="fu">source</span>(<span class="st">"07_predict_estimates.R"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><code>01</code> through <code>03</code> depend only on downloaded data and can run in any order. <code>04</code> needs <code>01</code>. <code>05</code> needs <code>01</code> through <code>04</code>. <code>06</code> needs <code>05</code>. <code>07</code> needs <code>02</code>, <code>03</code>, <code>04</code> and <code>06</code>.</p>
+<p>Re-running only the tail is common and safe: if the survey data has not changed, <code>06</code> and <code>07</code> can be run on their own.</p>
 <hr>
 </section>
-<section id="data-dependency-map" class="level2">
-<h2 class="anchored" data-anchor-id="data-dependency-map">Data dependency map</h2>
-<table class="caption-top table">
-<colgroup>
-<col style="width: 18%">
-<col style="width: 63%">
-<col style="width: 18%">
-</colgroup>
-<thead>
-<tr class="header">
-<th>Script</th>
-<th>Reads (key derived inputs)</th>
-<th>Writes</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td>01</td>
-<td>shapefiles only</td>
-<td><code>county_to_cwa_data.csv</code></td>
-</tr>
-<tr class="even">
-<td>02</td>
-<td>IEM watch/warn CSVs</td>
-<td><code>base_cwa_alert_data.csv</code></td>
-</tr>
-<tr class="odd">
-<td>03</td>
-<td>IEM watch/warn shapefiles, county shp</td>
-<td><code>base_county_alert_data.csv</code></td>
-</tr>
-<tr class="even">
-<td>04</td>
-<td>Census/SVI, <code>base_*_storm_data.csv</code> ⚠️</td>
-<td><code>base_cwa_census_data.csv</code>, <code>base_county_census_data.csv</code></td>
-</tr>
-<tr class="odd">
-<td>05</td>
-<td>survey CSVs, <code>county_to_cwa_data.csv</code>, <code>base_*_alert_data.csv</code>, <code>base_*_census_data.csv</code>, <code>base_*_risk_data.csv</code> ⚠️</td>
-<td><code>base_survey_data.csv</code></td>
-</tr>
-</tbody>
-</table>
+<section id="interpreting-the-estimates" class="level2">
+<h2 class="anchored" data-anchor-id="interpreting-the-estimates">Interpreting the estimates</h2>
+<p><strong>The geographic signal is small.</strong> Across the four measures, county and CWA random effects account for between 0.6% and 3.9% of total variance. County estimates span roughly 0.3 to 0.7 points on a 1–5 scale. Differences between counties are real but modest, and a map with a stretched color scale will overstate them. A common scale across measures avoids this.</p>
+<p><strong>Estimates carry no uncertainty.</strong> Given that most counties contribute no respondents, the interval around a county estimate is substantially wider than the spread between counties. Treat the estimates as central tendencies, not as precise county-level measurements.</p>
+<p><strong>Two of the four models report singular fits</strong>, reflecting the same near-zero geographic variance. Fixed effects and predictions remain usable; variance components at the boundary should not be interpreted.</p>
 <hr>
 </section>
-<section id="known-gaps-todos" class="level2">
-<h2 class="anchored" data-anchor-id="known-gaps-todos">Known gaps / TODOs</h2>
-<ul class="task-list">
-<li><label><input type="checkbox"><strong>Missing storm-event script</strong> — <code>04</code> consumes <code>base_cwa_storm_data.csv</code> / <code>base_county_storm_data.csv</code>; the script that builds these is not in this folder.</label></li>
-<li><label><input type="checkbox"><strong>Missing FEMA risk script</strong> — <code>05</code> consumes <code>base_cwa_risk_data.csv</code> / <code>base_county_risk_data.csv</code>; the script that builds these is not in this folder.</label></li>
-<li><label><input type="checkbox"><strong>Reconcile <code>downloads</code>/<code>outputs</code> paths</strong> across <code>01</code>–<code>05</code> (currently two different users/roots).</label></li>
-<li><label><input type="checkbox"><strong><code>05</code> line 1:</strong> <code>library(ltm)</code> is commented out, but <code>grm()</code> / <code>ltm()</code> are called bare — confirm <code>ltm</code> is attached or uncomment.</label></li>
-<li><label><input type="checkbox"><strong><code>05</code> lines 55 &amp; 62:</strong> likely copy-paste bug — <code>rand_eve = as.character(rand_aft)</code> sets <code>rand_eve</code> from <code>rand_aft</code> (should be <code>rand_eve</code>).</label></li>
-<li><label><input type="checkbox"><strong><code>04</code> SVI:</strong> consider updating hard-coded fixes / revisit RIO ARRIBA (35039) imputation (currently commented out).</label></li>
-</ul>
-<hr>
-</section>
-<section id="status-progress" class="level2">
-<h2 class="anchored" data-anchor-id="status-progress">Status &amp; Progress</h2>
-<p>Update this as the project moves. Suggested convention: ✅ done · 🚧 in progress · ⬜ not started.</p>
-<table class="caption-top table">
-<colgroup>
-<col style="width: 42%">
-<col style="width: 30%">
-<col style="width: 26%">
-</colgroup>
-<thead>
-<tr class="header">
-<th>Component</th>
-<th>Status</th>
-<th>Notes</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td>01 county → CWA crosswalk</td>
-<td>✅</td>
-<td>Stable.</td>
-</tr>
-<tr class="even">
-<td>02 CWA alert counts</td>
-<td>✅</td>
-<td>Stable.</td>
-</tr>
-<tr class="odd">
-<td>03 county alert counts</td>
-<td>✅</td>
-<td>Stable.</td>
-</tr>
-<tr class="even">
-<td>04 census / SVI / events</td>
-<td>🚧</td>
-<td>Depends on missing storm script; SVI still on 2020 data.</td>
-</tr>
-<tr class="odd">
-<td>05 base survey dataset</td>
-<td>🚧</td>
-<td>Added 2025 waves (WX/TC/WW/FL); depends on missing risk script.</td>
-</tr>
-<tr class="even">
-<td>Storm-event script</td>
-<td>⬜</td>
-<td>Not in repo.</td>
-</tr>
-<tr class="odd">
-<td>FEMA risk script</td>
-<td>⬜</td>
-<td>Not in repo.</td>
-</tr>
-</tbody>
-</table>
-<section id="changelog" class="level3">
-<h3 class="anchored" data-anchor-id="changelog">Changelog</h3>
-<ul>
-<li><strong>2026-07-20</strong> — Added 2025 survey waves (WX25, TC25, WW25, FL25) to script <code>05</code>. Created this README.</li>
-</ul>
-</section>
+<section id="data-quality-notes" class="level2">
+<h2 class="anchored" data-anchor-id="data-quality-notes">Data quality notes</h2>
+<p>Several checks are built in and will halt a run rather than produce a quietly wrong file: IPF convergence across all counties, counties with no CWA, missing predictors before prediction, and agreement between the county and CWA estimates.</p>
+<p>Two recurring hazards are worth knowing when extending this code.</p>
+<p><strong>Sparse columns and type guessing.</strong> Several NRI hazard columns are empty for thousands of rows before their first value. R’s default 1,000-row type guess reads them as logical and silently converts every real value to <code>NA</code>. Reads of those files pass <code>guess_max = Inf</code>.</p>
+<p><strong>Vintage alignment.</strong> The county boundaries, the CWA crosswalk, the alert counts and the ACS release must all describe the same set of counties. Connecticut’s 2022 shift from counties to planning regions is the case that breaks most often.</p>
 </section>
 </section>
 

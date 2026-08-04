@@ -227,7 +227,7 @@ survey_data <- survey_data |>
   select(-state_from_zip)
 
 county_to_cwa_data <- read_csv(
-  paste0(outputs, "county_to_cwa_data.csv"),
+  paste0(outputs, "01_county_cwa_crosswalk.csv"),
   col_types = cols_only(GEOID = col_character(), CWA = col_character())
 )
 
@@ -300,8 +300,8 @@ survey_data <- survey_data |>
   )
 
 # Alert Data -------------------------------------------------------------------
-cwa_alert_data <- read_csv(paste0(outputs, "base_cwa_alert_data.csv"))
-county_alert_data <- read_csv(paste0(outputs, "base_county_alert_data.csv"))
+cwa_alert_data <- read_csv(paste0(outputs, "02_cwa_alert_counts.csv"))
+county_alert_data <- read_csv(paste0(outputs, "03_county_alert_counts.csv"))
 
 cwa_alert_data <- cwa_alert_data |> rename_at(vars(FLOOD:HURR), ~paste0("CWA_", .))
 county_alert_data <- county_alert_data |> rename_at(vars(COLD:TORN), ~paste0("FIPS_", .))
@@ -311,7 +311,7 @@ survey_data <- left_join(survey_data, county_alert_data, by = c("FIPS" = "GEOID"
 
 # County Covariates ------------------------------------------------------------
 # Social vulnerability and hazard risk, the full SVI and NRI county tables built
-# by 04, so any of the 507 fields can be called in later models.
+# by 04, so any of the 607 fields can be called in later models.
 #
 # This replaces four earlier joins -- base_cwa_census_data, base_county_census_data,
 # base_cwa_risk_data and base_county_risk_data. Those were orphans: no script in
@@ -326,7 +326,7 @@ survey_data <- left_join(survey_data, county_alert_data, by = c("FIPS" = "GEOID"
 # from the poststrat table -- the same aggregation the MRP predictions use, so
 # the two stay consistent rather than coming from separate sources.
 county_covariates <- read_csv(
-  paste0(outputs, "base_county_covariates.csv"),
+  paste0(outputs, "04_county_covariates.csv"),
   col_types = cols(FIPS = col_character(), .default = col_guess()),
   guess_max = Inf
 ) # guess_max as in 04: four NRI *_EVNTS columns are empty for thousands of rows
@@ -392,4 +392,4 @@ cor(fl_recep_data |> select(-p_id, -fl_recep_scale), use = "pairwise.complete.ob
 psych::alpha(fl_recep_data |> select(-p_id, -fl_recep_scale), use = "pairwise.complete.obs")
 survey_data <- left_join(survey_data, fl_recep_data |> select(p_id, fl_recep_scale), by = "p_id")
 
-write_csv(survey_data, paste0(outputs, "base_survey_data_NEW.csv"))
+write_csv(survey_data, paste0(outputs, "05_survey_responses.csv"))

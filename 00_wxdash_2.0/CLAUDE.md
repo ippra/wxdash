@@ -86,9 +86,12 @@ vanished from the CWA output for exactly this reason.
 ### Shared data
 
 Build a crosswalk once and read it downstream; do not rebuild it in a second
-script. `01` writes `county_to_cwa_data.csv`; `04` reads it. Two copies drift —
-they had different NWS shapefile vintages and only one carried the Connecticut
-planning-region fix.
+script. `01` writes `01_county_cwa_crosswalk.csv`; `04` reads it. Two copies
+drift — they had different NWS shapefile vintages and only one carried the
+Connecticut planning-region fix.
+
+Outputs are named for the script that writes them, so provenance is readable
+off the filename: `03_county_alert_counts.csv` came from `03`.
 
 ## Verifying a restyle
 

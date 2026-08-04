@@ -39,7 +39,7 @@ cell_lookup <- expand_grid(
   mutate(CELL = row_number(), .before = 1)
 
 # Donor Data -------------------------------------------------------------------
-# set_ipums_api_key("59cba10d8a5da536fc06b59de4bf71e27eb2494ea72bf4880892a7d0", save = TRUE)
+# set_ipums_api_key(Sys.getenv("IPUMS_API_KEY"))
 # extract <- define_extract_micro(
 #   collection = "usa",
 #   description = paste("ACS", acs_year, "Survey Benchmarks"),
@@ -518,7 +518,7 @@ county_cell_estimates <- county_cell_estimates |>
 
 # CWA Poststratification -------------------------------------------------------
 cwa_county_crosswalk <- read_csv(
-  paste0(outputs, "county_to_cwa_data.csv"),
+  paste0(outputs, "01_county_cwa_crosswalk.csv"),
   col_types = cols_only(GEOID = col_character(), CWA = col_character())
 ) |>
   rename(FIPS = GEOID)
@@ -543,7 +543,7 @@ if (nrow(cwa_unmatched) > 0) {
 # County Covariates ------------------------------------------------------------
 # Full CDC SVI and FEMA National Risk Index, kept as a county-level lookup
 # rather than joined into the poststrat table. That table carries 192 rows per
-# county, so joining 507 columns there would store every county value 192 times
+# county, so joining 607 columns there would store every county value 192 times
 # and take the file from ~106 MB to ~3.5 GB. Prediction joins this by FIPS.
 #
 # Identifier columns are dropped because the two sources duplicate each other
@@ -623,11 +623,11 @@ write_csv(
       ADULT_POP,
       DEMGRP_PROP
     ),
-  paste0(outputs, "base_county_poststrat_data_", acs_year, ".csv")
+  paste0(outputs, "04_county_poststrat_", acs_year, ".csv")
 )
 
 # The covariates go out separately, keyed on FIPS, so both the poststrat table
-# and the survey data can pick up whichever of the 507 fields a model needs. No
+# and the survey data can pick up whichever of the 607 fields a model needs. No
 # year suffix: the vintages are fixed by the source files (SVI 2022, NRI), not
 # by acs_year.
-write_csv(county_covariates, paste0(outputs, "base_county_covariates.csv"))
+write_csv(county_covariates, paste0(outputs, "04_county_covariates.csv"))

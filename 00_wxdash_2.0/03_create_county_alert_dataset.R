@@ -115,4 +115,4 @@ result_summary <- cnty_shp |>
   ))
 
 # Save results
-write_csv(result_summary, paste0(outputs, "base_county_alert_data.csv"))
+write_csv(result_summary, paste0(outputs, "03_county_alert_counts.csv"))
