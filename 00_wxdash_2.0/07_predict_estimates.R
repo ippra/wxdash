@@ -6,6 +6,10 @@ source(here::here("00_wxdash_2.0", "00_paths.R"))
 # Model Fits -------------------------------------------------------------------
 # Saved by 06. Reading them rather than refitting keeps these estimates tied to
 # the models that were reviewed there.
+risk_drought_fit <- read_rds(paste0(outputs, "06_models/risk_drought_fit.rds"))
+risk_hail_fit <- read_rds(paste0(outputs, "06_models/risk_hail_fit.rds"))
+risk_lignt_fit <- read_rds(paste0(outputs, "06_models/risk_lignt_fit.rds"))
+
 to_recep_fit <- read_rds(paste0(outputs, "06_models/to_recep_fit.rds"))
 hu_recep_fit <- read_rds(paste0(outputs, "06_models/hu_recep_fit.rds"))
 ww_recep_fit <- read_rds(paste0(outputs, "06_models/ww_recep_fit.rds"))
@@ -50,26 +54,31 @@ poststrat_data <- read_csv(
   )
 )
 
+model_hazards <- c("COLD", "FIRE", "FLOOD", "HEAT", "HURR", "ICE", "SNOW",
+                   "TORN")
+
 county_alert_data <- read_csv(
   paste0(outputs, "03_county_alert_counts.csv"),
   col_types = cols(GEOID = col_character(), .default = col_guess())
 ) |>
-  select(FIPS = GEOID, TORN, HURR, SNOW, ICE, FLOOD) |>
+  select(FIPS = GEOID, all_of(model_hazards)) |>
   rename_with(~paste0("FIPS_", .x), .cols = -FIPS)
 
 cwa_alert_data <- read_csv(
   paste0(outputs, "02_cwa_alert_counts.csv"),
   col_types = cols(WFO = col_character(), .default = col_guess())
 ) |>
-  select(CWA = WFO, TORN, HURR, SNOW, ICE, FLOOD) |>
+  select(CWA = WFO, all_of(model_hazards)) |>
   rename_with(~paste0("CWA_", .x), .cols = -CWA)
 
+# The three NRI frequencies carry the risk models for hazards NWS does not warn
+# on -- drought, hail and lightning.
 county_covariates <- read_csv(
   paste0(outputs, "04_county_covariates.csv"),
   col_types = cols(FIPS = col_character(), .default = col_guess()),
   guess_max = Inf
 ) |> # guess_max as in 04: four NRI *_EVNTS columns start empty
-  select(FIPS, SVI_RPL_THEMES)
+  select(FIPS, SVI_RPL_THEMES, NRI_DRGT_AFREQ, NRI_HAIL_AFREQ, NRI_LTNG_AFREQ)
 
 poststrat_data <- poststrat_data |>
   left_join(county_alert_data, by = "FIPS") |>
@@ -81,8 +90,8 @@ poststrat_data <- poststrat_data |>
 predictor_na <- poststrat_data |>
   summarise(
     across(
-      c(FIPS_TORN, CWA_TORN, FIPS_HURR, CWA_HURR, FIPS_SNOW, FIPS_ICE,
-        CWA_SNOW, CWA_ICE, FIPS_FLOOD, CWA_FLOOD, SVI_RPL_THEMES),
+      c(starts_with("FIPS_"), starts_with("CWA_"), SVI_RPL_THEMES,
+        NRI_DRGT_AFREQ, NRI_HAIL_AFREQ, NRI_LTNG_AFREQ),
       ~sum(is.na(.x))
     )
   ) |>
@@ -121,10 +130,34 @@ cell_predictions <- poststrat_data |>
     TO_RECEP = predict_cells(to_recep_fit),
     HU_RECEP = predict_cells(hu_recep_fit),
     WW_RECEP = predict_cells(ww_recep_fit),
-    FL_RECEP = predict_cells(fl_recep_fit)
+    FL_RECEP = predict_cells(fl_recep_fit),
+
+    TO_SUBJ_COMP = predict_cells(to_subj_comp_fit),
+    HU_SUBJ_COMP = predict_cells(hu_subj_comp_fit),
+    WW_SUBJ_COMP = predict_cells(ww_subj_comp_fit),
+    FL_SUBJ_COMP = predict_cells(fl_subj_comp_fit),
+
+    TO_RESP = predict_cells(to_resp_fit),
+    HU_RESP = predict_cells(hu_resp_fit),
+    WW_RESP = predict_cells(ww_resp_fit),
+    FL_RESP = predict_cells(fl_resp_fit),
+
+    RISK_TOR = predict_cells(risk_tor_fit),
+    RISK_HUR = predict_cells(risk_hur_fit),
+    RISK_SURGE = predict_cells(risk_surge_fit),
+    RISK_SNOW = predict_cells(risk_snow_fit),
+    RISK_ICE = predict_cells(risk_ice_fit),
+    RISK_COLD = predict_cells(risk_cold_fit),
+    RISK_HEAT = predict_cells(risk_heat_fit),
+    RISK_FLOOD = predict_cells(risk_flood_fit),
+    RISK_FIRE = predict_cells(risk_fire_fit),
+    RISK_DROUGHT = predict_cells(risk_drought_fit),
+    RISK_HAIL = predict_cells(risk_hail_fit),
+    RISK_LIGNT = predict_cells(risk_lignt_fit)
   ) |>
   pivot_longer(
-    c(TO_RECEP, HU_RECEP, WW_RECEP, FL_RECEP),
+    c(TO_RECEP:FL_RECEP, TO_SUBJ_COMP:FL_SUBJ_COMP, TO_RESP:FL_RESP,
+      RISK_TOR:RISK_LIGNT),
     names_to = "measure",
     values_to = "cell_estimate"
   )

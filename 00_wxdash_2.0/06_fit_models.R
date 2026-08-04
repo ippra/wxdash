@@ -1,3 +1,4 @@
+
 library(tidyverse)
 library(lme4)
 
@@ -417,6 +418,65 @@ risk_fire_fit <- lmer(
 )
 summary(risk_fire_fit)
 
+# The three below carry a FEMA NRI annualized frequency instead of an alert
+# count, because NWS issues no warning for these hazards -- hail and lightning
+# fold into severe thunderstorm, and drought has no VTEC product at all. The NRI
+# frequencies correlate .37 (drought), .30 (hail) and .30 (lightning) with their
+# items, better than several hazards that do have alert counts, and cost 0.4% of
+# the sample.
+#
+# There is no CWA term here: the covariate lookup 04 builds is county-level, so
+# CWA variation is left to its random intercept. NRI was not added to the models
+# above it -- against their own alert counts it correlates .92 (cold) and .93
+# (hurricane), which is duplication rather than a second measurement.
+risk_drought_fit <- lmer(
+  risk_drought ~
+    GENDER_GROUP +
+    AGE_GROUP +
+    RACE_GROUP +
+    EDUC_GROUP +
+    INCOME_GROUP +
+    scale(NRI_DRGT_AFREQ) +
+    scale(SVI_RPL_THEMES) +
+    (1 | CWA) +
+    (1 | FIPS) +
+    (1 | survey_year),
+  data = survey_data
+)
+summary(risk_drought_fit)
+
+risk_hail_fit <- lmer(
+  risk_hail ~
+    GENDER_GROUP +
+    AGE_GROUP +
+    RACE_GROUP +
+    EDUC_GROUP +
+    INCOME_GROUP +
+    scale(NRI_HAIL_AFREQ) +
+    scale(SVI_RPL_THEMES) +
+    (1 | CWA) +
+    (1 | FIPS) +
+    (1 | survey_year),
+  data = survey_data
+)
+summary(risk_hail_fit)
+
+risk_lignt_fit <- lmer(
+  risk_lignt ~
+    GENDER_GROUP +
+    AGE_GROUP +
+    RACE_GROUP +
+    EDUC_GROUP +
+    INCOME_GROUP +
+    scale(NRI_LTNG_AFREQ) +
+    scale(SVI_RPL_THEMES) +
+    (1 | CWA) +
+    (1 | FIPS) +
+    (1 | survey_year),
+  data = survey_data
+)
+summary(risk_lignt_fit)
+
 # Output Models ----------------------------------------------------------------
 # 07 reads these rather than refitting, so the published estimates stay tied to
 # the fits reviewed above and 07 stays cheap to re-run.
@@ -446,3 +506,7 @@ write_rds(risk_cold_fit, paste0(outputs, "06_models/risk_cold_fit.rds"))
 write_rds(risk_heat_fit, paste0(outputs, "06_models/risk_heat_fit.rds"))
 write_rds(risk_flood_fit, paste0(outputs, "06_models/risk_flood_fit.rds"))
 write_rds(risk_fire_fit, paste0(outputs, "06_models/risk_fire_fit.rds"))
+
+write_rds(risk_drought_fit, paste0(outputs, "06_models/risk_drought_fit.rds"))
+write_rds(risk_hail_fit, paste0(outputs, "06_models/risk_hail_fit.rds"))
+write_rds(risk_lignt_fit, paste0(outputs, "06_models/risk_lignt_fit.rds"))
