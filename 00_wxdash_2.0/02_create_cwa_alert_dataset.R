@@ -12,17 +12,33 @@ process_wwa_summary <- function(dir_path) {
   file_year <- str_extract(basename(dir_path), "\\d{4}")
   cat("Processing file for year:", file_year, "\n")
 
-  # Read attributes from the CSV (no geometry) instead of the ~1 GB shapefile
+  # Read attributes from the CSV (no geometry) instead of the ~1 GB shapefile.
+  # read_csv rather than fread: the FCSTER column holds unquoted forecaster
+  # initials such as "MGF, JD", so those rows parse as 27 fields against a
+  # 26-field header. fread stops at the first one and returns everything before
+  # it -- that silently cost 2025 89% of its rows. No fread option recovers
+  # them; fill and quote = "" both stop in the same place.
   csv_path <- list.files(dir_path, pattern = "\\.csv$", full.names = TRUE)
 
-  wwa_summary <- fread(csv_path, select = c("WFO", "ISSUED", "PHENOM")) |>
-    as_tibble() |>
+  # ISSUED is read as character because read_csv would otherwise type it POSIXct,
+  # and ymd_hm() returns NA on a POSIXct, which empties the table.
+  wwa_summary <- read_csv(
+    csv_path,
+    col_select = c(WFO, ISSUED, PHENOM),
+    col_types = cols(ISSUED = col_character(), .default = col_guess()),
+    progress = FALSE
+  ) |>
     mutate(
       issue_date = as_date(ymd_hm(ISSUED)),
       year = year(issue_date),
       CATEGORY = case_when(
         PHENOM %in% c("EH", "HT", "XH") ~ "HEAT", # https://github.com/akrherz/pyIEM/blob/main/src/pyiem/nws/vtec.py
-        PHENOM %in% c("CW", "EC", "WC", "FR", "FZ", "HZ", "UP") ~ "COLD",
+        # COLD is cold air only. FR/FZ/HZ (frost, freeze, hard freeze) are split
+        # out as FREEZE because they are issued for agricultural areas in CA, OR
+        # and FL, not for cold places -- the two correlate -0.21 across CWAs, and
+        # merging them halved every winter risk correlation.
+        PHENOM %in% c("CW", "EC", "WC", "UP") ~ "COLD",
+        PHENOM %in% c("FR", "FZ", "HZ") ~ "FREEZE",
         PHENOM %in%
           c(
             "BS",

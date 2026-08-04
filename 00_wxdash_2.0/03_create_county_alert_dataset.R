@@ -43,7 +43,12 @@ process_wwa_year <- function(shp_path) {
       year = year(issue_date),
       CATEGORY = case_when(
         PHENOM %in% c("EH", "HT", "XH") ~ "HEAT", # https://github.com/akrherz/pyIEM/blob/main/src/pyiem/nws/vtec.py
-        PHENOM %in% c("CW", "EC", "WC", "FR", "FZ", "HZ", "UP") ~ "COLD",
+        # COLD is cold air only. FR/FZ/HZ (frost, freeze, hard freeze) are split
+        # out as FREEZE because they are issued for agricultural areas in CA, OR
+        # and FL, not for cold places -- the two correlate -0.21 across CWAs, and
+        # merging them halved every winter risk correlation.
+        PHENOM %in% c("CW", "EC", "WC", "UP") ~ "COLD",
+        PHENOM %in% c("FR", "FZ", "HZ") ~ "FREEZE",
         PHENOM %in%
           c(
             "BS",

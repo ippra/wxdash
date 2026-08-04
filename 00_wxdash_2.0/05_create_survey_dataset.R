@@ -300,14 +300,27 @@ survey_data <- survey_data |>
   )
 
 # Alert Data -------------------------------------------------------------------
-cwa_alert_data <- read_csv(paste0(outputs, "02_cwa_alert_counts.csv"))
-county_alert_data <- read_csv(paste0(outputs, "03_county_alert_counts.csv"))
+# The hazards are named explicitly rather than taken as a column range. The two
+# files order their columns differently, so ranges silently dropped whatever sat
+# outside them: FIPS_WIND never existed, and CWA_COLD and CWA_FIRE arrived
+# unprefixed as bare COLD and FIRE beside the county columns.
+alert_hazards <- c("COLD", "FREEZE", "FIRE", "FLOOD", "HEAT", "HURR", "ICE",
+                   "SNOW", "TORN", "WIND")
 
-cwa_alert_data <- cwa_alert_data |> rename_at(vars(FLOOD:HURR), ~paste0("CWA_", .))
-county_alert_data <- county_alert_data |> rename_at(vars(COLD:TORN), ~paste0("FIPS_", .))
+cwa_alert_data <- read_csv(paste0(outputs, "02_cwa_alert_counts.csv"),
+                           show_col_types = FALSE) |>
+  select(WFO, any_of(alert_hazards)) |>
+  rename_with(~paste0("CWA_", .x), .cols = -WFO)
 
-survey_data <- left_join(survey_data, cwa_alert_data, by = c("CWA" = "WFO")) # waiting on this
-survey_data <- left_join(survey_data, county_alert_data, by = c("FIPS" = "GEOID")) # waiting on this
+county_alert_data <- read_csv(
+  paste0(outputs, "03_county_alert_counts.csv"),
+  col_types = cols(GEOID = col_character(), .default = col_guess())
+) |>
+  select(GEOID, any_of(alert_hazards)) |>
+  rename_with(~paste0("FIPS_", .x), .cols = -GEOID)
+
+survey_data <- left_join(survey_data, cwa_alert_data, by = c("CWA" = "WFO"))
+survey_data <- left_join(survey_data, county_alert_data, by = c("FIPS" = "GEOID"))
 
 # County Covariates ------------------------------------------------------------
 # Social vulnerability and hazard risk, the full SVI and NRI county tables built
