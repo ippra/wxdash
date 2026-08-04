@@ -122,8 +122,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li><strong>Output:</strong> <code>county_to_cwa_data.csv</code></li>
 </ul>
 </section>
-<section id="create_base_cwa_storm_alert_dataset.r" class="level3">
-<h3 class="anchored" data-anchor-id="create_base_cwa_storm_alert_dataset.r"><code>02_create_base_cwa_storm_alert_dataset.R</code></h3>
+<section id="create_cwa_storm_alert_dataset.r" class="level3">
+<h3 class="anchored" data-anchor-id="create_cwa_storm_alert_dataset.r"><code>02_create_cwa_storm_alert_dataset.R</code></h3>
 <p>Counts, per <strong>CWA</strong>, the number of <strong>days</strong> with at least one watch/warning issued, by hazard category.</p>
 <ul>
 <li><strong>Inputs:</strong> Iowa Environmental Mesonet (IEM) archived watch/warning <strong>CSVs</strong> (files matching <code>*_all</code>). Source: <a href="https://mesonet.agron.iastate.edu/request/gis/watchwarn.phtml" class="uri">https://mesonet.agron.iastate.edu/request/gis/watchwarn.phtml</a></li>
@@ -131,8 +131,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li><strong>Output:</strong> <code>base_cwa_alert_data.csv</code></li>
 </ul>
 </section>
-<section id="create_base_county_storm_alert_dataset.r" class="level3">
-<h3 class="anchored" data-anchor-id="create_base_county_storm_alert_dataset.r"><code>03_create_base_county_storm_alert_dataset.R</code></h3>
+<section id="create_county_storm_alert_dataset.r" class="level3">
+<h3 class="anchored" data-anchor-id="create_county_storm_alert_dataset.r"><code>03_create_county_storm_alert_dataset.R</code></h3>
 <p>Same idea as <code>02</code> but at the <strong>county (FIPS)</strong> level, using the polygon geometry to intersect warnings with counties.</p>
 <ul>
 <li><strong>Inputs:</strong> IEM watch/warning <strong>shapefiles</strong> (<code>*_all</code>); US county shapefile (<code>cb_2023_us_county_20m</code>).</li>
@@ -140,8 +140,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li><strong>Output:</strong> <code>base_county_alert_data.csv</code></li>
 </ul>
 </section>
-<section id="create_base_census_dataset.r" class="level3">
-<h3 class="anchored" data-anchor-id="create_base_census_dataset.r"><code>04_create_base_census_dataset.R</code></h3>
+<section id="create_census_dataset.r" class="level3">
+<h3 class="anchored" data-anchor-id="create_census_dataset.r"><code>04_create_census_dataset.R</code></h3>
 <p>Builds <strong>demographic, storm-event, and social-vulnerability</strong> context at both county and CWA levels.</p>
 <ul>
 <li><strong>Inputs:</strong> Census population estimates (<code>cc-est2021-all.csv</code>, <code>cc-est2022-all.csv</code>, downloaded over HTTP); CDC/ATSDR <strong>SVI 2020</strong> (<code>SVI_2020_US_county.csv</code>); NWS county shapefile (<code>c_03mr20</code>); <strong>storm-event tables</strong> (<code>base_cwa_storm_data.csv</code>, <code>base_county_storm_data.csv</code>).</li>
@@ -150,8 +150,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li>⚠️ <strong>Dependency gap:</strong> reads <code>base_cwa_storm_data.csv</code> / <code>base_county_storm_data.csv</code>, which <strong>no script in this folder produces</strong> (see <a href="#known-gaps--todos">Known gaps</a>).</li>
 </ul>
 </section>
-<section id="create_base_survey_dataset.r" class="level3">
-<h3 class="anchored" data-anchor-id="create_base_survey_dataset.r"><code>05_create_base_survey_dataset.R</code></h3>
+<section id="create_survey_dataset.r" class="level3">
+<h3 class="anchored" data-anchor-id="create_survey_dataset.r"><code>05_create_survey_dataset.R</code></h3>
 <p>The <strong>master join</strong>: assembles all survey waves and enriches each respondent with geography, alerts, risk, census, and IRT-based latent measures.</p>
 <ul>
 <li><strong>Inputs:</strong> weighted survey CSVs by hazard/year:

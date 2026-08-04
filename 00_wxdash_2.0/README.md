@@ -48,7 +48,7 @@ county data to a forecast office.
   Florida Keys (`12087` → `KEY`), Connecticut planning regions, and Hawaii's Kalawao County.
 - **Output:** `county_to_cwa_data.csv`
 
-### `02_create_base_cwa_storm_alert_dataset.R`
+### `02_create_cwa_storm_alert_dataset.R`
 Counts, per **CWA**, the number of **days** with at least one watch/warning issued, by hazard
 category.
 
@@ -59,7 +59,7 @@ category.
   attributes (not the ~1 GB shapefile) for speed.
 - **Output:** `base_cwa_alert_data.csv`
 
-### `03_create_base_county_storm_alert_dataset.R`
+### `03_create_county_storm_alert_dataset.R`
 Same idea as `02` but at the **county (FIPS)** level, using the polygon geometry to intersect
 warnings with counties.
 
@@ -69,7 +69,7 @@ warnings with counties.
   year-file at a time with `gc()` to manage memory.
 - **Output:** `base_county_alert_data.csv`
 
-### `04_create_base_census_dataset.R`
+### `04_create_census_dataset.R`
 Builds **demographic, storm-event, and social-vulnerability** context at both county and CWA
 levels.
 
@@ -83,7 +83,7 @@ levels.
 - ⚠️ **Dependency gap:** reads `base_cwa_storm_data.csv` / `base_county_storm_data.csv`, which
   **no script in this folder produces** (see [Known gaps](#known-gaps--todos)).
 
-### `05_create_base_survey_dataset.R`
+### `05_create_survey_dataset.R`
 The **master join**: assembles all survey waves and enriches each respondent with geography,
 alerts, risk, census, and IRT-based latent measures.
 

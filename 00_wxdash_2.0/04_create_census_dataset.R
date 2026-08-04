@@ -527,41 +527,81 @@ cwa_county_crosswalk <- read_csv(
 county_cell_estimates <- county_cell_estimates |>
   left_join(cwa_county_crosswalk, by = "FIPS")
 
-# Every CONUS county must carry a CWA. Check before aggregating, because a
-# county that failed to match the crosswalk would otherwise be dropped without
-# a word -- which is how Connecticut went missing when this script built its
-# own crosswalk.
+# Every CONUS county must carry a CWA, because CWA estimates are produced by
+# aggregating county predictions rather than from a separate CWA table. A county
+# that failed to match the crosswalk would silently drop out of those aggregates
+# -- which is how Connecticut went missing when this script built its own
+# crosswalk.
 cwa_unmatched <- county_cell_estimates |>
   filter(is.na(CWA)) |>
   distinct(FIPS, NAME)
 
 if (nrow(cwa_unmatched) > 0) {
   print(cwa_unmatched)
-  stop("Counties above have no CWA - they would be dropped from cwa_cell_estimates.")
+  stop("Counties above have no CWA - they would be dropped from the CWA aggregates.")
 }
 
-cwa_cell_estimates <- county_cell_estimates |>
-  group_by(CWA, CELL) |>
-  summarise(DEMGRP_POP = sum(DEMGRP_POP), .groups = "drop") |>
-  group_by(CWA) |>
-  mutate(ADULT_POP = sum(DEMGRP_POP), DEMGRP_PROP = DEMGRP_POP / ADULT_POP) |>
-  ungroup() |>
-  arrange(CWA, CELL)
+# County Covariates ------------------------------------------------------------
+# Full CDC SVI and FEMA National Risk Index, kept as a county-level lookup
+# rather than joined into the poststrat table. That table carries 192 rows per
+# county, so joining 507 columns there would store every county value 192 times
+# and take the file from ~106 MB to ~3.5 GB. Prediction joins this by FIPS.
+#
+# Identifier columns are dropped because the two sources duplicate each other
+# and the poststrat table (both carry STATE and COUNTY). Everything else is kept
+# and prefixed so SVI and NRI stay distinguishable.
+svi_identifiers <- c("ST", "STATE", "ST_ABBR", "STCNTY", "COUNTY", "LOCATION")
 
-cwa_check <- cwa_cell_estimates |>
-  group_by(CWA) |>
-  summarise(PROP_ERROR = abs(sum(DEMGRP_PROP) - 1), .groups = "drop")
-
-message(
-  "CWA: ", nrow(cwa_check), " CWAs; max proportion error ",
-  signif(max(cwa_check$PROP_ERROR), 3)
+nri_identifiers <- c(
+  "OID_", "NRI_ID", "STATE", "STATEABBRV", "STATEFIPS", "COUNTY",
+  "COUNTYTYPE", "COUNTYFIPS"
 )
 
+# guess_max = Inf because several NRI hazard columns are empty for thousands of
+# rows before their first value. Guessing from the default 1,000-row window
+# types those logical and then silently drops every real number as NA, which
+# costs LNDS_EVNTS 78 values.
+svi_data <- read_csv(
+  paste0(downloads, "SVI_2022_US_county.csv"),
+  col_types = cols(FIPS = col_character(), .default = col_guess()),
+  guess_max = Inf
+) |>
+  select(-any_of(svi_identifiers)) |>
+  rename_with(~paste0("SVI_", .x), .cols = -FIPS)
+
+nri_data <- read_csv(
+  paste0(downloads, "NRI_Table_Counties/NRI_Table_Counties.csv"),
+  col_types = cols(STCOFIPS = col_character(), .default = col_guess()),
+  guess_max = Inf
+) |>
+  select(-any_of(nri_identifiers)) |>
+  rename(FIPS = STCOFIPS) |>
+  rename_with(~paste0("NRI_", .x), .cols = -FIPS)
+
+county_covariates <- full_join(svi_data, nri_data, by = "FIPS")
+
+if (any(duplicated(county_covariates$FIPS))) {
+  stop("county_covariates has duplicate FIPS - joins downstream would fan out.")
+}
+
+county_covariates |>
+  summarise(
+    counties = n(),
+    columns = ncol(county_covariates),
+    poststrat_covered = sum(unique(county_cell_estimates$FIPS) %in% FIPS)
+  )
+
 # Output Data ------------------------------------------------------------------
-# Join cell_lookup so each row carries its demographic cell rather than just a
-# CELL number, and state_regions so the county file carries the same STATE_NAME
-# and CENSUS_REGION the survey side builds. The CWA file gets neither, because a
-# CWA can span states and regions.
+# Two files: the poststrat table and the county covariate lookup that keys into
+# it. One poststrat table, at county level. CWA estimates come from aggregating
+# county predictions, weighted by DEMGRP_POP, so a separate CWA table is not
+# needed -- and could not be used anyway, since the models carry county-level
+# terms that a CWA-level table cannot supply. The county file carries CWA, so
+# the aggregation is a group_by away.
+#
+# cell_lookup is joined so each row names its demographic cell rather than
+# carrying a bare CELL number, and state_regions so STATE_NAME and CENSUS_REGION
+# match what the survey side builds.
 write_csv(
   county_cell_estimates |>
     left_join(cell_lookup, by = "CELL") |>
@@ -587,20 +627,8 @@ write_csv(
   paste0(outputs, "base_county_poststrat_data_", acs_year, ".csv")
 )
 
-write_csv(
-  cwa_cell_estimates |>
-    left_join(cell_lookup, by = "CELL") |>
-    select(
-      CWA,
-      CELL,
-      AGE_GROUP,
-      GENDER_GROUP,
-      RACE_GROUP,
-      EDUC_GROUP,
-      INCOME_GROUP,
-      DEMGRP_POP,
-      ADULT_POP,
-      DEMGRP_PROP
-    ),
-  paste0(outputs, "base_cwa_poststrat_data_", acs_year, ".csv")
-)
+# The covariates go out separately, keyed on FIPS, so both the poststrat table
+# and the survey data can pick up whichever of the 507 fields a model needs. No
+# year suffix: the vintages are fixed by the source files (SVI 2022, NRI), not
+# by acs_year.
+write_csv(county_covariates, paste0(outputs, "base_county_covariates.csv"))

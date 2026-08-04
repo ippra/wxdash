@@ -45,8 +45,8 @@ survey_data <- read.csv(paste0(outputs, "base_survey_data_NEW.csv")) |> tibble()
 # respondents, and county covariates are the only thing distinguishing them from
 # their CWA. One SVI index rather than several -- RPL_THEME1 correlates with
 # RPL_THEMES at 0.96. FEMA risk was tested and dropped: none of the six risk
-# terms reached |t| > 1.4, and they cost 14-55% of each model's sample. The
-# joins remain in 05 if they are wanted later.
+# terms reached |t| > 1.4, and they cost 14-55% of each model's sample. Every
+# SVI and NRI field is still joined in 05 under SVI_ and NRI_ if wanted later.
 
 # Composite Scale Models -------------------------------------------------------
 to_recep_fit <- lmer(
@@ -58,7 +58,7 @@ to_recep_fit <- lmer(
     INCOME_GROUP +
     scale(FIPS_TORN) +
     scale(CWA_TORN) +
-    scale(FIPS_RPL_THEMES) +
+    scale(SVI_RPL_THEMES) +
     (1 | CWA) +
     (1 | FIPS) +
     (1 | survey_year),
@@ -75,7 +75,7 @@ hu_recep_fit <- lmer(
     INCOME_GROUP +
     scale(FIPS_HURR) +
     scale(CWA_HURR) +
-    scale(FIPS_RPL_THEMES) +
+    scale(SVI_RPL_THEMES) +
     (1 | CWA) +
     (1 | FIPS) +
     (1 | survey_year),
@@ -94,7 +94,7 @@ ww_recep_fit <- lmer(
     scale(FIPS_ICE) +
     scale(CWA_SNOW) +
     scale(CWA_ICE) +
-    scale(FIPS_RPL_THEMES) +
+    scale(SVI_RPL_THEMES) +
     (1 | CWA) +
     (1 | FIPS) +
     (1 | survey_year),
@@ -111,10 +111,20 @@ fl_recep_fit <- lmer(
     INCOME_GROUP +
     scale(FIPS_FLOOD) +
     scale(CWA_FLOOD) +
-    scale(FIPS_RPL_THEMES) +
+    scale(SVI_RPL_THEMES) +
     (1 | CWA) +
     (1 | FIPS) +
     (1 | survey_year),
   data = survey_data
 )
 summary(fl_recep_fit)
+
+# Output Models ----------------------------------------------------------------
+# 07 reads these rather than refitting, so the published estimates stay tied to
+# the fits reviewed above and 07 stays cheap to re-run.
+dir.create(paste0(outputs, "models"), showWarnings = FALSE)
+
+write_rds(to_recep_fit, paste0(outputs, "models/to_recep_fit.rds"))
+write_rds(hu_recep_fit, paste0(outputs, "models/hu_recep_fit.rds"))
+write_rds(ww_recep_fit, paste0(outputs, "models/ww_recep_fit.rds"))
+write_rds(fl_recep_fit, paste0(outputs, "models/fl_recep_fit.rds"))

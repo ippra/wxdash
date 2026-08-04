@@ -311,49 +311,29 @@ county_alert_data <- county_alert_data |> rename_at(vars(COLD:TORN), ~paste0("FI
 survey_data <- left_join(survey_data, cwa_alert_data, by = c("CWA" = "WFO")) # waiting on this
 survey_data <- left_join(survey_data, county_alert_data, by = c("FIPS" = "GEOID")) # waiting on this
 
-# Census Data ------------------------------------------------------------------
-# Social Vulnerability Index. These files are the old poststrat tables, so they
-# hold one row per area per demographic cell and the SVI columns repeat; taking
-# distinct() on the area gives one row each. Only the EP_/RPL_ range is selected
-# because the files also carry alert counts under the same CWA_/FIPS_ hazard
-# names joined above, which would collide.
-cwa_census_data <- read_csv(paste0(outputs, "base_cwa_census_data.csv"),
-                            show_col_types = FALSE)
-county_census_data <- read_csv(
-  paste0(outputs, "base_county_census_data.csv"),
-  col_types = cols(FIPS = col_character(), .default = col_guess())
-)
+# County Covariates ------------------------------------------------------------
+# Social vulnerability and hazard risk, the full SVI and NRI county tables built
+# by 04, so any of the 507 fields can be called in later models.
+#
+# This replaces four earlier joins -- base_cwa_census_data, base_county_census_data,
+# base_cwa_risk_data and base_county_risk_data. Those were orphans: no script in
+# this directory rebuilt them, so they could not be regenerated if the crosswalk
+# changed. They were also narrower versions of what is read here. The census
+# pair carried SVI 2020 bolted onto the old poststrat table, superseded by SVI
+# 2022; the risk pair was 14 hand-renamed columns from the same NRI download 04
+# now reads in full.
+#
+# The loss is CWA-level SVI and risk, which this lookup does not carry. No model
+# used them. To get them back, aggregate county to CWA weighted by DEMGRP_POP
+# from the poststrat table -- the same aggregation the MRP predictions use, so
+# the two stay consistent rather than coming from separate sources.
+county_covariates <- read_csv(
+  paste0(outputs, "base_county_covariates.csv"),
+  col_types = cols(FIPS = col_character(), .default = col_guess()),
+  guess_max = Inf
+) # guess_max as in 04: four NRI *_EVNTS columns are empty for thousands of rows
 
-cwa_svi_data <- cwa_census_data |>
-  select(CWA, CWA_EP_POV150:CWA_RPL_THEMES) |>
-  distinct(CWA, .keep_all = TRUE)
-
-county_svi_data <- county_census_data |>
-  select(FIPS, FIPS_EP_POV150:FIPS_RPL_THEMES) |>
-  distinct(FIPS, .keep_all = TRUE)
-
-survey_data <- survey_data |>
-  left_join(cwa_svi_data, by = "CWA") |>
-  left_join(county_svi_data, by = "FIPS")
-
-# Risk Data --------------------------------------------------------------------
-# FEMA National Risk Index. Every hazard column here shares a name with an alert
-# count joined above -- CWA_TORN, FIPS_HURR and so on -- but means something
-# different: modelled risk rather than observed warning counts. They are
-# prefixed RISK_ so the two never silently overwrite one another.
-cwa_risk_data <- read_csv(paste0(outputs, "base_cwa_risk_data.csv"),
-                          show_col_types = FALSE) |>
-  rename_with(~str_replace(.x, "^CWA_", "CWA_RISK_"), .cols = -CWA)
-
-county_risk_data <- read_csv(
-  paste0(outputs, "base_county_risk_data.csv"),
-  col_types = cols(FIPS = col_character(), .default = col_guess())
-) |>
-  rename_with(~str_replace(.x, "^FIPS_", "FIPS_RISK_"), .cols = -FIPS)
-
-survey_data <- survey_data |>
-  left_join(cwa_risk_data, by = "CWA") |>
-  left_join(county_risk_data, by = "FIPS")
+survey_data <- left_join(survey_data, county_covariates, by = "FIPS")
 
 # Measures for Models ----------------------------------------------------------
 to_recep_data <- survey_data |>

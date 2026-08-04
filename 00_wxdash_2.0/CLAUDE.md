@@ -1,18 +1,20 @@
 # wxdash
 
 Severe Weather and Society Dashboard. `00_wxdash_2.0/` holds the current
-pipeline; the numbered scripts at the repo root are the previous generation.
+pipeline, `01`–`07`, from shapefiles through to county and CWA estimates.
+`00_wxdash_1.0/` is the retired previous generation, kept for reference; it is
+self-contained, including its own `outputs/` that the deployed dashboard reads.
 
 Large inputs and outputs live outside the repo, under Dropbox paths defined at
-the top of each script as `downloads` and `outputs`.
+the top of each script as `downloads`, `outputs` and `location_files`. Note that
+`location_files` points into the WX25 project, not this one.
 
 ## R style
 
-These rules are applied to all new and edited R code. The four scripts in
-`00_wxdash_2.0/` (`01`–`04`) are the reference implementation — match them.
+These rules are applied to all new and edited R code. The scripts in
+`00_wxdash_2.0/` (`01`–`07`) are the reference implementation — match them.
 
-Do **not** bulk-reformat the legacy scripts at the repo root; bring a file up to
-this standard when you are already editing it for another reason.
+Do **not** bulk-reformat anything in `00_wxdash_1.0/`.
 
 ### Layout
 

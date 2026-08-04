@@ -8,7 +8,7 @@ outputs <- "/Users/jtr/Library/CloudStorage/Dropbox-Univ.ofOklahoma/Joe Ripberge
 
 # Import Shapefiles ------------------------------------------------------------
 wwa_paths <- list.files(downloads, full.names = TRUE, pattern = "_all") # source: https://mesonet.agron.iastate.edu/request/gis/watchwarn.phtml
-cnty_shp <- st_read(paste0(downloads, "cb_2023_us_county_20m")) |>
+cnty_shp <- st_read(paste0(downloads, "cb_2025_us_county_20m")) |>
   st_transform(crs = 5070)
 
 # Function to Process Shapefiles -----------------------------------------------
