@@ -58,30 +58,7 @@ survey_data <- survey_data |>
 
 survey_data |> summarise(n = n(), n_id = n_distinct(p_id))
 
-# Geography and Census Margins -------------------------------------------------
-# Both used to be built here, under a note saying the work belonged in the
-# individual compile files. It now is: wxsurveys derives ZIP_FIPS, ZIP_STATE and
-# ZIP_CWA from the HUD crosswalk, and the five *_GROUP margin variables plus
-# CENSUS_REGION, per wave. The cells and labels are unchanged, so they still
-# match get_margins.R in acs_survey_weights and the poststrat tables from 04.
-#
-# Two things did change with the move:
-#
-# The race recode is now per wave rather than a blanket race %in% 3:7. The
-# pre-2023 instruments carry a seventh category that was renumbered to 6 later,
-# and each wave's script uses its own range, so no respondent falls through.
-#
-# The self-reported-state check is gone. It dropped respondents whose stated
-# state disagreed with their zip, on the grounds that a mismatch is a zip entry
-# error. wxsurveys instead treats zip as the sole source of geography and never
-# consults the stated state, so those respondents are kept: 291 of 35,457, 0.8%.
-# `state` is still in the data if the check is ever wanted back.
-
 # Alert Data -------------------------------------------------------------------
-# The hazards are named explicitly rather than taken as a column range. The two
-# files order their columns differently, so ranges silently dropped whatever sat
-# outside them: FIPS_WIND never existed, and CWA_COLD and CWA_FIRE arrived
-# unprefixed as bare COLD and FIRE beside the county columns.
 alert_hazards <- c("COLD", "FREEZE", "FIRE", "FLOOD", "HEAT", "HURR", "ICE",
                    "SNOW", "TORN", "WIND")
 
@@ -101,21 +78,6 @@ survey_data <- left_join(survey_data, cwa_alert_data, by = c("CWA" = "WFO"))
 survey_data <- left_join(survey_data, county_alert_data, by = c("FIPS" = "GEOID"))
 
 # County Covariates ------------------------------------------------------------
-# Social vulnerability and hazard risk, the full SVI and NRI county tables built
-# by 04, so any of the 607 fields can be called in later models.
-#
-# This replaces four earlier joins -- base_cwa_census_data, base_county_census_data,
-# base_cwa_risk_data and base_county_risk_data. Those were orphans: no script in
-# this directory rebuilt them, so they could not be regenerated if the crosswalk
-# changed. They were also narrower versions of what is read here. The census
-# pair carried SVI 2020 bolted onto the old poststrat table, superseded by SVI
-# 2022; the risk pair was 14 hand-renamed columns from the same NRI download 04
-# now reads in full.
-#
-# The loss is CWA-level SVI and risk, which this lookup does not carry. No model
-# used them. To get them back, aggregate county to CWA weighted by DEMGRP_POP
-# from the poststrat table -- the same aggregation the MRP predictions use, so
-# the two stay consistent rather than coming from separate sources.
 county_covariates <- read_csv(
   paste0(outputs, "04_county_covariates.csv"),
   col_types = cols(FIPS = col_character(), .default = col_guess()),
