@@ -1,0 +1,5 @@
+# The Word instruments are inputs, not code. They run to roughly 10 MB because
+# WX25 and WW25 carry embedded images, and a binary committed once cannot be
+# removed from history without a rewrite. variable_reference.csv is the
+# versioned record of what they contain.
+*.docx
