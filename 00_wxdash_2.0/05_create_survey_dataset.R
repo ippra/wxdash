@@ -1,6 +1,4 @@
-# library(ltm)
 library(data.table)
-library(readxl)
 library(tidyverse)
 
 # psych is required. It is called as psych::alpha() rather than attached,
@@ -9,295 +7,72 @@ library(tidyverse)
 source(here::here("00_wxdash_2.0", "00_paths.R"))
 
 # Import Survey Data -----------------------------------------------------------
-WX17 <- read_csv(paste0(downloads, "WX17_data_wtd.csv")) |>
-  mutate(
-    survey_year = "2017",
-    survey_hazard = "WX",
-    survey_language = "English",
-    p_id = as.character(p_id)) |>
-  select(-c(rec_all:rec_time)) |>  # remove because scale changes form 1-7 to 1-5 in 2018/2019
-  select(-c(resp_ignore:resp_unsure)) # remove because scale changes form 1-7 to 1-5 in 2018/2019
-WX18 <- read_csv(paste0(downloads, "WX18_data_wtd.csv")) |>
-  mutate(
-    survey_year = "2018",
-    survey_hazard = "WX",
-    survey_language = "English"
-  )
-WX19 <- read_csv(paste0(downloads, "WX19_data_wtd.csv")) |>
-  mutate(
-    survey_year = "2019",
-    survey_hazard = "WX",
-    survey_language = "English"
-  )
-WX20 <- read_csv(paste0(downloads, "WX20_data_wtd.csv")) |>
-  mutate(
-    survey_year = "2020",
-    survey_hazard = "WX",
-    survey_language = "English"
-  )
-WX21 <- read_csv(paste0(downloads, "WX21_data_wtd.csv")) |>
-  mutate(
-    survey_year = "2021",
-    survey_hazard = "WX",
-    survey_language = "English"
-  )
-WX22 <- read_csv(paste0(downloads, "WX22_data_wtd.csv")) |>
-  mutate(
-    survey_year = "2022",
-    survey_hazard = "WX",
-    survey_language = "English"
-  )
-WX23 <- read_csv(paste0(downloads, "WX23_data_wtd.csv")) |>
-  mutate(
-    survey_year = "2023",
-    survey_hazard = "WX",
-    survey_language = "English"
-  )
-WX24 <- read_csv(paste0(downloads, "WX24_data_wtd.csv")) |>
-  mutate(
-    survey_year = "2024",
-    survey_hazard = "WX",
-    survey_language = "English",
-    end_date = as.Date(end_date),
-    rand_aft = as.character(rand_aft),
-    rand_eve = as.character(rand_eve)
-  )
-WX25 <- read_csv(paste0(downloads, "WX25_data_wtd.csv")) |>
-  mutate(
-    survey_year = "2025",
-    survey_hazard = "WX",
-    survey_language = "English",
-    end_date = as.Date(end_date),
-    rand_aft = as.character(rand_aft),
-    rand_eve = as.character(rand_eve)
-  )
+# The 22 built datasets come from the wxsurveys repository, which now derives
+# SURVEY_YEAR, SURVEY_HAZARD and SURVEY_LANGUAGE itself. Twenty-two blocks that
+# existed only to stamp those three columns are gone, and so are the per-wave
+# date and rand_* coercions: END_DATE is POSIXct in every wave, WW25's
+# end_date_utc is reconciled upstream, and the rand_* items are uniformly hms.
+waves <- c(
+  "WX17", "WX18", "WX19", "WX20", "WX21", "WX22", "WX23", "WX24", "WX25",
+  "TC20", "TC21", "TC22", "TC23", "TC24", "TC25",
+  "WW21", "WW22", "WW23", "WW24", "WW25",
+  "FL24", "FL25"
+)
 
-TC20 <- read_csv(paste0(downloads, "TC20_data_wtd.csv")) |>
-  mutate(
-    survey_year = "2020",
-    survey_hazard = "TC",
-    survey_language = "English"
-  )
-TC21 <- read_csv(paste0(downloads, "TC21_data_wtd.csv")) |>
-  mutate(
-    survey_year = "2021",
-    survey_hazard = "TC",
-    survey_language = "English"
-  )
-TC22 <- read_csv(paste0(downloads, "TC22_data_wtd.csv")) |>
-  mutate(
-    survey_year = "2022",
-    survey_hazard = "TC",
-    survey_language = "English"
-  )
-TC23 <- read_csv(paste0(downloads, "TC23_data_wtd.csv")) |>
-  mutate(
-    survey_year = "2023",
-    survey_hazard = "TC",
-    survey_language = "English"
-  )
-TC24 <- read_csv(paste0(downloads, "TC24_data_wtd.csv")) |>
-  mutate(
-    survey_year = "2024",
-    survey_hazard = "TC",
-    survey_language = "English",
-    end_date = as.Date(end_date)
-  )
-TC25 <- read_csv(paste0(downloads, "TC25_data_wtd.csv")) |>
-  mutate(
-    survey_year = "2025",
-    survey_hazard = "TC",
-    survey_language = "English",
-    end_date = as.Date(end_date)
-  )
+read_wave <- function(wave) {
+  read_csv(
+    paste0(survey_files, wave, "_data_wtd.csv"),
+    show_col_types = FALSE,
+    guess_max = Inf
+  ) |>
+    mutate(P_ID = as.character(P_ID)) # WX17 alone stores it as a number
+}
 
-WW21 <- read_csv(paste0(downloads, "WW21_data_wtd.csv")) |>
-  mutate(
-    survey_year = "2021",
-    survey_hazard = "WW",
-    survey_language = "English"
-  )
-WW22 <- read_csv(paste0(downloads, "WW22_data_wtd.csv")) |>
-  mutate(
-    survey_year = "2022",
-    survey_hazard = "WW",
-    survey_language = "English"
-  )
-WW23 <- read_csv(paste0(downloads, "WW23_data_wtd.csv")) |>
-  mutate(
-    survey_year = "2023",
-    survey_hazard = "WW",
-    survey_language = "English"
-  )
-WW24 <- read_csv(paste0(downloads, "WW24_data_wtd.csv")) |>
-  mutate(
-    survey_year = "2024",
-    survey_hazard = "WW",
-    survey_language = "English",
-    end_date = as.Date(end_date)
-  )
-WW25 <- read_csv(paste0(downloads, "WW25_data_wtd.csv")) |>
-  mutate(
-    survey_year = "2025",
-    survey_hazard = "WW",
-    survey_language = "English",
-    end_date = as.Date(end_date_utc) # WW25 ships end_date_utc, not end_date
-  )
+wave_data <- set_names(map(waves, read_wave), waves)
 
-FL24 <- read_csv(paste0(downloads, "FL24_data_wtd.csv")) |>
-  mutate(
-    survey_year = "2024",
-    survey_hazard = "FL",
-    survey_language = "English"
-  )
-FL25 <- read_csv(paste0(downloads, "FL25_data_wtd.csv")) |>
-  mutate(
-    survey_year = "2025",
-    survey_hazard = "FL",
-    survey_language = "English"
-  )
+# WX17 asked the reception and response batteries on a 1-7 scale; 2018 onward
+# use 1-5, so the WX17 columns are dropped rather than pooled.
+wave_data$WX17 <- wave_data$WX17 |>
+  select(-c(rec_all:rec_time), -c(resp_ignore:resp_unsure))
 
-survey_data <- rbindlist(list(WX17, WX18, WX19, WX20, WX21, WX22, WX23, WX24, WX25,
-                              TC20, TC21, TC22, TC23, TC24, TC25,
-                              WW21, WW22, WW23, WW24, WW25,
-                              FL24, FL25), fill = TRUE, ignore.attr = TRUE)
-survey_data <- as_tibble(survey_data)
+survey_data <- rbindlist(wave_data, fill = TRUE, ignore.attr = TRUE) |>
+  as_tibble()
 
-# Ten of the source files store zip as a number, which drops the leading zero on
-# every 0xxxx code (CT, MA, ME, NH, NJ, RI, VT). rbindlist coerces the mix to
-# character, so repair to five digits here. US zips are always five digits, so a
-# shorter value can only have lost leading zeros; str_sub trims the handful of
-# respondents who typed zip+4.
+# Downstream names. FIPS and CWA are what 06 and 07 model on, and the ZIP_
+# prefix upstream records that all three are derived from the respondent's zip
+# rather than from anything self-reported.
 survey_data <- survey_data |>
-  mutate(
-    zip = str_pad(str_sub(as.character(zip), 1, 5),
-                  width = 5, side = "left", pad = "0")
-  )
+  rename(
+    p_id = P_ID,
+    FIPS = ZIP_FIPS,
+    CWA = ZIP_CWA,
+    STATE_NAME = ZIP_STATE,
+    survey_hazard = SURVEY_HAZARD,
+    survey_language = SURVEY_LANGUAGE
+  ) |>
+  mutate(survey_year = as.character(SURVEY_YEAR)) |>
+  select(-SURVEY_YEAR)
 
 survey_data |> summarise(n = n(), n_id = n_distinct(p_id))
 
-# Add County and CWA -----------------------------------------------------------
-# Temporary. This belongs in the individual compile files and will move there;
-# it lives here for now so the older surveys do not have to be revisited. The
-# methodology matches WX25/WX25 Raw Data/english_files/compile_dataset.R.
-# zip is already padded to five characters above, so it is not re-padded here.
-zip_to_county <- read_excel(
-  paste0(location_files, "ZIP_COUNTY_122025.xlsx"),
-  col_types = c("text", "text", "text", "text",
-                "numeric", "numeric", "numeric", "numeric")
-) |> # https://www.huduser.gov/portal/datasets/usps_crosswalk.html
-  select(ZIP, FIPS = COUNTY, RES_RATIO) |>
-  arrange(ZIP, -RES_RATIO) |>
-  distinct(ZIP, .keep_all = TRUE)
-
-survey_data <- survey_data |>
-  left_join(zip_to_county |> select(-RES_RATIO), by = c("zip" = "ZIP"))
-
-# A self-reported state that disagrees with the state implied by the zip is
-# almost always a zip entry error, and would break county-within-state nesting
-# in multilevel models. TC22 carries no state column, so a missing state means
-# the check cannot be run rather than that it failed, and those respondents are
-# kept. WX25's version has no such case and so does not need that condition.
-state_fips_names <- c(
-  "01" = "Alabama", "02" = "Alaska", "04" = "Arizona", "05" = "Arkansas",
-  "06" = "California", "08" = "Colorado", "09" = "Connecticut", "10" = "Delaware",
-  "11" = "Washington, D.C.", "12" = "Florida", "13" = "Georgia", "15" = "Hawaii",
-  "16" = "Idaho", "17" = "Illinois", "18" = "Indiana", "19" = "Iowa",
-  "20" = "Kansas", "21" = "Kentucky", "22" = "Louisiana", "23" = "Maine",
-  "24" = "Maryland", "25" = "Massachusetts", "26" = "Michigan", "27" = "Minnesota",
-  "28" = "Mississippi", "29" = "Missouri", "30" = "Montana", "31" = "Nebraska",
-  "32" = "Nevada", "33" = "New Hampshire", "34" = "New Jersey", "35" = "New Mexico",
-  "36" = "New York", "37" = "North Carolina", "38" = "North Dakota", "39" = "Ohio",
-  "40" = "Oklahoma", "41" = "Oregon", "42" = "Pennsylvania", "44" = "Rhode Island",
-  "45" = "South Carolina", "46" = "South Dakota", "47" = "Tennessee", "48" = "Texas",
-  "49" = "Utah", "50" = "Vermont", "51" = "Virginia", "53" = "Washington",
-  "54" = "West Virginia", "55" = "Wisconsin", "56" = "Wyoming")
-
-survey_data <- survey_data |>
-  mutate(state_from_zip = unname(
-    state_fips_names[str_pad(substr(FIPS, 1, 2), 2, side = "left", pad = "0")]
-  ))
-
-survey_data |>
-  filter(!is.na(state), !is.na(state_from_zip), state != state_from_zip) |>
-  count(survey_hazard, state, state_from_zip)
-
-survey_data <- survey_data |>
-  filter(is.na(state) | is.na(state_from_zip) | state == state_from_zip) |>
-  select(-state_from_zip)
-
-county_to_cwa_data <- read_csv(
-  paste0(outputs, "01_county_cwa_crosswalk.csv"),
-  col_types = cols_only(GEOID = col_character(), CWA = col_character())
-)
-
-survey_data <- survey_data |>
-  left_join(county_to_cwa_data, by = c("FIPS" = "GEOID"))
-
-# Census Margin Categories -----------------------------------------------------
-# Temporary, as above. Cells and labels match get_margins.R in acs_survey_weights
-# and the poststrat tables written by 04, so the survey and the census margins
-# share the same cells and can be joined for raking and MRP.
-survey_data <- survey_data |>
-  mutate(
-    AGE_GROUP = case_when(
-      between(age, 18, 29) ~ "(1) 18-29",
-      between(age, 30, 49) ~ "(2) 30-49",
-      between(age, 50, 64) ~ "(3) 50-64",
-      age >= 65            ~ "(4) 65+",
-      .default = NA_character_
-    ),
-    EDUC_GROUP = case_when(
-      edu %in% 1:2 ~ "(1) HS or less",
-      edu %in% 3:5 ~ "(2) Some college / 2-yr degree",
-      edu %in% 6:8 ~ "(3) 4-yr / post-graduate degree",
-      .default = NA_character_
-    ),
-    GENDER_GROUP = case_when(
-      gend == 1 ~ "(1) Male",
-      gend == 0 ~ "(2) Female",
-      .default = NA_character_
-    ),
-    INCOME_GROUP = case_when(
-      income == 1 ~ "(1) < $50,000",
-      income >= 2 ~ "(2) >= $50,000",
-      .default = NA_character_
-    ),
-    # Other spans race 3:7, not WX25's 3:6. The pre-2023 instruments carry a
-    # seventh race category that was renumbered to 6 later; without the 7 the
-    # recode would silently drop 86 respondents across eleven surveys.
-    RACE_GROUP = case_when(
-      hisp == 1                 ~ "(3) Hispanic",
-      hisp == 0 & race == 1     ~ "(1) White",
-      hisp == 0 & race == 2     ~ "(2) Black",
-      hisp == 0 & race %in% 3:7 ~ "(4) Other",
-      .default = NA_character_
-    ),
-    # Taken from FIPS rather than the self-reported state WX25 uses, because
-    # TC22 has no state column. The two agree wherever both exist, since the
-    # check above dropped the cases where they disagreed. Alaska and Hawaii are
-    # left NA because the ACS benchmarks are CONUS only.
-    STATE_NAME = unname(
-      state_fips_names[str_pad(substr(FIPS, 1, 2), 2, side = "left", pad = "0")]
-    ),
-    CENSUS_REGION = case_when(
-      STATE_NAME %in% c("Connecticut", "Maine", "Massachusetts", "New Hampshire",
-                        "Rhode Island", "Vermont", "New Jersey", "New York",
-                        "Pennsylvania") ~ "(1) Northeast",
-      STATE_NAME %in% c("Illinois", "Indiana", "Michigan", "Ohio", "Wisconsin",
-                        "Iowa", "Kansas", "Minnesota", "Missouri", "Nebraska",
-                        "North Dakota", "South Dakota") ~ "(2) Midwest",
-      STATE_NAME %in% c("Delaware", "Florida", "Georgia", "Maryland",
-                        "North Carolina", "South Carolina", "Virginia",
-                        "Washington, D.C.", "West Virginia", "Alabama",
-                        "Kentucky", "Mississippi", "Tennessee", "Arkansas",
-                        "Louisiana", "Oklahoma", "Texas") ~ "(3) South",
-      STATE_NAME %in% c("Arizona", "Colorado", "Idaho", "Montana", "Nevada",
-                        "New Mexico", "Utah", "Wyoming", "California", "Oregon",
-                        "Washington") ~ "(4) West",
-      .default = NA_character_
-    )
-  )
+# Geography and Census Margins -------------------------------------------------
+# Both used to be built here, under a note saying the work belonged in the
+# individual compile files. It now is: wxsurveys derives ZIP_FIPS, ZIP_STATE and
+# ZIP_CWA from the HUD crosswalk, and the five *_GROUP margin variables plus
+# CENSUS_REGION, per wave. The cells and labels are unchanged, so they still
+# match get_margins.R in acs_survey_weights and the poststrat tables from 04.
+#
+# Two things did change with the move:
+#
+# The race recode is now per wave rather than a blanket race %in% 3:7. The
+# pre-2023 instruments carry a seventh category that was renumbered to 6 later,
+# and each wave's script uses its own range, so no respondent falls through.
+#
+# The self-reported-state check is gone. It dropped respondents whose stated
+# state disagreed with their zip, on the grounds that a mismatch is a zip entry
+# error. wxsurveys instead treats zip as the sole source of geography and never
+# consults the stated state, so those respondents are kept: 291 of 35,457, 0.8%.
+# `state` is still in the data if the check is ever wanted back.
 
 # Alert Data -------------------------------------------------------------------
 # The hazards are named explicitly rather than taken as a column range. The two
@@ -348,7 +123,7 @@ survey_data <- left_join(survey_data, county_covariates, by = "FIPS")
 
 # Reception Scales -------------------------------------------------------------
 to_recep_data <- survey_data |>
-  filter(survey_hazard == "WX", survey_year != "2017") |>
+  filter(survey_hazard == "Severe Weather (WX)", survey_year != "2017") |>
   select(p_id, rec_all, rec_soon, rec_miss, rec_area, rec_time) |>
   mutate(
     # rec_time is reversed here and NOT in the TC/WW/FL scales below, because the
@@ -366,7 +141,7 @@ psych::alpha(to_recep_data |> select(-p_id, -to_recep_scale), use = "pairwise.co
 survey_data <- left_join(survey_data, to_recep_data |> select(p_id, to_recep_scale), by = "p_id")
 
 hu_recep_data <- survey_data |>
-  filter(survey_hazard == "TC") |>
+  filter(survey_hazard == "Tropical Cyclone (TC)") |>
   select(p_id, rec_most, rec_miss, rec_time, rec_screen) |>
   mutate(
     # rec_time is positively worded in TC/WW/FL, so it is not reversed here.
@@ -380,7 +155,7 @@ psych::alpha(hu_recep_data |> select(-p_id, -hu_recep_scale), use = "pairwise.co
 survey_data <- left_join(survey_data, hu_recep_data |> select(p_id, hu_recep_scale), by = "p_id")
 
 ww_recep_data <- survey_data |>
-  filter(survey_hazard == "WW") |>
+  filter(survey_hazard == "Winter Weather (WW)") |>
   select(p_id, rec_most, rec_miss, rec_time, rec_screen) |>
   mutate(
     across(c(rec_miss, rec_screen), ~6 - .),
@@ -393,7 +168,7 @@ psych::alpha(ww_recep_data |> select(-p_id, -ww_recep_scale), use = "pairwise.co
 survey_data <- left_join(survey_data, ww_recep_data |> select(p_id, ww_recep_scale), by = "p_id")
 
 fl_recep_data <- survey_data |>
-  filter(survey_hazard == "FL") |>
+  filter(survey_hazard == "Flooding (FL)") |>
   select(p_id, rec_most_fl, rec_miss_fl, rec_time) |>
   mutate(
     across(c(rec_miss_fl), ~6 - .),
@@ -408,7 +183,7 @@ survey_data <- left_join(survey_data, fl_recep_data |> select(p_id, fl_recep_sca
 # Comprehension Scales ---------------------------------------------------------
 
 to_subj_comp_data <- survey_data |>
-  filter(survey_hazard == "WX", survey_year != "2017") |>
+  filter(survey_hazard == "Severe Weather (WX)", survey_year != "2017") |>
   select(p_id, alert_und, tor_watchwarn_und, tor_map_und, tor_radar_und, svr_watchwarn_und) |>
   mutate(
     to_subj_comp_scale = if_else(
@@ -420,7 +195,7 @@ psych::alpha(to_subj_comp_data |> select(-p_id, -to_subj_comp_scale), use = "pai
 survey_data <- left_join(survey_data, to_subj_comp_data |> select(p_id, to_subj_comp_scale), by = "p_id")
 
 hu_subj_comp_data <- survey_data |>
-  filter(survey_hazard == "TC") |>
+  filter(survey_hazard == "Tropical Cyclone (TC)") |>
   select(p_id, alert_und, huralerts, hur_map_und, tor_watchwarn_und, flood_watchwarn_und, flood_srg_und) |>
   mutate(
     hu_subj_comp_scale = if_else(
@@ -432,7 +207,7 @@ psych::alpha(hu_subj_comp_data |> select(-p_id, -hu_subj_comp_scale), use = "pai
 survey_data <- left_join(survey_data, hu_subj_comp_data |> select(p_id, hu_subj_comp_scale), by = "p_id")
 
 ww_subj_comp_data <- survey_data |>
-  filter(survey_hazard == "WW") |>
+  filter(survey_hazard == "Winter Weather (WW)") |>
   select(p_id, wwalerts, ice_warn_und, bliz_warn_und, cold_warn_und, squall_warn_und) |>
   mutate(
     ww_subj_comp_scale = if_else(
@@ -444,7 +219,7 @@ psych::alpha(ww_subj_comp_data |> select(-p_id, -ww_subj_comp_scale), use = "pai
 survey_data <- left_join(survey_data, ww_subj_comp_data |> select(p_id, ww_subj_comp_scale), by = "p_id")
 
 fl_subj_comp_data <- survey_data |>
-  filter(survey_hazard == "FL") |>
+  filter(survey_hazard == "Flooding (FL)") |>
   select(p_id, alert_und, flood_wwa_und, flash_wwa_und, flood_srg_und, flood_map_und) |>
   mutate(
     fl_subj_comp_scale = if_else(
@@ -458,7 +233,7 @@ survey_data <- left_join(survey_data, fl_subj_comp_data |> select(p_id, fl_subj_
 # Response Scales --------------------------------------------------------------
 
 to_resp_data <- survey_data |>
-  filter(survey_hazard == "WX", survey_year != "2017") |>
+  filter(survey_hazard == "Severe Weather (WX)", survey_year != "2017") |>
   select(p_id, resp_ignore, resp_prot, resp_busy, resp_unsure) |>
   mutate(
     across(c(resp_ignore, resp_busy, resp_unsure), ~6 - .),
@@ -471,7 +246,7 @@ psych::alpha(to_resp_data |> select(-p_id, -to_resp_scale), use = "pairwise.comp
 survey_data <- left_join(survey_data, to_resp_data |> select(p_id, to_resp_scale), by = "p_id")
 
 hu_resp_data <- survey_data |>
-  filter(survey_hazard == "TC") |>
+  filter(survey_hazard == "Tropical Cyclone (TC)") |>
   select(p_id, resp_ignore, resp_usually, resp_more) |>
   mutate(
     across(c(resp_ignore, resp_usually, resp_more), ~6 - .),
@@ -484,7 +259,7 @@ psych::alpha(hu_resp_data |> select(-p_id, -hu_resp_scale), use = "pairwise.comp
 survey_data <- left_join(survey_data, hu_resp_data |> select(p_id, hu_resp_scale), by = "p_id")
 
 ww_resp_data <- survey_data |>
-  filter(survey_hazard == "WW") |>
+  filter(survey_hazard == "Winter Weather (WW)") |>
   select(p_id, resp_ignore, resp_always, resp_more) |>
   mutate(
     across(c(resp_ignore, resp_more), ~6 - .),
@@ -497,7 +272,7 @@ psych::alpha(ww_resp_data |> select(-p_id, -ww_resp_scale), use = "pairwise.comp
 survey_data <- left_join(survey_data, ww_resp_data |> select(p_id, ww_resp_scale), by = "p_id")
 
 fl_resp_data <- survey_data |>
-  filter(survey_hazard == "FL") |>
+  filter(survey_hazard == "Flooding (FL)") |>
   select(p_id, resp_ignore_fl, resp_always_fl, resp_know_fl) |>
   mutate(
     across(c(resp_ignore_fl, resp_know_fl), ~6 - .),
