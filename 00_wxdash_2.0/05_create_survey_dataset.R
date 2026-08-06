@@ -32,8 +32,11 @@ wave_data <- set_names(map(waves, read_wave), waves)
 
 # WX17 asked the reception and response batteries on a 1-7 scale; 2018 onward
 # use 1-5, so the WX17 columns are dropped rather than pooled.
-wave_data$WX17 <- wave_data$WX17 |>
-  select(-c(rec_all:rec_time), -c(resp_ignore:resp_unsure))
+wave_data <- wave_data |>
+  modify_at(
+    "WX17",
+    ~select(.x, -c(rec_all:rec_time), -c(resp_ignore:resp_unsure))
+  )
 
 survey_data <- rbindlist(wave_data, fill = TRUE, ignore.attr = TRUE) |>
   as_tibble()
