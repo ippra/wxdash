@@ -80,15 +80,53 @@ instrument has, in its order.
 | `instruments` | `WX24;WX25` |
 | `wording_varies` | `TRUE` when intro or item text differs between instruments |
 
-### 4. Verify
+### 4. Write NOTES.md
+
+Alongside the sheet, write `NOTES.md` — the human-facing list of what needs a
+second pair of eyes. **This is required, not optional.** The `notes` column is
+a per-row record; `NOTES.md` is the part someone will actually act on.
+
+Every item is a `- [ ]` checkbox so it can be worked through and ticked off.
+Group by what to do about it, not by where it was found:
+
+1. **Check before pooling or modelling** — anything that silently changes a
+   result. Items that reverse direction between hazards, batteries whose
+   wording moved between waves, names that mean different things in different
+   instruments, reference years that shifted.
+2. **Instrument problems worth fixing before the next fielding** — orphaned
+   questions, swapped names, wrong interpolations, answer formats that
+   contradict the question.
+3. **Misspelled variable names — do NOT fix** — with the reason: they are in
+   the released data, so correcting them breaks the join.
+4. **Fielding metadata** — impossible dates, unfilled header placeholders,
+   labels that disagree with the fielding date.
+5. **Cosmetic issues** — typos and spacing that do not affect the data but do
+   make the documents harder to read mechanically.
+6. **Open questions** — anything the documents could not settle. Say plainly
+   that it is unresolved rather than guessing.
+
+Rules: state what the document says and what it should probably say, and never
+resolve it silently in the sheet. Carry unticked items forward when a new
+instrument is added — a fixed item gets ticked and dated, not deleted, so the
+file also records what stopped being a problem.
+
+Start it with the build date and the instruments it covers.
+
+### 5. Verify
 
 ```sh
 python3 <skill>/scripts/check_coverage.py <sheet.csv> <scratch_dir> WX
 ```
 
 `missing` must be zero. `extra` is expected and must be only randomization
-variables (they appear inside brackets, never as `name:` lines) plus names the
-instrument writes with no space after the colon.
+variables (they appear inside brackets, never as `name:` lines), names the
+instrument writes with no space after the colon, names it writes mid-line
+(`long_years`, `long_months` in TC23 and WW25), and mixed-case names the
+pattern deliberately skips (`Kennedy`, `Adams` in TC23).
+
+Then check that no row has both `question_intro` and `question_text` empty —
+**except `randomization` rows**, which legitimately have neither. Their arms
+live in `response_options` and their purpose in `notes`.
 
 Then confirm it parses:
 
@@ -107,10 +145,13 @@ survive.
 **Checkbox items get `0 = Not selected | 1 = Selected`.** The instrument shows
 no options for them; that is the coding, and leaving it blank loses it.
 
-**Record instrument errors in `notes`, never fix them.** Found so far: two
-variable-name misspellings; `ffd_und` and `ffd_watchwarn_und` whose names are
-swapped relative to their content; `exf_ex_monitor` interpolating a location
-where a time period belongs; an option reading "Somewhat likely as not".
+**Record instrument errors in `notes`, never fix them,** and raise the ones that
+matter in `NOTES.md`. Found so far: six variable-name misspellings that are in
+the released data and so must be preserved; `ffd_und` and `ffd_watchwarn_und`
+whose names are swapped relative to their content; `exf_ex_monitor`
+interpolating a location where a time period belongs; `ff_do_conff` whose
+scenario is missing from the document entirely; and `flood_prob_30yr` asking for
+a percent but collecting bands.
 
 **`reverse_worded` is about wording, not about any scale's coding.** Cues, from
 how these instruments actually write reversals: "Sometimes I miss…", "Sometimes
@@ -128,22 +169,33 @@ live inside a Word text box. Only WX24 has one so far.
 
 ## Response scale families
 
-Reuse these names so the sheet stays consistent across runs. Add a new one only
-when no existing family has the same labels; name it for what it measures, with
-its length.
+A family groups scales with the same structure and endpoints. Exact wording is
+never lost — it lives verbatim in `response_options` — so a one-word difference
+in a middle label is recorded in `notes` rather than spawning a new family.
+Reuse these 56 names; add one only when the shape is genuinely new, and name it
+for what it measures plus its length.
 
-`agree_5` · `risk_5` · `quality_5` · `certainty_5` · `confidence_5` ·
-`confidence_slightly_5` · `trust_5` · `trust_change_5` · `reliance_5` ·
-`concern_5` · `concern_slightly_5` · `likelihood_5` · `likelihood_slightly_5` ·
-`use_likelihood_5` · `understanding_5` · `helpfulness_5` · `satisfaction_5` ·
-`significance_5` · `surprise_5` · `frequency_5` · `frequency_6` · `gender` ·
-`yes_no` · `yes_no_unsure` · `yes_no_maybe` · `yes_no_recall` · `checkbox` ·
-`categorical` · `dropdown` · `open_text` · `randomization` · `none`
+`agree_5` · `ar_category_6` · `awareness_5` · `benefit_hazard_4` ·
+`categorical` · `certainty_5` · `chance_5` · `checkbox` · `checkbox_parent` ·
+`concern_5` · `concern_slightly_5` · `confidence_5` · `confidence_slightly_5` ·
+`dropdown` · `effectiveness_5` · `endpoint_5` · `evacuation_5` · `extent_5` ·
+`familiarity_5` · `frequency_5` · `frequency_6` · `frequency_always_5` ·
+`gender` · `helpfulness_5` · `importance_5` · `lead_time_5` · `likelihood_5` ·
+`likelihood_neutral_5` · `likelihood_notsure_5` · `likelihood_notvery_5` ·
+`likelihood_slightly_5` · `likelihood_slightly_6_nr` · `none` · `open_text` ·
+`probability_band_6` · `quality_5` · `randomization` · `ranking` ·
+`reliance_5` · `risk_5` · `satisfaction_5` · `severity_5` · `significance_5` ·
+`support_5` · `support_tax_5` · `surprise_5` · `true_false_5` · `trust_5` ·
+`trust_change_5` · `understanding_5` · `use_likelihood_5` · `worry_5` ·
+`yes_no` · `yes_no_maybe` · `yes_no_recall` · `yes_no_unsure`
 
-The `_slightly_` variants exist because both
-"Not at all / **Not very** / Somewhat / Very / Extremely" and
-"Not at all / **Slightly** / Moderately / Very / Extremely" are in use. They
-are different scales; do not merge them.
+The five `likelihood_*` families are genuinely different scales and must not be
+merged — the instruments use "Very unlikely / Somewhat unlikely / About as
+likely as not / ...", "... / Unlikely / **Neutral** / ...", "... / Unlikely /
+**Not sure** / ...", "Not at all / **Not very** / Somewhat / ...", and
+"Not at all / **Slightly** / Moderately / ...". Same for `confidence_5` versus
+`confidence_slightly_5`. `endpoint_5` is for items where only positions 1 and 5
+carry labels.
 
 ## Adding a newly fielded instrument
 
@@ -153,6 +205,9 @@ append the instrument to `instruments`; different means take the new wording,
 keep the old in `notes`, and set `wording_varies` to `TRUE`. Anything new gets
 a row. Anything dropped keeps its row with its old `instruments` list — that is
 the record of when it stopped being asked.
+
+Then update `NOTES.md`: carry unticked items forward, tick and date anything
+the new instrument fixed, and add whatever the new instrument introduced.
 
 ## Where the instruments come from
 
@@ -169,10 +224,20 @@ they have to be copied in before step 1 will run.
 > to hand.
 
 `variable_reference.csv` is the versioned record of what the instruments
-contain, and is small enough to belong in git.
+contain, and `NOTES.md` the record of what still needs checking. Both are small
+enough to belong in git.
 
 ## Current state
 
-Done: **WX** (294 rows, from WX24 + WX25, coverage verified).
-Not yet done: **TC** (TC23 + TC25), **WW** (WW25), **FL** (FL25) — roughly 600
-more rows.
+All four hazards are built and coverage-verified against the six instruments in
+hand — 916 rows.
+
+| hazard | rows | instruments |
+|---|---|---|
+| WX | 294 | WX24, WX25 |
+| TC | 244 | TC23, TC25 |
+| WW | 153 | WW25 |
+| FL | 225 | FL25 |
+
+The next run will be an update, not a build: follow **Adding a newly fielded
+instrument** above.
