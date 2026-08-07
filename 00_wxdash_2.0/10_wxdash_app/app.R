@@ -20,9 +20,14 @@ archive <- "dataverse.harvard.edu/dataverse/wxsurvey"
 archive_url <- "https://dataverse.harvard.edu/dataverse/wxsurvey"
 
 # The five demographics are the poststratification cells 04 builds and 06 fits
-# on, so a split here cuts the data the same way the estimates do. Survey year
-# is the sixth split because a question asked in more than one wave is pooled
-# across them everywhere else in the app.
+# on, so a split here cuts the data the same way the estimates do. Census region
+# is a county attribute rather than a cell dimension and no model fits it, so it
+# describes who answered rather than showing the geographic signal - that lives
+# in the CWA and county random effects and comes out in 07. The five between it
+# and survey year are built in 09 from background questions and are likewise not
+# model terms - they describe who answered. Survey year is last because a
+# question asked in more than one wave is pooled across them everywhere else in
+# the app.
 groups <- c(
   "Everyone" = "All",
   "Age" = "AGE_GROUP",
@@ -30,6 +35,12 @@ groups <- c(
   "Race and ethnicity" = "RACE_GROUP",
   "Education" = "EDUC_GROUP",
   "Income" = "INCOME_GROUP",
+  "Census region" = "CENSUS_REGION",
+  "Urban, suburban, rural" = "RURAL_GROUP",
+  "Housing tenure" = "TENURE_GROUP",
+  "Residence type" = "HOME_GROUP",
+  "Children in household" = "CHILDREN_GROUP",
+  "Weather salience" = "SALIENCE_GROUP",
   "Survey year" = "survey_year"
 )
 
@@ -48,6 +59,12 @@ group_phrases <- c(
   RACE_GROUP = "race and ethnicity group",
   EDUC_GROUP = "education group",
   INCOME_GROUP = "income group",
+  CENSUS_REGION = "census region",
+  RURAL_GROUP = "community type",
+  TENURE_GROUP = "housing tenure",
+  HOME_GROUP = "residence type",
+  CHILDREN_GROUP = "children-in-household group",
+  SALIENCE_GROUP = "weather salience group",
   survey_year = "survey year's respondents"
 )
 

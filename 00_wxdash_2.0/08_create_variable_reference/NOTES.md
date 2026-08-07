@@ -1,7 +1,8 @@
 # Variable reference — things to double check
 
 Built 2026-08-06 from WX24, WX25, TC23, TC25, WW25, FL25 while producing
-`variable_reference.csv` (916 rows).
+`variable_reference.csv`. Extended 2026-08-07 with WX23, TC24, WW23, WW24 and
+FL24 — now 1,201 rows across eleven instruments.
 
 Everything here was found by reading the instruments. Nothing was corrected in
 the sheet — the sheet records what the documents say. This file is the list of
@@ -42,8 +43,8 @@ These change results silently if missed.
       ("Extreme cold temperatures" → "Extreme cold"). Decide whether these are
       the same item across waves.
 
-- [ ] **`income` and `inc_*` reference different tax years** — 2022 in WX24 and
-      TC23, 2024 in WX25, TC25, WW25, FL25.
+- [ ] **`income` and `inc_*` reference different tax years** — see section 8;
+      three different years across the eleven instruments.
 
 - [ ] **FL25's `risk_tie` options don't match its own risk items.** The battery
       says "Extreme heat", "Extreme cold", "Tornadoes"; the tie-breaker says
@@ -54,15 +55,17 @@ These change results silently if missed.
       to respondents who tied their ratings, as a check box with no fixed option
       list. Everywhere else it is asked of everyone with 14 fixed options.
 
-Filter the sheet on `wording_varies == TRUE` for all 33 rows where the wording
+Filter the sheet on `wording_varies == TRUE` for all 57 rows where the wording
 moved between instruments.
 
 ## 2. Instrument problems worth fixing before the next fielding
 
-- [ ] **`ff_do_conff` (FL25) has no referent.** "How confident are you that your
-      actions would protect you from the flash flood?" sits alone on page 38
-      with no flash flood scenario anywhere before it. Either a page was cut or
-      the question is orphaned. Its answers may be uninterpretable.
+- [x] **`ff_do_conff` (FL25) has no referent — RESOLVED 2026-08-07.** FL24 sets
+      it up with a randomized flash flood scenario (`home_ff_do` if at home,
+      `car_ff_do` if driving) and asks the confidence question straight after.
+      FL25 kept `ff_do_conff` and dropped both scenarios, so FL25 respondents
+      were asked how confident they were about actions they were never asked to
+      describe. FL25 answers remain uninterpretable; FL24 answers are fine.
 
 - [ ] **`ffd_und` and `ffd_watchwarn_und` (WX24) are swapped.** `ffd_und` asks
       about flash flood watches and warnings; `ffd_watchwarn_und` asks about the
@@ -221,3 +224,59 @@ reasonably go the other way — worth checking before anyone filters on them.
       stem says "sources". The items are media types, and WW25/FL25 define
       channels as "tools or avenues of information". Flagging because it means
       the keyword disagrees with the instrument's own wording.
+
+## 8. Added by the 2026-08-07 instruments
+
+- [ ] **`risk_bliz` appears in WW23 and FL24 but nowhere else.** Both carry
+      Blizzards in the general risk battery. FL24 uses it *instead of*
+      `risk_surge`, so the FL risk battery is not constant across waves.
+
+- [ ] **The general risk battery has three distinct label sets.** WX23, TC23 and
+      the 2023-era instruments use "Extreme high winds", "Extreme heat waves",
+      "Extreme cold temperatures", "Droughts"; WW23 and FL24 use "Heat waves"
+      and "Cold temperatures"; the 2024–25 instruments use "High winds",
+      "Extreme heat", "Extreme cold", "Drought". 57 rows now flag
+      `wording_varies`. Anything pooling the risk battery across waves needs a
+      decision here.
+
+- [ ] **`income` now spans three tax years** — 2022 (WX23, WX24, TC23, WW23),
+      2023 (TC24, WW24, FL24) and 2024 (WX25, TC25, WW25, FL25).
+
+- [ ] **`wea_rand_img` means two different experiments.** In WX23 its arms are
+      hazard/impact/action combinations for a severe thunderstorm; in FL24 they
+      are warning/emergency/base/consequence/category versions of a flash flood
+      alert. Same variable name, different manipulation, different hazard.
+
+- [ ] **`threedays_source` and `oneday_source` also collide.** WX23 asks them
+      against a storm timeline, TC24 against a hurricane timeline.
+
+- [ ] **`slogan_eff` (WW23) skips option 4.** The awareness battery offers five
+      slogans, but the effectiveness question lists only four and keeps the code
+      5 for the last one — `slogan_4` ("When a snow squall is near, the roads
+      should be clear") is never offered as a choice.
+
+- [ ] **`color_diff` (WW24) has an inverted show condition.** It is displayed
+      `IF und > 4`, which selects respondents who found the graphic *easy*, then
+      tells them "You indicated that understanding this graphic was somewhat
+      difficult."
+
+- [ ] **`torn_svr_imp` (WX23) is not monotonic.** Its options run Not at all /
+      Slightly / Neutral / Moderately / Extremely important, so "Slightly"
+      sits below "Neutral" and "Moderately" above it.
+
+- [ ] **WW24 carries `timing_1` through `timing_65`** as page-level timers.
+      They have no colon in the instrument so they are not questions and are not
+      in the sheet, but they will be columns in the released data.
+
+- [ ] **WX23 offers a seventh race option** ("Some other race", with
+      `race_spec`) that no other instrument does. Race is not a constant
+      category set across waves.
+
+- [ ] **Two more misspelled variable names, both in the released data.**
+      `ian_rand_leadeaders` was already listed; add `color_lignt` (TC24, carries
+      the same `lignt` error as `risk_lignt`) and `ff_do_conff` (FL24 and FL25,
+      doubled f).
+
+- [ ] **WX23 and WW23 headers are unfilled** — "Date: XXXXX; Respondents = XXXX"
+      and "Date: April XX-XX, XXXX". TC24's reads "Date:XXXXX" with no space.
+      Four of the eleven instruments now have placeholder fielding metadata.

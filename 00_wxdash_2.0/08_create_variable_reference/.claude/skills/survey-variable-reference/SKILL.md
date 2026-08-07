@@ -127,11 +127,7 @@ weather-driven problem.
 
 **`keywords`** — pick every tag that genuinely applies, usually one or two:
 
-`reception` · `comprehension` · `response` · `risk_perception` · `trust` ·
-`sources` · `channels` · `graphics` · `forecast_products` · `preparedness` ·
-`mitigation` · `experience` · `relocation` · `insurance` · `recovery` · `ai` ·
-`numeracy` · `engagement` · `open_feedback` · `attention_check` ·
-`demographics` · `household` · `location` · `admin`
+`admin` · `ai` · `attention_check` · `channels` · `comprehension` · `demographics` · `engagement` · `experience` · `forecast_products` · `graphics` · `health` · `household` · `insurance` · `location` · `mitigation` · `numeracy` · `open_feedback` · `preparedness` · `reception` · `recovery` · `religion` · `relocation` · `response` · `risk_perception` · `sources` · `trust`
 
 `sources` versus `channels` follows the instruments' own distinction: WW25 and
 FL25 split "sources" (organizations and people — NWS, local TV, emergency
@@ -237,22 +233,27 @@ live inside a Word text box. Only WX24 has one so far.
 A family groups scales with the same structure and endpoints. Exact wording is
 never lost — it lives verbatim in `response_options` — so a one-word difference
 in a middle label is recorded in `notes` rather than spawning a new family.
-Reuse these 56 names; add one only when the shape is genuinely new, and name it
+Reuse these 67 names; add one only when the shape is genuinely new, and name it
 for what it measures plus its length.
 
-`agree_5` · `ar_category_6` · `awareness_5` · `benefit_hazard_4` ·
-`categorical` · `certainty_5` · `chance_5` · `checkbox` · `checkbox_parent` ·
-`concern_5` · `concern_slightly_5` · `confidence_5` · `confidence_slightly_5` ·
-`dropdown` · `effectiveness_5` · `endpoint_5` · `evacuation_5` · `extent_5` ·
-`familiarity_5` · `frequency_5` · `frequency_6` · `frequency_always_5` ·
-`gender` · `helpfulness_5` · `importance_5` · `lead_time_5` · `likelihood_5` ·
-`likelihood_neutral_5` · `likelihood_notsure_5` · `likelihood_notvery_5` ·
-`likelihood_slightly_5` · `likelihood_slightly_6_nr` · `none` · `open_text` ·
-`probability_band_6` · `quality_5` · `randomization` · `ranking` ·
-`reliance_5` · `risk_5` · `satisfaction_5` · `severity_5` · `significance_5` ·
-`support_5` · `support_tax_5` · `surprise_5` · `true_false_5` · `trust_5` ·
-`trust_change_5` · `understanding_5` · `use_likelihood_5` · `worry_5` ·
-`yes_no` · `yes_no_maybe` · `yes_no_recall` · `yes_no_unsure`
+`agree_5` · `agree_6` · `ar_category_6` · `awareness_5`
+`benefit_hazard_4` · `calibration_5` · `categorical` · `certainty_5`
+`chance_5` · `checkbox` · `checkbox_parent` · `color_12` · `concern_5`
+`concern_slightly_5` · `confidence_5` · `confidence_slightly_5`
+`dropdown` · `ease_5` · `effectiveness_5` · `endpoint_11` · `endpoint_5`
+`evacuation_5` · `excitement_5` · `extent_5` · `familiarity_5`
+`frequency_5` · `frequency_6` · `frequency_always_5` · `gender`
+`helpfulness_5` · `importance_5` · `info_type_6` · `lead_time_5`
+`likelihood_5` · `likelihood_extreme_5` · `likelihood_neutral_5`
+`likelihood_notsure_5` · `likelihood_notvery_5`
+`likelihood_notvery_6_na` · `likelihood_slightly_5`
+`likelihood_slightly_6_nr` · `none` · `numeric_0_100` · `open_text`
+`probability_band_6` · `quality_5` · `quality_binary` · `randomization`
+`ranking` · `reliance_5` · `risk_5` · `satisfaction_5` · `severity_5`
+`significance_5` · `support_5` · `support_tax_5` · `surprise_5`
+`true_false_5` · `trust_5` · `trust_change_5` · `understanding_5`
+`use_likelihood_5` · `worry_5` · `yes_no` · `yes_no_maybe`
+`yes_no_recall` · `yes_no_unsure`
 
 The five `likelihood_*` families are genuinely different scales and must not be
 merged — the instruments use "Very unlikely / Somewhat unlikely / About as
@@ -294,18 +295,24 @@ enough to belong in git.
 
 ## Current state
 
-All four hazards are built and coverage-verified against the six instruments in
-hand — 916 rows, every one classified by reading.
+All four hazards are built and coverage-verified against the eleven instruments
+in hand — 1,201 rows, every one classified by reading.
 
 | hazard | rows | experimental | instruments |
 |---|---|---|---|
-| WX | 294 | 83 | WX24, WX25 |
-| TC | 244 | 33 | TC23, TC25 |
-| WW | 153 | 18 | WW25 |
-| FL | 225 | 55 | FL25 |
+| WX | 370 | 119 | WX23, WX24, WX25 |
+| TC | 268 | 37 | TC23, TC24, TC25 |
+| WW | 313 | 142 | WW23, WW24, WW25 |
+| FL | 250 | 79 | FL24, FL25 |
 
-189 rows are experimental, 152 are `background`. The substantive comparable set
-— `experimental == FALSE & question_focus == "weather"` — is 578 rows.
+377 rows are experimental. The substantive comparable set —
+`experimental == FALSE & question_focus == "weather"` — is 646 rows. 57 rows
+carry `wording_varies`.
+
+The older instruments are experiment-heavy: WW23 and WW24 together contribute
+most of WW's 142 experimental rows, and WX23 alone adds four separate
+randomized risk-scale studies. Filtering them out is what makes the trend
+series usable.
 
 The next run will be an update, not a build: follow **Adding a newly fielded
 instrument** above.
