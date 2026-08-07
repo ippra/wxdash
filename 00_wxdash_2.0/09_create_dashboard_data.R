@@ -51,7 +51,7 @@ questions <- questions |>
       coalesce(question_intro, ""), coalesce(question_text, "")
     ))
   ) |>
-  select(hazard, variable, question, response_scale, response_options,
+  select(hazard, variable, question, keywords, response_scale, response_options,
          n_options)
 
 # Responses --------------------------------------------------------------------

@@ -365,23 +365,27 @@ server <- function(input, output, session) {
     }
   )
 
-  # Only survey and question are shown. The scale, the variable name and the
-  # response options ride along hidden: DataTables searches a column whether or
-  # not it is visible, so the search box finds a question by its variable name,
-  # by an answer it offers or by its scale, without any of the three taking up
-  # a column. Hiding them by target index means they must stay last in the
-  # select() below.
+  # Only survey and question are shown. The scale, the variable name, the
+  # response options and the content keywords ride along hidden: DataTables
+  # searches a column whether or not it is visible, so the search box finds a
+  # question by its variable name, by an answer it offers, by its scale, or by
+  # what it is about - "reception", "trust", "graphics" - without any of the
+  # four taking up a column. The keywords are what make the last of those work:
+  # nothing in the wording of "I receive all tornado warnings that are issued
+  # for my area" contains the word reception. Hiding them by target index means
+  # they must stay last in the select() below.
   output$questions <- renderDT({
     datatable(
       questions |>
-        select(hazard, question, response_scale, variable, response_options),
+        select(hazard, question, response_scale, variable, response_options,
+               keywords),
       filter = "top",
       selection = "single",
       rownames = FALSE,
       colnames = c("Survey" = "hazard", "Question Text" = "question"),
       options = list(
         pageLength = 10,
-        columnDefs = list(list(visible = FALSE, targets = c(2, 3, 4)))
+        columnDefs = list(list(visible = FALSE, targets = c(2, 3, 4, 5)))
       )
     )
   })
