@@ -169,3 +169,55 @@ kind of thing that becomes a real problem later.
 - [ ] **The sheet covers 6 instruments; the pipeline uses 22 waves.** WX17–WX23,
       TC20–TC22, TC24, WW21–WW24, and FL24 have no instrument here, so any
       variable unique to those waves is absent from this reference.
+
+## 7. Classification calls worth a second opinion
+
+Every row was classified by reading it. These are the ones where the call could
+reasonably go the other way — worth checking before anyone filters on them.
+
+- [ ] **`tor_em_seek_shelt`, `tor_em_shelt_type`, `tor_em_shelt_desc` are marked
+      experimental** even though their wording is identical for everyone.
+      `tor_em_rare` decided whether the respondent read the definition of a
+      tornado EMERGENCY first, so the two halves are not answering the same
+      question. Same logic applied nowhere else — if you disagree, these three
+      are the rows to change.
+
+- [ ] **The whole AR block after the graphic is marked experimental**
+      (`ar_seen`, `ar_conf`, `ar_balance_cat1`–`5`, `ar_act_*`) but the block
+      before it is not (`ar_fam`, `ar_haz_*`, `ar_scale_know_*`). The dividing
+      line is whether the answer needs the graphic. `ar_act_*` is the closest
+      call — the question is about AR categories generally, but those categories
+      only exist for the respondent because the graphic introduced them.
+
+- [ ] **`aware_*` is not experimental but `aware_prog`, `eftv_*`, `adopt_*` and
+      `resp_ef_infr_*` are.** "Have you heard of green roofs" reads the same for
+      everyone; the others interpolate `[rand_dev]`, `[rand_haz]` or
+      `[rand_prog]`. Worth confirming the `aware_*` items really were shown with
+      identical wording, since their *definitions* did vary with `rand_haz`.
+
+- [ ] **The `home_ins_*` block is `background`, the `ins_crisis_*` block is
+      `weather`.** Holding insurance is a household characteristic; views on a
+      weather-driven insurance crisis are not. Reasonable people could put the
+      whole section either way.
+
+- [ ] **`ww_live`, `ww_trav`, `ww_fam`, `snow_exp_live`, `coast_live` are
+      `background`.** They describe where someone lives rather than what they
+      think about weather, which puts them with `rural`. But they are winter- and
+      coast-specific exposure, so they may belong with the weather items.
+
+- [ ] **`rq_1`–`rq_10` are `weather` with keyword `preparedness`.** They ask
+      about general emergency preparedness — disaster kits, meeting places, CPR
+      — with no weather mention. Kept as `weather` because preparedness is a
+      substantive outcome rather than a background trait.
+
+- [ ] **Numeracy items are `background`.** `cointoss`, `bigbucks`, `acme_pub`,
+      `choir`, `fiveside`, `sixside`, `mushroom`, `your_ability`,
+      `public_ability` measure a personal capability. But the forecast
+      probability items (`incremental_prob`, `cumulative_prob`, `percentile_*`,
+      `exceedance_*`, `cond_prob`) are `weather` and tagged
+      `comprehension|numeracy`, because they interpret an actual forecast.
+
+- [ ] **`wthr_info_*` is tagged `channels`, not `sources`,** even though its own
+      stem says "sources". The items are media types, and WW25/FL25 define
+      channels as "tools or avenues of information". Flagging because it means
+      the keyword disagrees with the instrument's own wording.

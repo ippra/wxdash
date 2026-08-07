@@ -69,6 +69,9 @@ instrument has, in its order.
 | `survey_hazard` | `WX`, `TC`, `WW`, `FL` |
 | `variable` | name exactly as written, misspellings preserved — `risk_lignt` and `timine_use_no_info` are in the released data that way |
 | `question_type` | `question`, `checkbox_item`, `checkbox_parent`, `verbatim_followup`, `randomization`, `vignette`, `dataset_field` |
+| `experimental` | `TRUE` when the answer depends on a stimulus that varied between respondents — see below |
+| `question_focus` | `weather` or `background` |
+| `keywords` | one or more content tags, ` \| `-separated, from the fixed list below |
 | `question_intro` | the preamble the item sits under, brackets stripped. Empty when the item is self-contained |
 | `question_text` | the item, verbatim, brackets stripped |
 | `response_options` | `1 = Label \| 2 = Label`, separated by ` \| ` |
@@ -80,7 +83,69 @@ instrument has, in its order.
 | `instruments` | `WX24;WX25` |
 | `wording_varies` | `TRUE` when intro or item text differs between instruments |
 
-### 4. Write NOTES.md
+### 4. Classify each row — by reading it, never by rule
+
+`experimental`, `question_focus` and `keywords` are decided **by reading the
+question**, one row at a time. Do not write a script that assigns them from
+name prefixes or regexes over the wording. The whole point of these columns is
+the judgment; a rule that gets 90% of them right is the failure mode this skill
+exists to avoid. Scripting the *paste-in* of decisions already made is fine —
+and safer than retyping, because it cannot alter the verbatim question text.
+
+**`experimental`** — `TRUE` when the answer depends on a stimulus that varied
+between respondents, so the item is not a clean population measure:
+
+- randomized wording appears in what the respondent read (`[rand_morn]`,
+  `[rand_dev]`, `[exf_exp_rand_d7]`, `[home_ins_rand_perc]`)
+- the respondent was shown a graphic, map or image and asked about it
+- an upstream randomization changed what they saw first, even where the
+  question's own wording is fixed — `tor_em_seek_shelt` reads identically for
+  everyone, but half the sample had just read a definition of a tornado
+  EMERGENCY and half had not
+
+A **piped answer is not a randomization**. `[exf_adv_look]`, `[ice_thrsh]`,
+`[snow_thrsh]`, `[Kennedy]` insert the respondent's own earlier answer; those
+stay `FALSE`.
+
+A stimulus everyone saw is a judgment call: flag it `TRUE` if the answer is
+unintelligible without the graphic (`ar_balance_cat1`, `snmapbest`), `FALSE` if
+the question stands alone (`ar_fam`, `timing_aware`, `exf_aware`).
+
+Filtering `experimental == FALSE` is how the sheet is reduced to comparable
+substantive questions. Nothing is deleted — the row stays so the record is
+complete.
+
+**`question_focus`** — `weather` when the question is about weather, hazards,
+forecasts, warnings or what the respondent does about them. `background` when
+it is primarily a demographic or personal characteristic: age, gender, race,
+income, education, household size, tenure, where they live, insurance holdings,
+numeracy, attention checks, and the codebook appendix fields. Judge the question
+itself, not the section it sits in — `home_ins` ("do you have homeowners
+insurance") is `background` even though the section is about weather-driven
+premiums, while `ins_crisis_aware` is `weather` because it asks about a
+weather-driven problem.
+
+**`keywords`** — pick every tag that genuinely applies, usually one or two:
+
+`reception` · `comprehension` · `response` · `risk_perception` · `trust` ·
+`sources` · `channels` · `graphics` · `forecast_products` · `preparedness` ·
+`mitigation` · `experience` · `relocation` · `insurance` · `recovery` · `ai` ·
+`numeracy` · `engagement` · `open_feedback` · `attention_check` ·
+`demographics` · `household` · `location` · `admin`
+
+`sources` versus `channels` follows the instruments' own distinction: WW25 and
+FL25 split "sources" (organizations and people — NWS, local TV, emergency
+managers, family) from "channels" ("tools or avenues of information" — radio,
+television, internet, social media, word-of-mouth, phone). Apply that split
+everywhere, including where an instrument's own stem calls a list of media
+"sources".
+
+`comprehension` covers both self-rated understanding (`*_und`) and objective
+knowledge tests (`torwatch`, `warn_size`, `otlks_cat_recall_spc`).
+`experience` is for past events the respondent lived through; where they also
+report what they did, add `response`.
+
+### 5. Write NOTES.md
 
 Alongside the sheet, write `NOTES.md` — the human-facing list of what needs a
 second pair of eyes. **This is required, not optional.** The `notes` column is
@@ -112,7 +177,7 @@ file also records what stopped being a problem.
 
 Start it with the build date and the instruments it covers.
 
-### 5. Verify
+### 6. Verify
 
 ```sh
 python3 <skill>/scripts/check_coverage.py <sheet.csv> <scratch_dir> WX
@@ -230,14 +295,17 @@ enough to belong in git.
 ## Current state
 
 All four hazards are built and coverage-verified against the six instruments in
-hand — 916 rows.
+hand — 916 rows, every one classified by reading.
 
-| hazard | rows | instruments |
-|---|---|---|
-| WX | 294 | WX24, WX25 |
-| TC | 244 | TC23, TC25 |
-| WW | 153 | WW25 |
-| FL | 225 | FL25 |
+| hazard | rows | experimental | instruments |
+|---|---|---|---|
+| WX | 294 | 83 | WX24, WX25 |
+| TC | 244 | 33 | TC23, TC25 |
+| WW | 153 | 18 | WW25 |
+| FL | 225 | 55 | FL25 |
+
+189 rows are experimental, 152 are `background`. The substantive comparable set
+— `experimental == FALSE & question_focus == "weather"` — is 578 rows.
 
 The next run will be an update, not a build: follow **Adding a newly fielded
 instrument** above.
