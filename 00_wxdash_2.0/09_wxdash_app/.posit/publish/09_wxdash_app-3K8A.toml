@@ -4,11 +4,11 @@
 "$schema" = "https://cdn.posit.co/publisher/schemas/posit-publishing-schema-v3.json"
 type = "r-shiny"
 entrypoint = "app.R"
-title = "10_wxdash_app"
+title = "09_wxdash_app"
 files = [
     "/app.R",
-    "/.posit/publish/10_wxdash_app-1670.toml",
-    "/.posit/publish/deployments/deployment-K5TQ.toml",
+    "/.posit/publish/09_wxdash_app-3K8A.toml",
+    "/.posit/publish/deployments/deployment-K200.toml",
     "/data",
 ]
 validate = true

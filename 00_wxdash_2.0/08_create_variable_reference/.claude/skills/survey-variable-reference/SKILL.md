@@ -70,6 +70,7 @@ instrument has, in its order.
 | `variable` | name exactly as written, misspellings preserved — `risk_lignt` and `timine_use_no_info` are in the released data that way |
 | `question_type` | `question`, `checkbox_item`, `checkbox_parent`, `verbatim_followup`, `randomization`, `vignette`, `dataset_field` |
 | `experimental` | `TRUE` when the answer depends on a stimulus that varied between respondents — see below |
+| `graphic_shown` | `TRUE` when the respondent was shown a graphic and the answer rests on it — see below |
 | `question_focus` | `weather` or `background` |
 | `keywords` | one or more content tags, ` \| `-separated, from the fixed list below |
 | `question_intro` | the preamble the item sits under, brackets stripped. Empty when the item is self-contained |
@@ -114,6 +115,26 @@ the question stands alone (`ar_fam`, `timing_aware`, `exf_aware`).
 Filtering `experimental == FALSE` is how the sheet is reduced to comparable
 substantive questions. Nothing is deleted — the row stays so the record is
 complete.
+
+**`graphic_shown`** — `TRUE` when the respondent was shown a graphic, map, chart,
+forecast product image or photograph and the answer rests on it. This is not the
+`graphics` keyword, which is a topic tag: `hur_map_und` ("how would you rate your
+understanding of maps") and `gr_rec` ("do you want graphics, or words and
+numbers") are tagged `graphics` and are `graphic_shown = FALSE`, because nothing
+was displayed. The reverse also happens — the TC message-reliability arms
+(`rand_wind_*`, `rand_surge_*`, `rand_flood_*`) each carry `[LINK TO IMAGE]`, so
+they are `TRUE` whatever their keywords say.
+
+Read the page, not the item: a graphic is usually displayed once and then
+governs every item until the next page marker, including follow-ups like
+`ero_use_no_fnd` that never mention it. Where a block re-shows the same graphic
+(`[re-show graphic(s)]` in WW25), the second block is `TRUE` as well.
+
+It is deliberately independent of `experimental`. A graphic shown identically to
+everyone is `graphic_shown = TRUE` and `experimental = FALSE` — the 14 TC
+`color_*` items are the current example. A randomized *text* forecast is the
+opposite: `experimental = TRUE`, `graphic_shown = FALSE`, as in WX's
+`cond_risk_*` and `clim_risk_*` and WW's `fcst_conf_*`.
 
 **`question_focus`** — `weather` when the question is about weather, hazards,
 forecasts, warnings or what the respondent does about them. `background` when

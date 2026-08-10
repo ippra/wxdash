@@ -484,18 +484,29 @@ server <- function(input, output, session) {
   # nothing in the wording of "I receive all tornado warnings that are issued
   # for my area" contains the word reception. Hiding them by target index means
   # they must stay last in the select() below.
+  # One column rather than two, to keep the table as narrow as it was. As a
+  # factor the four combinations filter from a drop-down, which is the useful
+  # move: "Standard" alone is the set that estimates the population.
   output$questions <- renderDT({
     datatable(
       questions |>
-        select(hazard, question, response_scale, variable, response_options,
-               keywords),
+        mutate(kind = factor(case_when(
+          experimental & graphic_shown ~ "Experiment, graphic",
+          experimental                 ~ "Experiment",
+          graphic_shown                ~ "Graphic",
+          TRUE                         ~ "Standard"
+        ), levels = c("Standard", "Graphic", "Experiment",
+                      "Experiment, graphic"))) |>
+        select(hazard, question, kind, response_scale, variable,
+               response_options, keywords),
       filter = "top",
       selection = "single",
       rownames = FALSE,
-      colnames = c("Survey" = "hazard", "Question Text" = "question"),
+      colnames = c("Survey" = "hazard", "Question Text" = "question",
+                   "Type" = "kind"),
       options = list(
         pageLength = 10,
-        columnDefs = list(list(visible = FALSE, targets = c(2, 3, 4, 5)))
+        columnDefs = list(list(visible = FALSE, targets = c(3, 4, 5, 6)))
       )
     )
   })

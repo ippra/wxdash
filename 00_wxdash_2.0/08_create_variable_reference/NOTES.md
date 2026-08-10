@@ -309,6 +309,41 @@ reasonably go the other way — worth checking before anyone filters on them.
       and "Date: April XX-XX, XXXX". TC24's reads "Date:XXXXX" with no space.
       Four of the eleven instruments now have placeholder fielding metadata.
 
+## 9a. New column: `graphic_shown` (added 2026-08-10)
+
+`TRUE` on 246 of 1,324 rows — the questions whose answer rests on a graphic,
+map, chart, forecast image or photograph the respondent was shown. WX 90, TC 72,
+WW 46, FL 38. It sits beside `experimental` and is deliberately independent of
+it: 232 rows are both, 14 are a graphic shown to everyone with nothing
+randomized, and the randomized *text* forecasts are the mirror image.
+
+- [ ] **It is not the `graphics` keyword.** The keyword is a topic tag and
+      includes questions *about* graphics where none was displayed:
+      `hur_map_und`, `tor_map_und`, `tor_radar_und`, `flood_map_und`,
+      `flood_map_pref`, `gr_rec` and `wep_rec` are all keyword `graphics` and
+      `graphic_shown = FALSE`. Filtering on the keyword to find graphic-based
+      questions would pull in seven items that ask about maps in the abstract.
+
+- [ ] **The 14 TC `color_*` items are the only rows that are `graphic_shown`
+      without being `experimental`.** Everyone saw the same
+      `iowa_cloud_cover_graphic` and the same swatches, so nothing varied — but
+      the answers cannot be read without knowing what was on screen. If a
+      colour-association analysis ever compares across waves, that graphic is
+      part of the instrument.
+
+- [ ] **The meteorologist block is a judgment call.** `met_accurate_*`,
+      `met_relevant_*`, `met_follow_*` and `met_choice` are `TRUE` because
+      respondents were shown a photograph whose race and gender were
+      randomized. It is a portrait, not a weather graphic, so anyone filtering
+      `graphic_shown` to find *forecast product* questions will need to exclude
+      these four names. Flagging rather than deciding it away.
+
+- [ ] **Text stimuli that read like graphics are `FALSE`**, and worth knowing
+      about: WX's `cond_risk_*`, `clim_risk_*`, `rand_cond_format`,
+      `rand_clim_format` and `spc_rand`, and WW's `fcst_conf_*`. Each sits under
+      a preamble mentioning graphics, or beside a graphic block, but what varied
+      was wording.
+
 ## 9. Added by the 2026-08-10 instruments (WX20–WX22, TC20–TC22)
 
 These six are older than everything already in the sheet, so they change no
