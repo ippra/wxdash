@@ -2,7 +2,8 @@
 
 Built 2026-08-06 from WX24, WX25, TC23, TC25, WW25, FL25 while producing
 `variable_reference.csv`. Extended 2026-08-07 with WX23, TC24, WW23, WW24 and
-FL24 — now 1,201 rows across eleven instruments.
+FL24. Extended 2026-08-10 with WX20, WX21, WX22, TC20, TC21 and TC22 — now
+1,324 rows across seventeen instruments.
 
 Everything here was found by reading the instruments. Nothing was corrected in
 the sheet — the sheet records what the documents say. This file is the list of
@@ -43,8 +44,9 @@ These change results silently if missed.
       ("Extreme cold temperatures" → "Extreme cold"). Decide whether these are
       the same item across waves.
 
-- [ ] **`income` and `inc_*` reference different tax years** — see section 8;
-      three different years across the eleven instruments.
+- [ ] **`income` and `inc_*` reference different tax years** — see sections 8
+      and 9; six different years across the seventeen instruments, 2019 through
+      2024.
 
 - [ ] **FL25's `risk_tie` options don't match its own risk items.** The battery
       says "Extreme heat", "Extreme cold", "Tornadoes"; the tie-breaker says
@@ -55,7 +57,7 @@ These change results silently if missed.
       to respondents who tied their ratings, as a check box with no fixed option
       list. Everywhere else it is asked of everyone with 14 fixed options.
 
-Filter the sheet on `wording_varies == TRUE` for all 57 rows where the wording
+Filter the sheet on `wording_varies == TRUE` for all 66 rows where the wording
 moved between instruments.
 
 ## 2. Instrument problems worth fixing before the next fielding
@@ -169,9 +171,11 @@ kind of thing that becomes a real problem later.
       ignore the question and click a blue dot. Confirm how a pass versus a fail
       is coded in the released data.
 
-- [ ] **The sheet covers 6 instruments; the pipeline uses 22 waves.** WX17–WX23,
-      TC20–TC22, TC24, WW21–WW24, and FL24 have no instrument here, so any
-      variable unique to those waves is absent from this reference.
+- [ ] **The sheet covers 17 instruments; the pipeline uses 22 waves.** WX17,
+      WX18, WX19, WW21 and WW22 have no instrument here, so any variable unique
+      to those five waves is absent from this reference. WX17 is the one that
+      matters most: `05` already drops its reception and response batteries
+      because it used a 1-7 scale.
 
 ## 7. Classification calls worth a second opinion
 
@@ -225,22 +229,44 @@ reasonably go the other way — worth checking before anyone filters on them.
       channels as "tools or avenues of information". Flagging because it means
       the keyword disagrees with the instrument's own wording.
 
+- [ ] **`srg_foot_ft`, `srg_foot_in`, `srg_car_ft`, `srg_car_in` are tagged
+      `comprehension|response`.** They ask the deepest water it is safe to cross
+      on foot or in a car, which is knowledge rather than a report of behaviour,
+      so `response` is the arguable half. It was kept because the threshold is
+      the protective decision — but if `response` is reserved for what people
+      say they do, these four should drop it.
+
+- [ ] **The COVID items are `weather`, not `background`.** `covid_risk` compares
+      COVID-19 risk *to* weather risk, and `covid_attention` and `covid_respond`
+      ask about weather attention and weather protective action. The subject is
+      a pandemic, so someone filtering for weather questions may not expect
+      them.
+
+- [ ] **`covid_attention` is not marked reverse worded** even though agreeing
+      means paying *less* attention. No pre-existing row on a `certainty_5`
+      scale is marked reverse worded — the flag is used only on `agree_5` (22
+      rows) and `likelihood_notvery_5` (2). Consistent with the sheet, but the
+      item does run against the direction of the construct.
+
 ## 8. Added by the 2026-08-07 instruments
 
 - [ ] **`risk_bliz` appears in WW23 and FL24 but nowhere else.** Both carry
       Blizzards in the general risk battery. FL24 uses it *instead of*
       `risk_surge`, so the FL risk battery is not constant across waves.
 
-- [ ] **The general risk battery has three distinct label sets.** WX23, TC23 and
-      the 2023-era instruments use "Extreme high winds", "Extreme heat waves",
-      "Extreme cold temperatures", "Droughts"; WW23 and FL24 use "Heat waves"
-      and "Cold temperatures"; the 2024–25 instruments use "High winds",
-      "Extreme heat", "Extreme cold", "Drought". 57 rows now flag
+- [ ] **The general risk battery has three distinct label sets.** WX20–WX23,
+      TC20–TC23 and the 2023-era instruments use "Extreme high winds", "Extreme
+      heat waves", "Extreme cold temperatures", "Droughts"; WW23 and FL24 use
+      "Heat waves" and "Cold temperatures"; the 2024–25 instruments use "High
+      winds", "Extreme heat", "Extreme cold", "Drought". 66 rows now flag
       `wording_varies`. Anything pooling the risk battery across waves needs a
-      decision here.
+      decision here. The 2026-08-10 instruments moved the boundary: the long
+      labels run unbroken from 2020 to 2023, so the break is between 2023 and
+      2024 rather than anywhere earlier.
 
-- [ ] **`income` now spans three tax years** — 2022 (WX23, WX24, TC23, WW23),
-      2023 (TC24, WW24, FL24) and 2024 (WX25, TC25, WW25, FL25).
+- [ ] **`income` now spans six tax years** — 2019 (WX20, TC20), 2020 (WX21,
+      TC21), 2021 (WX22, TC22), 2022 (WX23, WX24, TC23, WW23), 2023 (TC24,
+      WW24, FL24) and 2024 (WX25, TC25, WW25, FL25).
 
 - [ ] **`wea_rand_img` means two different experiments.** In WX23 its arms are
       hazard/impact/action combinations for a severe thunderstorm; in FL24 they
@@ -270,7 +296,9 @@ reasonably go the other way — worth checking before anyone filters on them.
 
 - [ ] **WX23 offers a seventh race option** ("Some other race", with
       `race_spec`) that no other instrument does. Race is not a constant
-      category set across waves.
+      category set across waves. Superseded by section 9: WX20–WX22 and
+      TC20–TC22 offer it too, so the seventh option is the 2020–2023 norm and
+      its removal in 2024 is the change.
 
 - [ ] **Two more misspelled variable names, both in the released data.**
       `ian_rand_leadeaders` was already listed; add `color_lignt` (TC24, carries
@@ -280,3 +308,154 @@ reasonably go the other way — worth checking before anyone filters on them.
 - [ ] **WX23 and WW23 headers are unfilled** — "Date: XXXXX; Respondents = XXXX"
       and "Date: April XX-XX, XXXX". TC24's reads "Date:XXXXX" with no space.
       Four of the eleven instruments now have placeholder fielding metadata.
+
+## 9. Added by the 2026-08-10 instruments (WX20–WX22, TC20–TC22)
+
+These six are older than everything already in the sheet, so they change no
+wording: the newest instrument still supplies each item's text. What they add is
+123 rows for questions that had been retired before WX23, and a longer run of
+coverage for 328 rows that were already here.
+
+**Check before pooling or modelling.**
+
+- [ ] **`rip_und` means two different things in TC20 and TC21.** The name is
+      used once for "How would you rate your understanding of rip currents?" on
+      a Poor-to-Excellent scale, and again, in the same instrument, for the
+      true/false item "In addition to pulling you away from shore, rip currents
+      can pull you under the water." TC22 renamed the second one `rip_pull`.
+      Whatever the released 2020 and 2021 data hold under `rip_und`, it is not
+      the same quantity as `rip_und` from 2022 onward. Check which of the two
+      questions the released column actually carries before using it.
+
+- [ ] **`wx_info7` changes referent in TC.** TC20 and TC21 read "Automated text
+      or phone notifications"; TC22 onward read "Cell phone applications or
+      notifications". Applications and automated notifications are different
+      channels, so the reliance series breaks at 2022.
+
+- [ ] **`srg_watch_time` changes its gloss of storm surge.** TC20 and TC21 say
+      "a rise in seawater level caused by the storm"; TC22 onward say
+      "inundation from rising water moving inland", which is what
+      `srg_warn_time` said all along. Respondents in 2020 and 2021 were told a
+      different definition inside the question they were answering.
+
+- [ ] **The COVID-19 block is period-bound.** `covid_risk`, `covid_attention`,
+      `covid_respond` and (TC only) `covid_hurplans` appear in 2020, 2021 and
+      2022 and nowhere after. They are not missing from later waves; they were
+      retired. `covid_risk` also asks a comparison — COVID risk *relative to*
+      weather risk — so it is not a weather risk measure on its own.
+
+- [ ] **WX22 uses three names twice each.** `rand_clim_format`,
+      `cond_risk_conc` and `cond_risk_perc` each appear under two different
+      experiments in the same instrument: a ten-arm climatological-framing block
+      early on, and a five-arm conditional-damage block later. WX21 carries only
+      the six-arm version of `rand_clim_format`. Anyone reading the WX22 columns
+      needs to know which experiment a given column belongs to, and the document
+      does not say.
+
+**Instrument problems worth fixing before the next fielding.**
+
+- [ ] **`met_follow_2` (TC22) contains two questions.** "Would you follow/watch
+      rand_fname_2 if they were a meteorologist in your area? Would you rely on
+      Alex during a dangerous weather event in your area?" The second sentence
+      is left over from an earlier draft and hard-codes Alex, so half the sample
+      — the ones shown Cameron — were asked about a person they had not been
+      introduced to. `met_follow_1` has only the first sentence.
+
+- [ ] **`spc_risk_perc` (WX20) is named for the wrong quantity.** It asks "how
+      concerned would you be", on a 0-100 concern scale, while its sibling
+      `spc_resp_perc` asks about changing plans. The `_risk_perc` suffix
+      elsewhere in WX means a likelihood judgment.
+
+- [ ] **`qp_test` option 3 is garbled in all three waves** — "There is a 90%
+      chance of that Location A will get approximately get 4 inches of rain."
+      The same option is clean in `ss_test` and `ws_test`.
+
+**Cosmetic issues in the documents.**
+
+- [ ] `VERBATIM` misspelled `VERBATIN` throughout the storm surge depth items
+      (`srg_foot_ft`, `srg_foot_in`, `srg_car_ft`, `srg_car_in`) in TC20, TC21
+      and TC22; `VERATIM` also appears in all six, as it does in TC23 and TC25
+- [ ] `ALIGN BOXES HORIZANTALLY` — TC20, TC21, TC22
+- [ ] `RANDOMIZE ALERT EXAMPLEE` — TC22 `surge_flood_risk`
+- [ ] `one_day` reads "1 days before the storm" — TC20, TC21, TC22
+- [ ] `info_nhc` (TC20) reads "How often you get information", missing "do"
+- [ ] `rand_surge_2` (TC20, TC21) reads "storm surge Charleston, SC", missing
+      "in"
+- [ ] `watch_leadtime` (WX21, WX22) reads "Many people want much time as
+      possible", missing "as"
+- [ ] `spc_rand` (WX20) arms read "AN LEVEL 3 of 5 RISK" and "AN 15% CHANCE" —
+      respondents saw the grammatical slip inside the forecast being tested
+- [ ] `resp_small_group` and `resp_large_group` read "a small group friends or
+      family" in WX20, WX21 and WX22, missing "of"; `rec_phone` and `resp_phone`
+      read "If phone is not on" rather than "If your phone is not on"
+- [ ] `wx_info4` runs its first response option onto the item line in all six,
+      the same defect already recorded for WX23 and TC23
+- [ ] `rand_ws` (TC22) is written `rand_ws: rand_ss: 0 = LINK…`, carrying the
+      previous block's prefix
+
+**Fielding metadata.**
+
+- [ ] **WX22's header is unfilled** — "Date: April XX-XX, XXXX; Respondents =
+      X,XXX". Five of the seventeen instruments now carry placeholder metadata.
+      The other five new ones are filled: WX20 Jun 10-19 2020 (3,000), WX21 Jun
+      9-17 2021 (1,550), TC20 Jun 29 - Jul 2 2020 (3,000), TC21 Jun 22 - Jul 1
+      2021 (1,550), TC22 Jun 30 - Jul 8 2022 (2,082).
+
+**Open questions.**
+
+- [ ] **Do the released 2020–2022 files carry one column or two for WX22's
+      duplicated names?** If Qualtrics wrote `cond_risk_conc` once, one of the
+      two experiments overwrote the other and the earlier block's answers are
+      gone. The instrument cannot answer this; the data can.
+
+- [ ] **Was `ign_instruct` dropped or just unrecorded in WX22?** It appears in
+      WX20, WX21, TC20, TC21 and TC22 but not WX22, which is the only wave in
+      the group without an attention check.
+
+**Found reviewing the sheet itself, not the instruments.**
+
+- [x] **`ian_rand_program` (TC23) said three arms and listed two — corrected
+      2026-08-10 to two.** The instrument reads
+      `[ian_rand_program: permanent home | new job]`. Its two siblings,
+      `ian_rand_leadeaders` and `ian_rand_population`, do have three arms each,
+      and the count had been copied across.
+
+- [x] **Two rows put the option separator inside an option label — corrected
+      2026-08-10.** `rand_cond_format` (WX) carried `[rand_cond_perc: 5 | 30]`
+      and `amount_format` (TC) carried `[amount_format_rand1: 4 | 12]`, so
+      splitting `response_options` on " | " produced ten fields where
+      `n_options` said five, and four where it said two. Both now write the
+      alternatives with "or" inside the bracket. These were the only two rows in
+      the sheet with a pipe inside `response_options`; pipes inside
+      `question_intro` and `question_text` are harmless, since those fields are
+      never split, and 25 rows have them.
+
+- [ ] **Three WW25 rows carry a count with no labels.** `snmapbest`, `snmaphi`
+      and `snmaplow` record `n_options = 31` with `response_options` empty. The
+      instrument does list all 31 dropdown entries (0 inches through 30 inches).
+      Either the labels belong in the sheet or the count belongs at 0, as it is
+      for other dropdowns such as `age`.
+
+- [x] **Seventeen rows added this run used the wrong certainty family —
+      corrected 2026-08-10.** They carry the five-point "Definitely no …
+      Definitely yes" set but were labelled `yes_no_unsure`, which in this sheet
+      means the three-point No / Yes / Not sure set: all 54 pre-existing
+      `yes_no_unsure` rows use the three-point version and all 23 pre-existing
+      five-point rows use `certainty_5`. Now `certainty_5`: `covid_attention`
+      and `covid_respond` in both hazards, the five WX credibility items, the
+      six TC meteorologist items and `ai_1_acc` / `ai_2_acc`. Worth knowing that
+      the two names do not distinguish scale *length* by their names alone.
+
+- [x] **`met_follow_1` and `met_follow_2` were tagged `channels` — corrected
+      2026-08-10 to `trust|sources`.** A meteorologist is a person, which this
+      sheet counts as a source; "follow/watch" does not make them a channel.
+      Every other person-or-organization row, including their own siblings
+      `met_accurate_*` and `met_relevant_*`, is `trust|sources`.
+
+- [ ] **Two rows describe their arms in prose rather than listing them** —
+      `spc_scale_level_disp` (`n_options = 0`, "Derived from spc_scale_rand and
+      spc_level_rand") and `rand_clim_format` (`n_options = 10`, a sentence
+      describing the ten conditions). Both are defensible for a derived or
+      crossed randomization, but they are the only two rows where
+      `response_options` is not a `value = label` list, so anything parsing that
+      column has to tolerate them.
