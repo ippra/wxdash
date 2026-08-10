@@ -2,8 +2,9 @@
 
 Built 2026-08-06 from WX24, WX25, TC23, TC25, WW25, FL25 while producing
 `variable_reference.csv`. Extended 2026-08-07 with WX23, TC24, WW23, WW24 and
-FL24. Extended 2026-08-10 with WX20, WX21, WX22, TC20, TC21 and TC22 — now
-1,324 rows across seventeen instruments.
+FL24; 2026-08-10 with WX20, WX21, WX22, TC20, TC21, TC22; and again 2026-08-10
+with WX17, WX18, WX19, WW21 and WW22 — now 1,599 rows across **all twenty-two
+instruments**, which is every wave the pipeline pools.
 
 Everything here was found by reading the instruments. Nothing was corrected in
 the sheet — the sheet records what the documents say. This file is the list of
@@ -21,11 +22,14 @@ These change results silently if missed.
       available" (positive). `05` already handles this; anything new that
       touches `rec_time` must too.
 
-- [ ] **`resp_more` also flips.** TC: "I usually take some type of protective
-      action, but not the most difficult actions" (positive). WW: "I am usually
-      too busy or unable to take preparatory or protective actions" (negative).
-      Same name, opposite construct — arguably these should never have shared a
-      name.
+- [ ] **`resp_more` flips between hazards *and* within WW.** TC: "I usually take
+      some type of protective action, but not the most difficult actions"
+      (positive). WW22 onward: "I am usually too busy or unable to take
+      preparatory or protective actions" (negative). But WW21 reads "I usually
+      take some type of preparatory or protective actions, but not the most
+      difficult actions" — the positive TC wording. So the flip is not just
+      TC-versus-WW; it happens inside WW between 2021 and 2022. Any WW series on
+      `resp_more` that spans 2021 crosses a sign change.
 
 - [ ] **FL uses different names for the reception items.** `rec_most_fl` /
       `rec_miss_fl`, worded "information that **I need**", against TC and WW's
@@ -44,9 +48,9 @@ These change results silently if missed.
       ("Extreme cold temperatures" → "Extreme cold"). Decide whether these are
       the same item across waves.
 
-- [ ] **`income` and `inc_*` reference different tax years** — see sections 8
-      and 9; six different years across the seventeen instruments, 2019 through
-      2024.
+- [ ] **`income` and `inc_*` reference different tax years** — see sections 8,
+      9 and 10; nine different years across the twenty-two instruments, 2016
+      through 2024. Every wave asks about the previous calendar year.
 
 - [ ] **FL25's `risk_tie` options don't match its own risk items.** The battery
       says "Extreme heat", "Extreme cold", "Tornadoes"; the tie-breaker says
@@ -57,7 +61,7 @@ These change results silently if missed.
       to respondents who tied their ratings, as a check box with no fixed option
       list. Everywhere else it is asked of everyone with 14 fixed options.
 
-Filter the sheet on `wording_varies == TRUE` for all 66 rows where the wording
+Filter the sheet on `wording_varies == TRUE` for all 95 rows where the wording
 moved between instruments.
 
 ## 2. Instrument problems worth fixing before the next fielding
@@ -171,11 +175,9 @@ kind of thing that becomes a real problem later.
       ignore the question and click a blue dot. Confirm how a pass versus a fail
       is coded in the released data.
 
-- [ ] **The sheet covers 17 instruments; the pipeline uses 22 waves.** WX17,
-      WX18, WX19, WW21 and WW22 have no instrument here, so any variable unique
-      to those five waves is absent from this reference. WX17 is the one that
-      matters most: `05` already drops its reception and response batteries
-      because it used a 1-7 scale.
+- [x] **The sheet covers all 22 instruments — closed 2026-08-10.** WX17, WX18,
+      WX19, WW21 and WW22 were the last five and are now in. Every variable in
+      every wave the pipeline pools has a row.
 
 ## 7. Classification calls worth a second opinion
 
@@ -311,9 +313,8 @@ reasonably go the other way — worth checking before anyone filters on them.
 
 ## 9a. New column: `graphic_shown` (added 2026-08-10)
 
-`TRUE` on 246 of 1,324 rows — the questions whose answer rests on a graphic,
-map, chart, forecast image or photograph the respondent was shown. WX 90, TC 72,
-WW 46, FL 38. It sits beside `experimental` and is deliberately independent of
+`TRUE` on 262 of 1,599 rows — the questions whose answer rests on a graphic,
+map, chart, forecast image or photograph the respondent was shown. WX 106, TC 72, WW 46, FL 38. It sits beside `experimental` and is deliberately independent of
 it: 232 rows are both, 14 are a graphic shown to everyone with nothing
 randomized, and the randomized *text* forecasts are the mirror image.
 
@@ -494,3 +495,92 @@ coverage for 328 rows that were already here.
       crossed randomization, but they are the only two rows where
       `response_options` is not a `value = label` list, so anything parsing that
       column has to tolerate them.
+
+## 10. Added by the second 2026-08-10 batch (WX17, WX18, WX19, WW21, WW22)
+
+The last five instruments, and the oldest. 275 new rows, 327 existing rows
+extended. With these the sheet covers every wave `05` pools.
+
+**Check before pooling or modelling.**
+
+- [ ] **WX17 asks the whole reception and response battery on a seven-point
+      scale.** `rec_all`, `rec_soon`, `rec_miss`, `rec_area`, `rec_time`,
+      `resp_ignore`, `resp_prot`, `resp_busy` and `resp_unsure` run Strongly
+      disagree / Disagree / Somewhat disagree / Neither agree nor disagree /
+      Somewhat agree / Agree / Strongly agree. From WX18 on they are five-point.
+      `05` already drops the WX17 columns rather than pooling them, and this is
+      the documentary record of why. WX17 also has no `rec_most`.
+
+- [ ] **`alert_und` is a randomized question in WX17.** Half the sample read
+      "the difference between watches, warnings, and advisories" and half "the
+      difference between watches and warnings", piped through `alert_type`. From
+      WX18 on it is a single fixed question. The WX17 column pools two wordings.
+
+- [ ] **`resp_ignore`, `resp_always` and `resp_more` were all reworded in WW
+      between 2021 and 2022** — see section 1 for `resp_more`, which changes
+      sign. `resp_always` moves from "I almost always take the preparatory or
+      protective actions that officials suggest, even if the actions are
+      difficult" to the much weaker "I usually take the preparatory or
+      protective actions". `resp_usually` exists only in WW21.
+
+- [ ] **`exp2_chal` and `exp2_use` name different experiments in WW21 and
+      WW22.** In WW22 they belong to a single-forecast uncertainty-statement
+      experiment; in WW21 they are the Tuesday forecast of a two-day revision
+      experiment. The sheet carries WW22's wording and flags `wording_varies`.
+      WW21's siblings are `exp2_conf` and `exp2_confme`, which drop the `_1_`
+      that their `exp1_1_*` counterparts carry, so `exp2_conf` and `exp1_1_conf`
+      are the same question at the same point in the design.
+
+- [ ] **`ice_thrsh` and `snow_thrsh` changed stems.** WW21 asks "What is the
+      smallest amount of X that can disrupt your daily activities?"; WW22 onward
+      prefix it with "If you were to get X,". Both feed the piped `ice_prob` and
+      `snow_prob`, so a threshold series crosses the change.
+
+**Instrument problems worth fixing before the next fielding.**
+
+- [ ] **`watch_time_hours` is shown on the wrong condition in WX17, WX18 and
+      WX19.** It is displayed `IF watch_time = 1` — the "less than 1 hour"
+      answer — but asks "You indicated that there is 1 to 24 hours...".
+      Corrected to `watch_time = 2` from WX20 on. Three waves of this variable
+      were collected from the wrong respondents, and `warn_time_hours` beside it
+      is correct throughout, so the two are not comparable.
+
+- [ ] **WW21's social-media follow-up has an inverted show condition.** The
+      `soc_*` battery is displayed `IF rely_soc < 2` — respondents who said they
+      rely on social media *least* — and then tells them "You indicated that you
+      rely on social media." The same defect as `color_diff` in WW24.
+
+**Misspelled variable names - do NOT fix.** Add to section 3:
+
+- [ ] `wach_prob_house` - WX17, should be `watch_`; WX18 spells it correctly, so
+      the two waves carry the same question under different names
+- [ ] `ffd_descrive` - WX19, should be `describe`
+- [ ] `aff_ecx` - WX17, should be `exc` for excited
+
+**Mixed-case names.** `oft_FB` (WX17, WX18, WX19) is the only lower-and-upper
+name outside TC23's `Kennedy` and `Adams`. Worth confirming what the released
+data calls it.
+
+**Cosmetic issues in the documents.**
+
+- [ ] `warn_size` and `watch_size` (WX17) read "the area included an average
+      tornado WARNING", missing "in"
+- [ ] `rel_4` (WX18) reads "God leaves it up to me make good decisions", missing
+      "to"
+- [ ] `next_act_night` (WX17) labels option 0 "continue my daily activities" on
+      the middle-of-the-night version of the question
+- [ ] `probintens` (WX17) option 3 reads "equality important"
+- [ ] The `rank_evnt_imp_*` stem (WW21) reads "cause relatively slight
+      inconveniences whereas cause significant damage", dropping a word
+- [ ] `cost_download` offers a price drawn from 0.99:49.99 but its follow-up
+      `cost_download_conf` writes the range as 0.99:99.99
+
+**Open questions.**
+
+- [ ] **Does WX17's `consent` reach the released data?** It is the only wave
+      that records consent as a variable, and anyone who answered 0 was routed
+      out, so the column should be constant.
+
+- [ ] **`tor_time` and `tor_ssn` (WX17) are slider answers.** The instrument
+      says periods appear as the slider moves but does not say what is stored -
+      a period label or a number.
