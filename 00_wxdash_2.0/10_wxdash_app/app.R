@@ -4,12 +4,24 @@ library(DT)
 library(srvyr)
 library(ggtext) # wraps title and caption to the image width on a download
 
-source(here::here("00_wxdash_2.0", "00_paths.R"))
+# Both files come from 09_create_dashboard_data.R, which writes them into data/
+# beside this file. Paths are relative on purpose: Shiny sets the working
+# directory to the app directory both locally and on the server, and nothing
+# here may reach outside that directory - 00_paths.R and WXDASH_LOCAL exist on
+# a workstation, not on a deployment.
+data_dir <- "data"
+needed <- file.path(data_dir, c("09_dashboard_questions.csv",
+                                "09_dashboard_responses.rds"))
 
-# Both files come from 09_create_dashboard_data.R. Run it first.
-questions <- read_csv(paste0(outputs, "09_dashboard_questions.csv"),
-                      show_col_types = FALSE)
-responses <- read_rds(paste0(outputs, "09_dashboard_responses.rds"))
+# Failing here with the reason beats failing later with "object not found".
+if (!all(file.exists(needed))) {
+  stop("Missing app data: ",
+       paste(basename(needed[!file.exists(needed)]), collapse = ", "),
+       ". Run 09_create_dashboard_data.R before launching or deploying.")
+}
+
+questions <- read_csv(needed[1], show_col_types = FALSE)
+responses <- read_rds(needed[2])
 
 # Named once because the caption is written as plain prose and then linked by
 # substitution, so the page text and the downloaded image cannot drift apart.
@@ -68,6 +80,78 @@ group_phrases <- c(
   survey_year = "survey year's respondents"
 )
 
+# Colour schemes ---------------------------------------------------------------
+# Every value below was checked with the data-viz validator against a white
+# panel, not chosen by eye. Two things it caught are worth recording.
+#
+# The previous default, viridis(end = 0.9), put its top group at #BBDF27 - 1.53:1
+# against white, which is barely a mark at all. Pulling the end in to 0.75 lifts
+# that to 2.12:1 and clears the 2:1 floor for an ordered ramp.
+#
+# The distinct-hue set is Okabe-Ito with its yellow and black dropped (both sit
+# outside the lightness band) and the rest re-ordered. Re-ordering alone took the
+# worst adjacent pair under simulated deuteranopia from 7.6 to 18.0, against a
+# target of 8 - the same six colours, just never placing purple next to green.
+#
+# The two single-hue ramps are stepped evenly in OKLCH, so lightness carries the
+# order even in greyscale or for any type of colour blindness. They are stored as
+# literal hex at eight steps because that is the form that was validated; taking
+# evenly spaced elements for a smaller split keeps the first and last, so the
+# steps stay monotone and the gaps only widen.
+ramp_blue <- c("#032A4C", "#043C69", "#054E88", "#1061A5",
+               "#2B76BB", "#428BD2", "#57A1E9", "#70B6FD")
+ramp_grey <- c("#25292F", "#363B40", "#474D53", "#5A6066",
+               "#6E737A", "#82888E", "#969CA3", "#ACB2B9")
+
+# Fixed order, taken from the front for smaller splits and never cycled.
+hues_distinct <- c("#009E73", "#0072B2", "#D55E00",
+                   "#56B4E9", "#E69F00", "#CC79A7")
+
+palettes <- c(
+  "Blue (one hue)" = "blue",
+  "Grey (print safe)" = "grey",
+  "Viridis" = "viridis",
+  "Distinct hues" = "distinct"
+)
+
+# Eight steps is the ceiling for an ordered ramp on a white panel: the light end
+# has to stay above 2:1 contrast and each step has to sit 0.06 OKLCH lightness
+# from its neighbour, and nine steps cannot do both. Splitting by survey year
+# asks for nine on 43 of the questions, so those fall back to viridis, which at
+# least stays perceptually even where a hand-stepped ramp would not.
+ramp_colours <- function(ramp, n) {
+  if (n > length(ramp)) return(viridisLite::viridis(n, end = 0.75))
+  ramp[round(seq(1, length(ramp), length.out = n))]
+}
+
+fill_scale <- function(palette, n) {
+  values <- switch(
+    palette,
+    blue     = ramp_colours(ramp_blue, n),
+    grey     = ramp_colours(ramp_grey, n),
+    viridis  = viridisLite::viridis(n, end = 0.75),
+    distinct = if (n <= length(hues_distinct)) {
+      hues_distinct[seq_len(n)]
+    } else {
+      # Never invent a hue for an extra series - fall back to the ordered ramp.
+      viridisLite::viridis(n, end = 0.75)
+    }
+  )
+  # Reversed to match fct_rev on the fill, so the first group reads darkest and
+  # sits at the top of each response.
+  scale_fill_manual(values = rev(values),
+                    guide = guide_legend(reverse = TRUE, nrow = 1))
+}
+
+# The single-series case takes the ramp's dark end, so switching scheme changes
+# the ungrouped chart too rather than leaving one colour stranded.
+solo_colour <- function(palette) {
+  switch(palette,
+         blue = ramp_blue[1], grey = ramp_grey[1],
+         viridis = viridisLite::viridis(1, end = 0.15),
+         distinct = hues_distinct[1])
+}
+
 # Years are collapsed into runs so a caption reads "2018-2021, 2024" rather
 # than listing nine of them. The gaps are the informative part: a question can
 # be asked, dropped for a wave and asked again.
@@ -99,7 +183,7 @@ option_labels <- function(x) {
 # horizontally because response options are sentences as often as they are
 # words - "I would trust forecasts generated by machine learning much less than
 # forecasts generated by humans" does not fit under a tick.
-distribution_plot <- function(d, show_ci, grouping) {
+distribution_plot <- function(d, show_ci, grouping, palette) {
   dodge <- position_dodge(width = 0.8)
   plot <- ggplot(d, aes(x = p, y = fct_rev(label), fill = fct_rev(group))) +
     geom_col(position = dodge, width = 0.75)
@@ -113,6 +197,8 @@ distribution_plot <- function(d, show_ci, grouping) {
   }
 
   plot <- plot +
+    # Not decoration: two of the distinct hues sit just under 3:1 against white,
+    # which the colour checks allow only where a visible label carries the value.
     geom_text(aes(x = p_upp, label = paste0(round(p), "%")), position = dodge,
               hjust = -0.25, size = 4) +
     labs(x = "Respondents (%)", y = NULL, fill = NULL) +
@@ -121,14 +207,12 @@ distribution_plot <- function(d, show_ci, grouping) {
     scale_x_continuous(expand = expansion(mult = c(0, 0.15)))
 
   # fill is reversed so the first group sits at the top of each response,
-  # matching the order it is listed in; the legend is reversed back.
+  # matching the order it is listed in; the legend is reversed back inside
+  # fill_scale.
   if (grouping == "All") {
-    plot + scale_fill_manual(values = "#443A83") + guides(fill = "none")
+    plot + scale_fill_manual(values = solo_colour(palette)) + guides(fill = "none")
   } else {
-    plot + scale_fill_viridis_d(
-      end = 0.9,
-      guide = guide_legend(reverse = TRUE, nrow = 1)
-    )
+    plot + fill_scale(palette, n_distinct(d$group))
   }
 }
 
@@ -139,16 +223,42 @@ plot_height <- function(d) {
 }
 
 ui <- fluidPage(
-  titlePanel("WxDash - Explore Surveys"),
+  titlePanel("Explore Survey Questions and Results"),
   helpText(
-    "Click a survey question in the table to see the weighted distribution",
-    "of responses. Questions are listed once per survey hazard, because the",
-    "wording differs between hazards."
+    "Click a survey question in the table below to see the weighted",
+    "distribution of responses. Each question is listed once per survey hazard,",
+    "because the wording differs between hazards. Where the wording also",
+    "changed between waves, the most recent version is shown."
   ),
-  selectInput("group", "Split responses by", choices = groups, width = "300px"),
-  checkboxInput("ci", "Show 95% confidence intervals", value = FALSE),
-  downloadButton("download", "Download chart (PDF)"),
-  br(), br(),
+  # One row above the chart. The split stays left because it scopes what the
+  # chart shows; the three that only change how it is drawn sit right, so the
+  # row reads as scope first, appearance second rather than four equal knobs.
+  # Bootstrap puts a bottom margin on every form group, which would leave the
+  # select, the checkbox and the button sitting at three different heights, so
+  # the margin is zeroed inside this row only - loosening it globally would move
+  # the search boxes in the question table too.
+  tags$style(HTML(paste(
+    ".chart-controls .form-group { margin-bottom: 0; }",
+    ".chart-controls .checkbox { margin: 0; }"
+  ))),
+  div(
+    class = "chart-controls",
+    style = paste("display: flex; align-items: flex-end; gap: 16px;",
+                  "flex-wrap: wrap; margin: 12px 0 20px;"),
+    selectInput("group", "Split responses by", choices = groups,
+                width = "260px"),
+    div(
+      style = "display: flex; align-items: flex-end; gap: 16px; margin-left: auto;",
+      selectInput("palette", "Change color scheme", choices = palettes,
+                  width = "200px"),
+      # Nudged off the bottom edge so the checkbox text and the button label
+      # sit on the same line as the select, which carries a label above it.
+      div(style = "padding-bottom: 6px;",
+          checkboxInput("ci", "Show 95% confidence intervals", value = FALSE)),
+      div(style = "padding-bottom: 6px;",
+          downloadButton("download", "Download chart (PDF)"))
+    )
+  ),
   # The question sits above the plot rather than in its title: some questions
   # carry a paragraph of scenario text, which as a title left the bars an inch
   # of vertical space.
@@ -308,7 +418,7 @@ server <- function(input, output, session) {
   })
 
   output$distribution <- renderPlot({
-    distribution_plot(distribution(), input$ci, input$group)
+    distribution_plot(distribution(), input$ci, input$group, input$palette)
   }, height = function() plot_height(distribution()))
 
   # The download is the chart plus the question and the caption, because a
@@ -325,7 +435,7 @@ server <- function(input, output, session) {
     contentType = "application/pdf",
     content = function(file) {
       d <- distribution()
-      plot <- distribution_plot(d, input$ci, input$group) +
+      plot <- distribution_plot(d, input$ci, input$group, input$palette) +
         labs(title = selected()$question, caption = caption_text()) +
         theme(
           # Without the plot margin the first line of a wrapped title is

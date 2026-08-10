@@ -227,6 +227,20 @@ responses <- responses |>
   select(p_id, survey_hazard, survey_year, PERSON_WEIGHT, all_of(group_columns),
          all_of(unique(questions$variable)))
 
-write_csv(questions, paste0(outputs, "09_dashboard_questions.csv"))
-write_rds(responses, paste0(outputs, "09_dashboard_responses.rds"),
+# These two land inside the app rather than in outputs/, which is the one place
+# this pipeline departs from "every script writes to outputs". A deployed Shiny
+# app is a copy of its own directory and nothing else: there is no WXDASH_LOCAL
+# on the server, no repo around it, and no 00_paths.R to source. Anything the app
+# needs at runtime has to sit beside app.R or it will not be in the bundle.
+#
+# They are small - 0.3 MB and 3.1 MB - which is what makes this reasonable. If
+# either grows past a few tens of MB, the answer is a database or a pin, not a
+# bigger file next to the app.
+app_data <- here::here("00_wxdash_2.0", "10_wxdash_app", "data")
+dir.create(app_data, showWarnings = FALSE, recursive = TRUE)
+
+write_csv(questions, file.path(app_data, "09_dashboard_questions.csv"))
+write_rds(responses, file.path(app_data, "09_dashboard_responses.rds"),
           compress = "gz") # rds because the app re-reads it on every restart
+
+message("Wrote app data to ", app_data)

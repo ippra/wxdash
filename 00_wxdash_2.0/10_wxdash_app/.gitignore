@@ -1,0 +1,9 @@
+# data/ is written by 09_create_dashboard_data.R and is derived, not source.
+# It is deliberately not versioned: the .rds is a binary that changes on every
+# rebuild, and git would keep every version of it forever.
+#
+# This does not affect deploying. rsconnect bundles the files on disk, so as
+# long as 09 has been run, data/ goes up with the app whether or not git tracks
+# it. It does mean a fresh clone must run 09 before the app will start, which
+# is what the guard at the top of app.R says when it hasn't.
+data/
