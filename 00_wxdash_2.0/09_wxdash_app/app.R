@@ -3,15 +3,19 @@ library(tidyverse)
 library(DT)
 library(srvyr)
 library(ggtext) # wraps title and caption to the image width on a download
+library(sf)
+library(mapgl)
 
-# Both files come from 09_create_dashboard_data.R, which writes them into data/
-# beside this file. Paths are relative on purpose: Shiny sets the working
+# All four files come from 09_create_dashboard_data.R, which writes them into
+# data/ beside this file. Paths are relative on purpose: Shiny sets the working
 # directory to the app directory both locally and on the server, and nothing
 # here may reach outside that directory - 00_paths.R and WXDASH_LOCAL exist on
 # a workstation, not on a deployment.
 data_dir <- "data"
 needed <- file.path(data_dir, c("09_dashboard_questions.csv",
-                                "09_dashboard_responses.rds"))
+                                "09_dashboard_responses.rds",
+                                "09_dashboard_cwa.rds",
+                                "09_dashboard_measure_questions.csv"))
 
 # Failing here with the reason beats failing later with "object not found".
 if (!all(file.exists(needed))) {
@@ -22,6 +26,19 @@ if (!all(file.exists(needed))) {
 
 questions <- read_csv(needed[1], show_col_types = FALSE)
 responses <- read_rds(needed[2])
+cwa_estimates <- read_rds(needed[3])
+
+# One row per question per mapped measure, written by 09 from 05's scale
+# composition and the variable reference. The app quotes these rather than
+# describing them, so what it says was asked is what the instrument says.
+measure_questions <- read_csv(needed[4], show_col_types = FALSE)
+
+# The map is MapLibre on CARTO basemap tiles, which need no access token.
+# Mapbox was the other option and was dropped: at national zoom, under polygons
+# drawn at 75% opacity, none of what it does better is visible, and it would
+# have cost a token that has to be set on every deployment separately
+# (.Renviron is not part of the app bundle) plus a map-load quota that this tab
+# spends on every change of measure.
 
 # Named once because the caption is written as plain prose and then linked by
 # substitution, so the page text and the downloaded image cannot drift apart.
@@ -113,6 +130,138 @@ palettes <- c(
   "Viridis" = "viridis",
   "Distinct hues" = "distinct"
 )
+
+# The map offers only the three ordered schemes. Distinct hues is a categorical
+# set, and a choropleth of an ordered quantity drawn in unordered colours cannot
+# be read - the reader has to consult the legend for every polygon.
+map_palettes <- palettes[palettes != "distinct"]
+
+# No basemap. CARTO positron was under this and its grey water and land read as
+# a second set of shapes competing with the estimates - the 116 areas already
+# tile the country, so its coastline is drawn by the data itself.
+#
+# A style with no sources rather than a hidden layer, so nothing is fetched at
+# all. sources must serialize as {} and not [], which is why it is built with
+# setNames() rather than list().
+#
+# This is also what the PDF download draws, so what is on screen and what leaves
+# the app now match.
+blank_basemap <- list(
+  version = 8,
+  sources = setNames(list(), character(0)),
+  layers = list(list(
+    id = "background",
+    type = "background",
+    paint = list("background-color" = "#FFFFFF")
+  ))
+)
+
+# Grouped by hazard, with the risk battery kept together at the end. The map is
+# read by people who did not fit the models, so the label is what it is called
+# here and RISK_SURGE is what it is called in the data.
+#
+# Every label names its hazard even though the group heading already does. A
+# closed select shows the option and not the group it came from, so a label of
+# "Reception" alone would leave the control reading as nothing once chosen.
+#
+# Reception, comprehension and response are the three constructs the models in
+# 06 fit, named here as they are named there. The hazard word follows the
+# instrument: ice is "ice and freezing rain" because that is what was asked.
+map_measures <- list(
+  "Tornadoes" = c(
+    "Tornado warning reception" = "TO_RECEP",
+    "Tornado warning comprehension" = "TO_SUBJ_COMP",
+    "Tornado warning response" = "TO_RESP"
+  ),
+  "Hurricanes" = c(
+    "Hurricane warning reception" = "HU_RECEP",
+    "Hurricane warning comprehension" = "HU_SUBJ_COMP",
+    "Hurricane warning response" = "HU_RESP"
+  ),
+  "Winter storms" = c(
+    "Winter storm warning reception" = "WW_RECEP",
+    "Winter storm warning comprehension" = "WW_SUBJ_COMP",
+    "Winter storm warning response" = "WW_RESP"
+  ),
+  "Floods" = c(
+    "Flood warning reception" = "FL_RECEP",
+    "Flood warning comprehension" = "FL_SUBJ_COMP",
+    "Flood warning response" = "FL_RESP"
+  ),
+  "Risk perceptions" = c(
+    "Tornado risk perceptions" = "RISK_TOR",
+    "Hurricane risk perceptions" = "RISK_HUR",
+    "Storm surge risk perceptions" = "RISK_SURGE",
+    "Flood risk perceptions" = "RISK_FLOOD",
+    "Snow risk perceptions" = "RISK_SNOW",
+    "Ice and freezing rain risk perceptions" = "RISK_ICE",
+    "Extreme cold risk perceptions" = "RISK_COLD",
+    "Extreme heat risk perceptions" = "RISK_HEAT",
+    "Wildfire risk perceptions" = "RISK_FIRE",
+    "Drought risk perceptions" = "RISK_DROUGHT",
+    "Hail risk perceptions" = "RISK_HAIL",
+    "Lightning risk perceptions" = "RISK_LIGNT"
+  )
+)
+
+# The ends of the response scale, read off the options the instrument offered
+# rather than described from memory. "3.4" means nothing without knowing what 5
+# was called.
+scale_anchors <- function(options) {
+  o <- option_labels(options)
+  if (nrow(o) == 0) return(NA_character_)
+  paste0(o$value[1], " (", str_to_lower(o$label[1]), ") to ",
+         o$value[nrow(o)], " (", str_to_lower(o$label[nrow(o)]), ")")
+}
+
+# Small counts read as words in a sentence. Anything larger than this falls back
+# to the numeral rather than inventing more names.
+count_word <- function(n) {
+  words <- c("one", "two", "three", "four", "five", "six", "seven", "eight",
+             "nine")
+  if (n >= 1 && n <= length(words)) words[n] else as.character(n)
+}
+
+# Reversed for blue and grey so the darkest step carries the highest value,
+# which is the direction a choropleth is read in. Viridis is left in its own
+# order: it already runs dark to bright, and reversing it puts the bright end
+# on the low values, which reads as the opposite of what it means.
+map_colours <- function(palette, n = 7) {
+  values <- switch(
+    palette,
+    blue = rev(ramp_colours(ramp_blue, n)),
+    grey = rev(ramp_colours(ramp_grey, n)),
+    viridis = viridisLite::viridis(n, end = 0.75)
+  )
+  # Trimmed to six digits. viridisLite returns #RRGGBBAA and the two hand-built
+  # ramps are #RRGGBB, so the palettes would reach the map in two different
+  # forms. The alpha is FF in every case and opacity is set on the layer, so
+  # nothing is lost - and a colour the style parser rejects does not warn, it
+  # just leaves the areas unpainted.
+  substr(values, 1, 7)
+}
+
+# Every measure is stretched over its own range rather than a shared 1-5. The
+# risk items span 1.3 to 4.9 across CWAs while the warning scales span 2.6 to
+# 3.8, so a fixed 1-5 ramp would draw all twelve warning maps in one flat mid
+# tone and hide the variation the map exists to show. The legend prints the
+# range, so the stretch is stated rather than implied.
+map_breaks <- function(values, n = 7) {
+  seq(min(values), max(values), length.out = n)
+}
+
+# Flattened once. unlist() on the nested list would name each element
+# "group.label", so the lookup is built explicitly instead of parsed back apart.
+# Labels repeat across groups - three of them are "Tornado warnings" - but the
+# column names do not, so the match is on the column.
+measure_lookup <- map_measures |>
+  imap(\(x, group) tibble(group = group, label = names(x),
+                          measure = unname(x))) |>
+  list_rbind()
+
+measure_label <- function(measure) {
+  measure_lookup$label[match(measure, measure_lookup$measure)]
+}
 
 # Eight steps is the ceiling for an ordered ramp on a white panel: the light end
 # has to stay above 2:1 contrast and each step has to sit 0.06 OKLCH lightness
@@ -216,14 +365,59 @@ distribution_plot <- function(d, show_ci, grouping, palette) {
   }
 }
 
+# The downloaded map is drawn with ggplot rather than captured from the page.
+# MapLibre paints to a WebGL canvas the server cannot reach, and a screenshot of
+# it would be a raster of whatever the viewer happened to be zoomed to. This
+# redraws the same polygons and the same ramp as vector art at a fixed extent.
+#
+# There is no basemap under it. The CARTO tiles are not the institute's to
+# redistribute in a PDF, and at this extent they carried little anyway.
+#
+# Albers rather than the stored 4326: an equal-area projection is what a
+# national choropleth should be read in, and plate carree stretches the
+# northern CWAs enough to change which look large.
+map_plot <- function(d, colours, title, caption) {
+  ggplot(d) +
+    geom_sf(aes(fill = value), colour = "white", linewidth = 0.15) +
+    scale_fill_gradientn(colours = colours, name = NULL) +
+    coord_sf(crs = 5070) +
+    labs(title = title, caption = caption) +
+    theme_void(base_size = 12) +
+    theme(
+      legend.position = "bottom",
+      legend.key.width = unit(2.4, "cm"),
+      legend.key.height = unit(0.4, "cm"),
+      plot.margin = margin(14, 14, 10, 14),
+      plot.title.position = "plot",
+      plot.caption.position = "plot",
+      plot.title = element_textbox_simple(
+        size = 15, face = "bold", margin = margin(b = 14)
+      ),
+      plot.caption = element_textbox_simple(
+        size = 9, colour = "grey30", margin = margin(t = 16)
+      )
+    )
+}
+
+# ggtext wraps, so the drawn line count is not known ahead of the draw. The map
+# caption carries explicit <br> breaks, so counting characters alone would
+# under-count it badly - each segment is measured separately and every break
+# costs a line of its own.
+textbox_lines <- function(text, per_line) {
+  segments <- str_split(text, fixed("<br>"))[[1]]
+  sum(pmax(1, ceiling(nchar(segments) / per_line)))
+}
+
 # Fixed height crushes the labels of the few questions with a dozen options
 # into each other, so the panel grows with the bars instead.
 plot_height <- function(d) {
   max(320, 55 * n_distinct(d$label), 22 * nrow(d) + 90)
 }
 
-ui <- fluidPage(
-  titlePanel("Explore Survey Questions and Results"),
+ui <- navbarPage(
+  "Extreme Weather and Society Survey",
+  tabPanel(
+  "Explore Survey Questions and Results",
   helpText(
     "Click a survey question in the table below to see the weighted",
     "distribution of responses. Each question is listed once per survey hazard,",
@@ -267,6 +461,44 @@ ui <- fluidPage(
   uiOutput("caption"),
   hr(),
   DTOutput("questions")
+  ),
+
+  # Map Tab --------------------------------------------------------------------
+  # Estimates rather than responses. The help text leads with that difference,
+  # because the two tabs look alike and mean different things: the first is what
+  # respondents said, this is what the models predict for a whole population,
+  # including the areas where few people were surveyed.
+  tabPanel(
+    "Map Survey Estimates",
+    helpText(
+      "These are model estimates, not raw survey responses. Each County",
+      "Warning Area gets a value built from the demographic makeup of its",
+      "counties and",
+      "how people like them answered, so every area has an estimate, including",
+      "those where few people were surveyed. Hover an area to read its value."
+    ),
+    div(
+      class = "chart-controls",
+      style = paste("display: flex; align-items: flex-end; gap: 16px;",
+                    "flex-wrap: wrap; margin: 12px 0 20px;"),
+      selectInput("measure", "Map estimates for", choices = map_measures,
+                  width = "320px"),
+      div(
+        style = paste("display: flex; align-items: flex-end; gap: 16px;",
+                      "margin-left: auto;"),
+        selectInput("map_palette", "Change color scheme",
+                    choices = map_palettes, width = "200px"),
+        # Nudged off the bottom edge so the button label sits on the same line
+        # as the select, which carries a label above it.
+        div(style = "padding-bottom: 6px;",
+            downloadButton("map_download", "Download map (PDF)"))
+      )
+    ),
+    # Fixed height rather than auto: a map has no natural content height, and
+    # left to itself the container collapses to nothing and the tab looks empty.
+    maplibreOutput("cwa_map", height = "620px"),
+    uiOutput("map_notes")
+  )
 )
 
 server <- function(input, output, session) {
@@ -470,6 +702,258 @@ server <- function(input, output, session) {
       # on machines where the device then fails to load, this one included, so
       # it is not something to depend on. Height is in pixels above, so /96
       # puts it in inches.
+      ggsave(file, plot, width = 11, height = height / 96,
+             device = "pdf", encoding = "WinAnsi", limitsize = FALSE)
+    }
+  )
+
+  # Map -----------------------------------------------------------------------
+  # The chosen measure copied into one column, because the fill and the tooltip
+  # both reference it by name and mapgl reads the name out of the source.
+  cwa_selected <- reactive({
+    measure <- input$measure
+    cwa_estimates |>
+      mutate(
+        value = .data[[measure]],
+        # Built here rather than in the layer: mapgl takes a column name for the
+        # tooltip, so anything shown on hover has to exist as a column first.
+        tooltip = paste0("<strong>", CWA_NAME, " (", CWA, ")</strong><br>",
+                         measure_label(measure), ": ", round(value, 2))
+      )
+  })
+
+  # The ramp and the legend end labels, which the initial draw and the update
+  # below both need and would otherwise write out twice.
+  map_style <- reactive({
+    d <- cwa_selected()
+    colours <- map_colours(input$map_palette)
+    list(
+      data = d,
+      colours = colours,
+      fill = interpolate(column = "value",
+                         values = map_breaks(d$value, length(colours)),
+                         stops = colours),
+      title = measure_label(input$measure),
+      ends = c(sprintf("%.1f", min(d$value)), sprintf("%.1f", max(d$value)))
+    )
+  })
+
+  # Drawn once. Everything reactive is read through isolate(), so changing the
+  # measure or the palette does not rebuild the map - the observer below edits
+  # the one that is already there. A rebuild would reset the camera, throwing
+  # away a zoom into the Gulf coast on every change of measure.
+  output$cwa_map <- renderMaplibre({
+    style <- isolate(map_style())
+    d <- style$data
+
+    # bounds fits the view to the areas actually drawn, so the map opens on the
+    # lower 48 rather than on the whole globe with the data in one corner.
+    maplibre(style = blank_basemap, bounds = d) |>
+      add_fill_layer(
+        id = "cwa",
+        source = d,
+        fill_color = style$fill,
+        # Fully opaque now there is nothing underneath to show through. At 0.75
+        # every area was mixed with the white behind it, so the fills sat a
+        # shade lighter than the same colours in the legend beside them.
+        fill_opacity = 1,
+        # A boundary line, or 116 areas of similar colour read as one blob.
+        fill_outline_color = "#FFFFFF",
+        tooltip = "tooltip",
+        # Hover has to move opacity the other way now: raising it from 0.75 was
+        # the old highlight and there is no headroom above 1.
+        hover_options = list(fill_opacity = 0.7)
+      ) |>
+      add_continuous_legend(
+        legend_title = style$title,
+        values = style$ends,
+        colors = style$colours,
+        position = "bottom-left"
+      )
+  })
+
+  # The update path. set_source carries the new value and tooltip columns, so
+  # hovering reports the measure now on screen rather than the one drawn first;
+  # set_paint_property restretches the ramp over the new measure's range. The
+  # legend is cleared and redrawn rather than edited, because both its title and
+  # its end labels change with the measure.
+  #
+  # ignoreInit because the map does not exist yet on the first flush - the
+  # initial colours come from the render above, and this only ever edits.
+  observeEvent(list(input$measure, input$map_palette), {
+    style <- map_style()
+
+    maplibre_proxy("cwa_map") |>
+      set_source(layer_id = "cwa", source = style$data) |>
+      set_paint_property(layer_id = "cwa", name = "fill-color",
+                         value = style$fill) |>
+      clear_legend() |>
+      add_continuous_legend(
+        legend_title = style$title,
+        values = style$ends,
+        colors = style$colours,
+        position = "bottom-left"
+      )
+  }, ignoreInit = TRUE)
+
+  # One block rather than two, because the order below is the point: what the
+  # map is, then the questions behind it, then how to read the colours, then
+  # where it all came from. Split across two outputs the ordering would live in
+  # two places and drift.
+  #
+  # Prose for the same reason the chart caption is prose: someone looking at a
+  # screen grab should learn what was asked, what the number is on, and that it
+  # is modelled rather than measured.
+  # Built once as parts, because both the page and the downloaded PDF need the
+  # same words. Composed separately in two places they would drift, and the
+  # download is exactly where nobody would notice.
+  map_notes_parts <- reactive({
+    d <- cwa_selected()
+    items <- measure_questions |> filter(measure == input$measure)
+
+    # One intro shared by every item is shown once as a stem. The four
+    # comprehension scales draw their items from different question blocks, so
+    # there is no one stem and each item carries its own.
+    shared <- n_distinct(items$question_intro) == 1 &&
+      !is.na(items$question_intro[1]) && nzchar(items$question_intro[1])
+
+    question_text <- if (shared) {
+      items$question_text
+    } else {
+      str_squish(paste(coalesce(items$question_intro, ""), items$question_text))
+    }
+
+    # The survey name rides here rather than in the title, which would otherwise
+    # carry both a hazard and a survey name and read as a repetition.
+    anchors <- scale_anchors(items$response_options[1])
+    scored <- if (nrow(items) > 1) {
+      paste0(
+        "The ", count_word(nrow(items)), " answers, all from the ",
+        str_remove(items$hazard[1], " \\(..\\)$"), " survey, are averaged ",
+        "into one score", if (is.na(anchors)) "" else paste0(" from ", anchors),
+        "."
+      )
+    } else {
+      paste0("Answers run",
+             if (is.na(anchors)) "" else paste0(" from ", anchors), ".")
+    }
+
+    # n_intros counts distinct wordings, not surveys - storm surge was asked in
+    # four surveys with three intros between them - so the sentence says
+    # wordings. Saying "three surveys" would be wrong.
+    varies <- if (!is.na(items$n_intros[1]) && items$n_intros[1] > 1) {
+      paste0(
+        " The introduction was worded ", count_word(items$n_intros[1]),
+        " slightly different ways across the surveys that asked it; the most",
+        " widely used version is shown."
+      )
+    } else {
+      ""
+    }
+
+    list(
+      title = paste0(
+        measure_label(input$measure), " across the ", nrow(d),
+        " National Weather Service County Warning Areas of the contiguous ",
+        "United States."
+      ),
+      stem = if (shared) items$question_intro[1] else NA_character_,
+      question_text = question_text,
+      reverse_coded = items$reverse_coded,
+      reading = paste0(
+        scored, varies, " Colors are stretched over ",
+        sprintf("%.1f to %.1f", min(d$value), max(d$value)),
+        " rather than the full 1 to 5, so areas are compared against each ",
+        "other rather than against the ends of the scale."
+      ),
+      source = paste0(
+        "From the Extreme Weather and Society Survey, run by ", institute,
+        ". Estimates come from multilevel models fitted to survey responses ",
+        "and reweighted to the adult population of each county, then combined ",
+        "to the County Warning Area, so they describe the whole population ",
+        "rather than only the people surveyed. The survey data behind them is ",
+        "available at ", archive, "."
+      )
+    )
+  })
+
+  # Prose for the same reason the chart caption is prose: someone looking at a
+  # screen grab should learn what was asked, what the number is on, and that it
+  # is modelled rather than measured.
+  output$map_notes <- renderUI({
+    p <- map_notes_parts()
+
+    linked <- htmltools::htmlEscape(p$source) |>
+      str_replace(
+        fixed(institute),
+        paste0("<a href=\"", institute_url, "\" target=\"_blank\">",
+               institute, "</a>")
+      ) |>
+      str_replace(
+        fixed(archive),
+        paste0("<a href=\"", archive_url, "\" target=\"_blank\">",
+               archive, "</a>")
+      )
+
+    div(
+      class = "help-block",
+      tags$p(p$title),
+      if (is.na(p$stem)) {
+        # The heading still appears, or the block runs from the title straight
+        # into a bare list with nothing introducing it.
+        tags$p(tags$strong("Respondents were asked:"))
+      } else {
+        tags$p(tags$strong("Respondents were asked: "), tags$q(p$stem))
+      },
+      tags$ul(
+        lapply(seq_along(p$question_text), function(i) {
+          tags$li(
+            p$question_text[i],
+            if (isTRUE(p$reverse_coded[i])) tags$em(" (reverse coded)")
+          )
+        })
+      ),
+      tags$p(p$reading),
+      tags$p(HTML(linked))
+    )
+  })
+
+  # The map plus the words under it, because a map that leaves the app without
+  # them cannot be read. On the page those are HTML around the widget; here they
+  # are drawn into the image, wrapped by ggtext to its width.
+  output$map_download <- downloadHandler(
+    filename = function() paste0(str_to_lower(input$measure), "_cwa_map.pdf"),
+    contentType = "application/pdf",
+    content = function(file) {
+      p <- map_notes_parts()
+      style <- map_style()
+
+      bullets <- paste0(
+        "&bull; ", p$question_text,
+        if_else(p$reverse_coded, " (reverse coded)", ""),
+        collapse = "<br>"
+      )
+
+      stem <- if (is.na(p$stem)) {
+        "Respondents were asked:"
+      } else {
+        paste0("Respondents were asked: &ldquo;", p$stem, "&rdquo;")
+      }
+
+      caption <- paste(stem, bullets, p$reading, p$source, sep = "<br>")
+
+      plot <- map_plot(style$data, style$colours, p$title, caption)
+
+      # Characters per line at 11 inches, matching the divisors the chart
+      # download uses; the +80 is slack so a wrap running one line longer than
+      # estimated is not clipped.
+      title_height <- 26 * ceiling(nchar(p$title) / 90)
+      caption_height <- 17 * textbox_lines(caption, 150)
+      height <- 640 + title_height + caption_height + 80
+
+      # encoding = "WinAnsi" as in the chart download: ggtext turns straight
+      # quotes into typographic ones, which the pdf device cannot write in its
+      # default encoding. Height is in pixels above, so /96 puts it in inches.
       ggsave(file, plot, width = 11, height = height / 96,
              device = "pdf", encoding = "WinAnsi", limitsize = FALSE)
     }

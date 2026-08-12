@@ -89,59 +89,67 @@ county_covariates <- read_csv(
 survey_data <- left_join(survey_data, county_covariates, by = "FIPS")
 
 # Reception Scales -------------------------------------------------------------
+to_recep_items <- c("rec_all", "rec_soon", "rec_miss", "rec_area", "rec_time")
+to_recep_reversed <- c("rec_miss", "rec_area", "rec_time")
 to_recep_data <- survey_data |>
   filter(survey_hazard == "Severe Weather (WX)", survey_year != "2017") |>
-  select(p_id, rec_all, rec_soon, rec_miss, rec_area, rec_time) |>
+  select(p_id, all_of(to_recep_items)) |>
   mutate(
     # rec_time is reversed here and NOT in the TC/WW/FL scales below, because the
     # item differs by survey. In WX it reads "Sometimes I am not sure what time
     # tornado warnings begin and end for my area" (negative); elsewhere it reads
     # "I receive new information about my location as soon as it is available"
     # (positive). Do not make the reverse-coding uniform across the four scales.
-    across(c(rec_miss, rec_area, rec_time), ~6 - .),
+    across(all_of(to_recep_reversed), ~6 - .),
     to_recep_scale = if_else(
-      rowSums(!is.na(pick(rec_all, rec_soon, rec_miss, rec_area, rec_time))) >= 2,
-      rowMeans(pick(rec_all, rec_soon, rec_miss, rec_area, rec_time), na.rm = TRUE),
+      rowSums(!is.na(pick(all_of(to_recep_items)))) >= 2,
+      rowMeans(pick(all_of(to_recep_items)), na.rm = TRUE),
       NA_real_))
 cor(to_recep_data |> select(-p_id, -to_recep_scale), use = "pairwise.complete.obs")
 psych::alpha(to_recep_data |> select(-p_id, -to_recep_scale), use = "pairwise.complete.obs")
 survey_data <- left_join(survey_data, to_recep_data |> select(p_id, to_recep_scale), by = "p_id")
 
+hu_recep_items <- c("rec_most", "rec_miss", "rec_time", "rec_screen")
+hu_recep_reversed <- c("rec_miss", "rec_screen")
 hu_recep_data <- survey_data |>
   filter(survey_hazard == "Tropical Cyclone (TC)") |>
-  select(p_id, rec_most, rec_miss, rec_time, rec_screen) |>
+  select(p_id, all_of(hu_recep_items)) |>
   mutate(
     # rec_time is positively worded in TC/WW/FL, so it is not reversed here.
-    across(c(rec_miss, rec_screen), ~6 - .),
+    across(all_of(hu_recep_reversed), ~6 - .),
     hu_recep_scale = if_else(
-      rowSums(!is.na(pick(rec_most, rec_miss, rec_time, rec_screen))) >= 2,
-      rowMeans(pick(rec_most, rec_miss, rec_time, rec_screen), na.rm = TRUE),
+      rowSums(!is.na(pick(all_of(hu_recep_items)))) >= 2,
+      rowMeans(pick(all_of(hu_recep_items)), na.rm = TRUE),
       NA_real_))
 cor(hu_recep_data |> select(-p_id, -hu_recep_scale), use = "pairwise.complete.obs")
 psych::alpha(hu_recep_data |> select(-p_id, -hu_recep_scale), use = "pairwise.complete.obs")
 survey_data <- left_join(survey_data, hu_recep_data |> select(p_id, hu_recep_scale), by = "p_id")
 
+ww_recep_items <- c("rec_most", "rec_miss", "rec_time", "rec_screen")
+ww_recep_reversed <- c("rec_miss", "rec_screen")
 ww_recep_data <- survey_data |>
   filter(survey_hazard == "Winter Weather (WW)") |>
-  select(p_id, rec_most, rec_miss, rec_time, rec_screen) |>
+  select(p_id, all_of(ww_recep_items)) |>
   mutate(
-    across(c(rec_miss, rec_screen), ~6 - .),
+    across(all_of(ww_recep_reversed), ~6 - .),
     ww_recep_scale = if_else(
-      rowSums(!is.na(pick(rec_most, rec_miss, rec_time, rec_screen))) >= 2,
-      rowMeans(pick(rec_most, rec_miss, rec_time, rec_screen), na.rm = TRUE),
+      rowSums(!is.na(pick(all_of(ww_recep_items)))) >= 2,
+      rowMeans(pick(all_of(ww_recep_items)), na.rm = TRUE),
       NA_real_))
 cor(ww_recep_data |> select(-p_id, -ww_recep_scale), use = "pairwise.complete.obs")
 psych::alpha(ww_recep_data |> select(-p_id, -ww_recep_scale), use = "pairwise.complete.obs")
 survey_data <- left_join(survey_data, ww_recep_data |> select(p_id, ww_recep_scale), by = "p_id")
 
+fl_recep_items <- c("rec_most_fl", "rec_miss_fl", "rec_time")
+fl_recep_reversed <- c("rec_miss_fl")
 fl_recep_data <- survey_data |>
   filter(survey_hazard == "Flooding (FL)") |>
-  select(p_id, rec_most_fl, rec_miss_fl, rec_time) |>
+  select(p_id, all_of(fl_recep_items)) |>
   mutate(
-    across(c(rec_miss_fl), ~6 - .),
+    across(all_of(fl_recep_reversed), ~6 - .),
     fl_recep_scale = if_else(
-      rowSums(!is.na(pick(rec_most_fl, rec_miss_fl, rec_time))) >= 2,
-      rowMeans(pick(rec_most_fl, rec_miss_fl, rec_time), na.rm = TRUE),
+      rowSums(!is.na(pick(all_of(fl_recep_items)))) >= 2,
+      rowMeans(pick(all_of(fl_recep_items)), na.rm = TRUE),
       NA_real_))
 cor(fl_recep_data |> select(-p_id, -fl_recep_scale), use = "pairwise.complete.obs")
 psych::alpha(fl_recep_data |> select(-p_id, -fl_recep_scale), use = "pairwise.complete.obs")
@@ -149,49 +157,65 @@ survey_data <- left_join(survey_data, fl_recep_data |> select(p_id, fl_recep_sca
 
 # Comprehension Scales ---------------------------------------------------------
 
+to_subj_comp_items <- c(
+  "alert_und", "tor_watchwarn_und", "tor_map_und", "tor_radar_und",
+  "svr_watchwarn_und"
+)
 to_subj_comp_data <- survey_data |>
   filter(survey_hazard == "Severe Weather (WX)", survey_year != "2017") |>
-  select(p_id, alert_und, tor_watchwarn_und, tor_map_und, tor_radar_und, svr_watchwarn_und) |>
+  select(p_id, all_of(to_subj_comp_items)) |>
   mutate(
     to_subj_comp_scale = if_else(
-      rowSums(!is.na(pick(alert_und, tor_watchwarn_und, tor_map_und, tor_radar_und, svr_watchwarn_und))) >= 2,
-      rowMeans(pick(alert_und, tor_watchwarn_und, tor_map_und, tor_radar_und, svr_watchwarn_und), na.rm = TRUE),
+      rowSums(!is.na(pick(all_of(to_subj_comp_items)))) >= 2,
+      rowMeans(pick(all_of(to_subj_comp_items)), na.rm = TRUE),
       NA_real_))
 cor(to_subj_comp_data |> select(-p_id, -to_subj_comp_scale), use = "pairwise.complete.obs")
 psych::alpha(to_subj_comp_data |> select(-p_id, -to_subj_comp_scale), use = "pairwise.complete.obs")
 survey_data <- left_join(survey_data, to_subj_comp_data |> select(p_id, to_subj_comp_scale), by = "p_id")
 
+hu_subj_comp_items <- c(
+  "alert_und", "huralerts", "hur_map_und", "tor_watchwarn_und",
+  "flood_watchwarn_und", "flood_srg_und"
+)
 hu_subj_comp_data <- survey_data |>
   filter(survey_hazard == "Tropical Cyclone (TC)") |>
-  select(p_id, alert_und, huralerts, hur_map_und, tor_watchwarn_und, flood_watchwarn_und, flood_srg_und) |>
+  select(p_id, all_of(hu_subj_comp_items)) |>
   mutate(
     hu_subj_comp_scale = if_else(
-      rowSums(!is.na(pick(alert_und, huralerts, hur_map_und, tor_watchwarn_und, flood_watchwarn_und, flood_srg_und))) >= 2,
-      rowMeans(pick(alert_und, huralerts, hur_map_und, tor_watchwarn_und, flood_watchwarn_und, flood_srg_und), na.rm = TRUE),
+      rowSums(!is.na(pick(all_of(hu_subj_comp_items)))) >= 2,
+      rowMeans(pick(all_of(hu_subj_comp_items)), na.rm = TRUE),
       NA_real_))
 cor(hu_subj_comp_data |> select(-p_id, -hu_subj_comp_scale), use = "pairwise.complete.obs")
 psych::alpha(hu_subj_comp_data |> select(-p_id, -hu_subj_comp_scale), use = "pairwise.complete.obs")
 survey_data <- left_join(survey_data, hu_subj_comp_data |> select(p_id, hu_subj_comp_scale), by = "p_id")
 
+ww_subj_comp_items <- c(
+  "wwalerts", "ice_warn_und", "bliz_warn_und", "cold_warn_und",
+  "squall_warn_und"
+)
 ww_subj_comp_data <- survey_data |>
   filter(survey_hazard == "Winter Weather (WW)") |>
-  select(p_id, wwalerts, ice_warn_und, bliz_warn_und, cold_warn_und, squall_warn_und) |>
+  select(p_id, all_of(ww_subj_comp_items)) |>
   mutate(
     ww_subj_comp_scale = if_else(
-      rowSums(!is.na(pick(wwalerts, ice_warn_und, bliz_warn_und, cold_warn_und, squall_warn_und))) >= 2,
-      rowMeans(pick(wwalerts, ice_warn_und, bliz_warn_und, cold_warn_und, squall_warn_und), na.rm = TRUE),
+      rowSums(!is.na(pick(all_of(ww_subj_comp_items)))) >= 2,
+      rowMeans(pick(all_of(ww_subj_comp_items)), na.rm = TRUE),
       NA_real_))
 cor(ww_subj_comp_data |> select(-p_id, -ww_subj_comp_scale), use = "pairwise.complete.obs")
 psych::alpha(ww_subj_comp_data |> select(-p_id, -ww_subj_comp_scale), use = "pairwise.complete.obs")
 survey_data <- left_join(survey_data, ww_subj_comp_data |> select(p_id, ww_subj_comp_scale), by = "p_id")
 
+fl_subj_comp_items <- c(
+  "alert_und", "flood_wwa_und", "flash_wwa_und", "flood_srg_und",
+  "flood_map_und"
+)
 fl_subj_comp_data <- survey_data |>
   filter(survey_hazard == "Flooding (FL)") |>
-  select(p_id, alert_und, flood_wwa_und, flash_wwa_und, flood_srg_und, flood_map_und) |>
+  select(p_id, all_of(fl_subj_comp_items)) |>
   mutate(
     fl_subj_comp_scale = if_else(
-      rowSums(!is.na(pick(alert_und, flood_wwa_und, flash_wwa_und, flood_srg_und, flood_map_und))) >= 2,
-      rowMeans(pick(alert_und, flood_wwa_und, flash_wwa_und, flood_srg_und, flood_map_und), na.rm = TRUE),
+      rowSums(!is.na(pick(all_of(fl_subj_comp_items)))) >= 2,
+      rowMeans(pick(all_of(fl_subj_comp_items)), na.rm = TRUE),
       NA_real_))
 cor(fl_subj_comp_data |> select(-p_id, -fl_subj_comp_scale), use = "pairwise.complete.obs")
 psych::alpha(fl_subj_comp_data |> select(-p_id, -fl_subj_comp_scale), use = "pairwise.complete.obs")
@@ -199,56 +223,117 @@ survey_data <- left_join(survey_data, fl_subj_comp_data |> select(p_id, fl_subj_
 
 # Response Scales --------------------------------------------------------------
 
+to_resp_items <- c("resp_ignore", "resp_prot", "resp_busy", "resp_unsure")
+to_resp_reversed <- c("resp_ignore", "resp_busy", "resp_unsure")
 to_resp_data <- survey_data |>
   filter(survey_hazard == "Severe Weather (WX)", survey_year != "2017") |>
-  select(p_id, resp_ignore, resp_prot, resp_busy, resp_unsure) |>
+  select(p_id, all_of(to_resp_items)) |>
   mutate(
-    across(c(resp_ignore, resp_busy, resp_unsure), ~6 - .),
+    across(all_of(to_resp_reversed), ~6 - .),
     to_resp_scale = if_else(
-      rowSums(!is.na(pick(resp_ignore, resp_prot, resp_busy, resp_unsure))) >= 2,
-      rowMeans(pick(resp_ignore, resp_prot, resp_busy, resp_unsure), na.rm = TRUE),
+      rowSums(!is.na(pick(all_of(to_resp_items)))) >= 2,
+      rowMeans(pick(all_of(to_resp_items)), na.rm = TRUE),
       NA_real_))
 cor(to_resp_data |> select(-p_id, -to_resp_scale), use = "pairwise.complete.obs")
 psych::alpha(to_resp_data |> select(-p_id, -to_resp_scale), use = "pairwise.complete.obs")
 survey_data <- left_join(survey_data, to_resp_data |> select(p_id, to_resp_scale), by = "p_id")
 
+hu_resp_items <- c("resp_ignore", "resp_usually", "resp_more")
+hu_resp_reversed <- c("resp_ignore", "resp_usually", "resp_more")
 hu_resp_data <- survey_data |>
   filter(survey_hazard == "Tropical Cyclone (TC)") |>
-  select(p_id, resp_ignore, resp_usually, resp_more) |>
+  select(p_id, all_of(hu_resp_items)) |>
   mutate(
-    across(c(resp_ignore, resp_usually, resp_more), ~6 - .),
+    across(all_of(hu_resp_reversed), ~6 - .),
     hu_resp_scale = if_else(
-      rowSums(!is.na(pick(resp_ignore, resp_usually, resp_more))) >= 2,
-      rowMeans(pick(resp_ignore, resp_usually, resp_more), na.rm = TRUE),
+      rowSums(!is.na(pick(all_of(hu_resp_items)))) >= 2,
+      rowMeans(pick(all_of(hu_resp_items)), na.rm = TRUE),
       NA_real_))
 cor(hu_resp_data |> select(-p_id, -hu_resp_scale), use = "pairwise.complete.obs")
 psych::alpha(hu_resp_data |> select(-p_id, -hu_resp_scale), use = "pairwise.complete.obs")
 survey_data <- left_join(survey_data, hu_resp_data |> select(p_id, hu_resp_scale), by = "p_id")
 
+ww_resp_items <- c("resp_ignore", "resp_always", "resp_more")
+ww_resp_reversed <- c("resp_ignore", "resp_more")
 ww_resp_data <- survey_data |>
   filter(survey_hazard == "Winter Weather (WW)") |>
-  select(p_id, resp_ignore, resp_always, resp_more) |>
+  select(p_id, all_of(ww_resp_items)) |>
   mutate(
-    across(c(resp_ignore, resp_more), ~6 - .),
+    across(all_of(ww_resp_reversed), ~6 - .),
     ww_resp_scale = if_else(
-      rowSums(!is.na(pick(resp_ignore, resp_always, resp_more))) >= 2,
-      rowMeans(pick(resp_ignore, resp_always, resp_more), na.rm = TRUE),
+      rowSums(!is.na(pick(all_of(ww_resp_items)))) >= 2,
+      rowMeans(pick(all_of(ww_resp_items)), na.rm = TRUE),
       NA_real_))
 cor(ww_resp_data |> select(-p_id, -ww_resp_scale), use = "pairwise.complete.obs")
 psych::alpha(ww_resp_data |> select(-p_id, -ww_resp_scale), use = "pairwise.complete.obs")
 survey_data <- left_join(survey_data, ww_resp_data |> select(p_id, ww_resp_scale), by = "p_id")
 
+fl_resp_items <- c("resp_ignore_fl", "resp_always_fl", "resp_know_fl")
+fl_resp_reversed <- c("resp_ignore_fl", "resp_know_fl")
 fl_resp_data <- survey_data |>
   filter(survey_hazard == "Flooding (FL)") |>
-  select(p_id, resp_ignore_fl, resp_always_fl, resp_know_fl) |>
+  select(p_id, all_of(fl_resp_items)) |>
   mutate(
-    across(c(resp_ignore_fl, resp_know_fl), ~6 - .),
+    across(all_of(fl_resp_reversed), ~6 - .),
     fl_resp_scale = if_else(
-      rowSums(!is.na(pick(resp_ignore_fl, resp_always_fl, resp_know_fl))) >= 2,
-      rowMeans(pick(resp_ignore_fl, resp_always_fl, resp_know_fl), na.rm = TRUE),
+      rowSums(!is.na(pick(all_of(fl_resp_items)))) >= 2,
+      rowMeans(pick(all_of(fl_resp_items)), na.rm = TRUE),
       NA_real_))
 cor(fl_resp_data |> select(-p_id, -fl_resp_scale), use = "pairwise.complete.obs")
 psych::alpha(fl_resp_data |> select(-p_id, -fl_resp_scale), use = "pairwise.complete.obs")
 survey_data <- left_join(survey_data, fl_resp_data |> select(p_id, fl_resp_scale), by = "p_id")
 
 write_csv(survey_data, paste0(outputs, "05_survey_responses.csv"))
+
+# Scale Composition ------------------------------------------------------------
+# Which items went into each scale, written out so the dashboard can name the
+# questions behind a scale without keeping its own copy of these lists. It reads
+# the vectors defined above rather than restating them, so a scale that gains or
+# loses an item cannot leave the app describing the version before the change.
+#
+# The measure names are the ones 07 predicts under, which is how the app joins
+# these rows to what it maps.
+scale_definitions <- tribble(
+  ~measure,           ~scale,                 ~survey_hazard,
+  "TO_RECEP",         "to_recep_scale",       "Severe Weather (WX)",
+  "HU_RECEP",         "hu_recep_scale",       "Tropical Cyclone (TC)",
+  "WW_RECEP",         "ww_recep_scale",       "Winter Weather (WW)",
+  "FL_RECEP",         "fl_recep_scale",       "Flooding (FL)",
+  "TO_SUBJ_COMP",     "to_subj_comp_scale",   "Severe Weather (WX)",
+  "HU_SUBJ_COMP",     "hu_subj_comp_scale",   "Tropical Cyclone (TC)",
+  "WW_SUBJ_COMP",     "ww_subj_comp_scale",   "Winter Weather (WW)",
+  "FL_SUBJ_COMP",     "fl_subj_comp_scale",   "Flooding (FL)",
+  "TO_RESP",          "to_resp_scale",        "Severe Weather (WX)",
+  "HU_RESP",          "hu_resp_scale",        "Tropical Cyclone (TC)",
+  "WW_RESP",          "ww_resp_scale",        "Winter Weather (WW)",
+  "FL_RESP",          "fl_resp_scale",        "Flooding (FL)"
+)
+
+# get() rather than mget() so a scale listed above with no matching vector stops
+# the script instead of writing a row with no items.
+scale_items <- scale_definitions |>
+  mutate(
+    prefix = str_remove(scale, "_scale$"),
+    variable = map(prefix, ~get(paste0(.x, "_items"))),
+    reversed = map(prefix, function(p) {
+      name <- paste0(p, "_reversed")
+      if (exists(name)) get(name) else character(0)
+    })
+  ) |>
+  unnest(variable) |>
+  mutate(reverse_coded = map2_lgl(variable, reversed, ~.x %in% .y)) |>
+  select(measure, scale, survey_hazard, variable, reverse_coded)
+
+# Every item has to be a column that survived to the written file, or the app
+# would quote a question that nothing was scored from.
+missing_items <- setdiff(scale_items$variable, names(survey_data))
+
+if (length(missing_items) > 0) {
+  print(missing_items)
+  stop("Scale items above are not columns of the survey data.")
+}
+
+message("Scale composition: ", nrow(scale_items), " items across ",
+        n_distinct(scale_items$measure), " scales")
+
+write_csv(scale_items, paste0(outputs, "05_scale_items.csv"))

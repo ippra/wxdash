@@ -230,8 +230,10 @@ county_shapes <- st_read(paste0(downloads, "cb_2025_us_county_20m"),
   select(FIPS = GEOID) |>
   st_transform(4326) # 4326 because web maps require it and ggplot accepts it
 
+# CITYSTATE comes along because a map keyed on three-letter codes is unreadable
+# without it -- "Norman OK" is what a tooltip needs to say, not "OUN".
 cwa_shapes <- st_read(paste0(downloads, "w_16ap26"), quiet = TRUE) |>
-  select(CWA) |>
+  select(CWA, CWA_NAME = CITYSTATE) |>
   st_transform(4326)
 
 # Check before joining, not after. An estimate whose geometry is missing would
