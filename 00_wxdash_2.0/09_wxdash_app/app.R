@@ -28,6 +28,23 @@ questions <- read_csv(needed[1], show_col_types = FALSE)
 responses <- read_rds(needed[2])
 cwa_estimates <- read_rds(needed[3])
 
+# How an office is written on the map: "NWS Norman, OK". w_16ap26 stores it as
+# "Norman OK", so a comma goes in front of the state code and "NWS" in front of
+# the whole thing.
+#
+# The match is on every code that ends a segment, not just the last one, because
+# two offices are named for two cities - "Baltimore MD/Washington DC" needs both
+# commas. Upper-casing catches "El Paso Tx", which the source stores that way.
+# Northern Indiana carries no state code and correctly comes back unchanged.
+#
+# Done once here rather than in the tooltip, which is rebuilt on every change of
+# measure.
+cwa_estimates <- cwa_estimates |>
+  mutate(CWA_DISPLAY = paste0(
+    "NWS ",
+    gsub(" ([A-Za-z]{2})(?=/|$)", ", \\U\\1\\E", CWA_NAME, perl = TRUE)
+  ))
+
 # One row per question per mapped measure, written by 09 from 05's scale
 # composition and the variable reference. The app quotes these rather than
 # describing them, so what it says was asked is what the instrument says.
@@ -222,6 +239,140 @@ count_word <- function(n) {
   if (n >= 1 && n <= length(words)) words[n] else as.character(n)
 }
 
+# The teens are the exception - 11th, 12th, 13th, not 11st - so the last two
+# digits are tested before the last one.
+ordinal <- function(n) {
+  suffix <- case_when(
+    n %% 100 %in% 11:13 ~ "th",
+    n %% 10 == 1        ~ "st",
+    n %% 10 == 2        ~ "nd",
+    n %% 10 == 3        ~ "rd",
+    TRUE                ~ "th"
+  )
+  paste0(n, suffix)
+}
+
+# _SUBJ_COMP is tested before _RESP and _RECEP because the suffixes are only
+# unambiguous in that order.
+measure_construct <- function(measure) {
+  case_when(
+    str_starts(measure, "RISK_") ~ "RISK",
+    str_ends(measure, "_SUBJ_COMP") ~ "SUBJ_COMP",
+    str_ends(measure, "_RECEP") ~ "RECEP",
+    str_ends(measure, "_RESP") ~ "RESP"
+  )
+}
+
+# The hazard on its own, taken off the label rather than kept as a fifth list to
+# maintain. "Ice and freezing rain risk perceptions" gives "ice and freezing
+# rain", which is what the sentence needs.
+measure_hazard <- function(measure) {
+  str_to_lower(str_remove(
+    measure_label(measure),
+    " (warning (reception|comprehension|response)|risk perceptions)$"
+  ))
+}
+
+# What the 1-5 scale is measuring, as a phrase that follows "out of 5 for".
+# {hazard} is filled in below.
+construct_quantity <- c(
+  RECEP = paste("agreement that people receive the {hazard} warnings issued",
+                "for their area"),
+  RESP = paste("agreement that people take protective action when {hazard}",
+               "warnings are issued"),
+  SUBJ_COMP = "how well people say they understand {hazard} warnings",
+  RISK = "how people rate their risk from {hazard}"
+)
+
+# All 116 estimates on one axis, with this area marked. Inline SVG because the
+# popup is an HTML string in a column - there is no plot device on the other
+# end, and a PNG per area would be 116 images per measure.
+#
+# The 115 other areas are drawn as a single <path> rather than 115 <line>
+# elements. Each tick costs about 11 characters that way against 40, which
+# matters because the whole source is re-sent on every change of measure.
+#
+# Positions are rounded to one decimal for the same reason: at 260px wide a
+# tenth of a pixel is not a distinction anyone can see.
+strip_plot <- function(values, this_value, middle) {
+  width <- 280
+  pad <- 10
+  span <- range(values)
+
+  # A flat measure would divide by zero. None of the 24 is flat, but the guard
+  # costs nothing and the failure would be an invisible broken popup.
+  scale_x <- function(v) {
+    if (diff(span) == 0) return(rep(width / 2, length(v)))
+    round(pad + (v - span[1]) / diff(span) * (width - 2 * pad), 1)
+  }
+
+  ticks <- paste0("M", scale_x(values), " 12v14", collapse = "")
+  mid_x <- scale_x(middle)
+
+  paste0(
+    "<svg width=\"", width, "\" height=\"52\" ",
+    "style=\"display:block;margin:8px 0 2px\">",
+    # Every area, including this one, so the marker sits in the distribution
+    # rather than beside it.
+    "<path d=\"", ticks, "\" stroke=\"#B8BEC5\" stroke-width=\"1\"/>",
+    # The median sits below the axis as a caret rather than among the ticks. As
+    # a dashed line inside the band it read as one more area, which is the one
+    # thing it must not look like.
+    "<path d=\"M", mid_x - 4, " 34L", mid_x, " 28L", mid_x + 4, " 34Z\" ",
+    "fill=\"#6E737A\"/>",
+    "<text x=\"", mid_x, "\" y=\"44\" font-size=\"9\" fill=\"#6E737A\" ",
+    "text-anchor=\"middle\">median</text>",
+    # This area. Dark neutral rather than a colour from the ramp: the ramp
+    # changes with the scheme and its light end would vanish against white.
+    "<circle cx=\"", scale_x(this_value), "\" cy=\"19\" r=\"4.5\" ",
+    "fill=\"#111827\"/>",
+    "<text x=\"", pad, "\" y=\"9\" font-size=\"10\" fill=\"#6E737A\">",
+    sprintf("%.1f", span[1]), "</text>",
+    "<text x=\"", width - pad, "\" y=\"9\" font-size=\"10\" fill=\"#6E737A\" ",
+    "text-anchor=\"end\">", sprintf("%.1f", span[2]), "</text>",
+    "</svg>"
+  )
+}
+
+# One area's estimate, named as the quantity it is and placed against the other
+# areas. Three sentences: the estimate, the median it is measured against, and
+# where it ranks.
+#
+# The comparison is to the other areas, not to a national figure. The app holds
+# 116 CWA estimates and no populations, so a mean or median of them describes
+# the middle area rather than the middle person - a different quantity, and one
+# a sentence saying "national" would be claiming falsely. Rank and percentile
+# need no weights either, which is why they are what is reported.
+#
+# Naming the quantities also removed the comparative this used to carry.
+# "Agrees more strongly than most" is false at rank 58 and needed a whole set
+# of bands with a separate sentence for the middle; rank and percentile say
+# where an area sits without any of that.
+cwa_narrative <- function(measure, value, rank, percentile, n, middle) {
+  quantity <- str_replace_all(
+    construct_quantity[[measure_construct(measure)]],
+    fixed("{hazard}"), measure_hazard(measure)
+  )
+
+  # The two ends are named rather than numbered - "1st" and "116th of 116" both
+  # read badly - and "highest" is only added in the top half, where it clarifies
+  # the direction. On a low rank it fights it: 109th highest is not how anyone
+  # describes a low-ranking area.
+  standing <- case_when(
+    rank == 1 ~ paste0("has the highest estimate of the ", n),
+    rank == n ~ paste0("has the lowest estimate of the ", n),
+    rank <= n / 2 ~ paste0("ranks ", ordinal(rank), " highest of the ", n),
+    TRUE ~ paste0("ranks ", ordinal(rank), " of the ", n)
+  )
+
+  paste0(
+    "The estimate for this area is ", sprintf("%.2f", value), " out of 5 for ",
+    quantity, ". The median estimate across the ", n,
+    " County Warning Areas is ", sprintf("%.2f", middle), ". This area ",
+    standing, ", at the ", ordinal(percentile), " percentile."
+  )
+}
+
 # Reversed for blue and grey so the darkest step carries the highest value,
 # which is the direction a choropleth is read in. Viridis is left in its own
 # order: it already runs dark to bright, and reversing it puts the bright end
@@ -399,6 +550,158 @@ map_plot <- function(d, colours, title, caption) {
     )
 }
 
+# One area against all 116 on every measure it is estimated for, in the order
+# the drop-down lists them.
+#
+# Every row is rescaled to its own minimum and maximum, so a dot at the right of
+# one row and a dot at the right of another mean the same standing, not the same
+# size of difference. That is the trade the map's colour stretch already makes,
+# and the printed range on each row is what keeps it honest: the warning scales
+# span about half a point and the risk items nearly three.
+cwa_overview_data <- function(cwa) {
+  estimates <- st_drop_geometry(cwa_estimates)
+
+  map_dfr(seq_len(nrow(measure_lookup)), function(i) {
+    measure <- measure_lookup$measure[i]
+    values <- estimates[[measure]]
+    here <- values[estimates$CWA == cwa]
+    span <- range(values)
+
+    tibble(
+      row = i,
+      section = measure_lookup$group[i],
+      label = measure_lookup$label[i],
+      value = values,
+      here = here,
+      lo = span[1],
+      hi = span[2],
+      middle = median(values),
+      rank = rank(-values, ties.method = "min")[estimates$CWA == cwa],
+      percentile = round(100 * sum(values < here) / length(values))
+    )
+  }) |>
+    # A flat measure would divide by zero. None is flat, but an invisible row
+    # is a worse failure than a guard that never fires.
+    mutate(across(c(value, here, middle),
+                  ~if_else(hi > lo, (.x - lo) / (hi - lo), 0.5),
+                  .names = "{.col}_pos"))
+}
+
+# Colours for the sheet, taken from the ramp the charts already use so a printed
+# handout and the screen are recognisably the same product.
+sheet_ink <- "#032A4C"     # this area, and the headings
+sheet_grey <- "#B8BEC5"    # the other 115
+sheet_mid <- "#6E737A"     # their median, and secondary type
+sheet_band <- "#F4F6F8"    # alternating row tint
+
+cwa_overview_plot <- function(cwa, display_name, code, caption) {
+  # fct_inorder reads the drop-down order out of the row order, and fct_rev puts
+  # the first measure listed at the top rather than the bottom. Set before the
+  # one-row-per-measure frame is taken, so both carry the same levels rather
+  # than being levelled twice and risking two different orders.
+  d <- cwa_overview_data(cwa) |>
+    mutate(label = fct_rev(fct_inorder(label)),
+           section = fct_inorder(section))
+
+  one <- d |> distinct(row, section, label, here_pos, middle_pos, lo, hi,
+                       here, rank, percentile) |>
+    # Every other row tinted, because these rows are wide and the eye has to
+    # carry a label on the far left to a number on the far right.
+    mutate(band = as.integer(label) %% 2 == 0)
+
+  # The legend is drawn by ggplot from mapped aesthetics rather than written as
+  # a line of text. The pdf device is opened with WinAnsi encoding, which has no
+  # glyph for a filled circle or a triangle, so spelling the key out in
+  # characters would silently drop the marks it was explaining.
+  keys <- c("All 116 areas", "Median of the 116", "This area")
+
+  ggplot(d, aes(y = label)) +
+    # geom_tile on the discrete y rather than geom_rect with numeric ymin/ymax.
+    # Numeric y values against a discrete scale make every panel expand to the
+    # full 1-24 range, which defeats space = "free_y": the sections all come out
+    # the same height with their rows crushed together at one end.
+    #
+    # Every row is drawn and the untinted ones are filled NA, rather than the
+    # layer being filtered to alternate rows. This is the first layer, so it is
+    # what trains the discrete axis: given only half the rows it ordered each
+    # panel as evens-then-odds and silently scrambled the measures.
+    geom_tile(
+      data = one, inherit.aes = FALSE,
+      aes(x = 0.685, y = label, fill = band), width = 1.63, height = 1
+    ) +
+    scale_fill_manual(values = c(`TRUE` = sheet_band, `FALSE` = NA),
+                      guide = "none") +
+    geom_point(aes(x = value_pos, colour = keys[1], shape = keys[1],
+                   size = keys[1])) +
+    geom_point(data = one, aes(x = middle_pos, colour = keys[2],
+                               shape = keys[2], size = keys[2])) +
+    geom_point(data = one, aes(x = here_pos, colour = keys[3],
+                               shape = keys[3], size = keys[3])) +
+    scale_colour_manual(NULL, values = set_names(
+      c(sheet_grey, sheet_mid, sheet_ink), keys), breaks = keys) +
+    scale_shape_manual(NULL, values = set_names(c(16, 17, 16), keys),
+                       breaks = keys) +
+    scale_size_manual(NULL, values = set_names(c(0.6, 1.7, 2.9), keys),
+                      breaks = keys) +
+    # The ends of each row's own scale, then this area's estimate and standing.
+    # Placed outside the panel, which is why clipping is off below.
+    geom_text(data = one, aes(x = -0.03, label = sprintf("%.1f", lo)),
+              hjust = 1, size = 2.6, colour = sheet_mid) +
+    geom_text(data = one, aes(x = 1.03, label = sprintf("%.1f", hi)),
+              hjust = 0, size = 2.6, colour = sheet_mid) +
+    geom_text(data = one, aes(x = 1.30, label = sprintf("%.2f", here)),
+              hjust = 1, size = 3.1, colour = sheet_ink, fontface = "bold") +
+    geom_text(data = one, aes(x = 1.46, label = ordinal(percentile)),
+              hjust = 1, size = 3, colour = sheet_mid) +
+    facet_grid(section ~ ., scales = "free_y", space = "free_y") +
+    # Column headings, put on a top axis so they land over their columns and
+    # appear once rather than above every section.
+    scale_x_continuous(
+      position = "top",
+      limits = c(-0.13, 1.5), expand = expansion(0),
+      breaks = c(0.5, 1.22, 1.40),
+      labels = c("Lowest area to highest area", "Estimate", "Percentile")
+    ) +
+    coord_cartesian(clip = "off") +
+    labs(
+      title = display_name,
+      subtitle = paste0(
+        "County Warning Area overview &bull; ", code,
+        "<br><span style='color:", sheet_mid, "'>",
+        "Extreme Weather and Society Survey &bull; ", institute, "</span>"
+      ),
+      caption = caption, x = NULL, y = NULL
+    ) +
+    theme_minimal(base_size = 10) +
+    theme(
+      panel.grid = element_blank(),
+      axis.text.x.top = element_text(size = 7.5, face = "bold",
+                                     colour = sheet_mid,
+                                     margin = margin(b = 6)),
+      axis.text.y = element_text(hjust = 0, size = 8.6, colour = "#1F2933"),
+      strip.text.y = element_text(angle = 0, hjust = 0, face = "bold",
+                                  size = 8.4, colour = "white",
+                                  margin = margin(4, 6, 4, 6)),
+      strip.background = element_rect(fill = sheet_ink, colour = NA),
+      panel.spacing.y = unit(5, "pt"),
+      legend.position = "top",
+      legend.justification = "left",
+      legend.margin = margin(0, 0, 6, 0),
+      legend.key.spacing.x = unit(10, "pt"),
+      legend.text = element_text(size = 8, colour = sheet_mid),
+      plot.margin = margin(16, 16, 12, 16),
+      plot.title.position = "plot",
+      plot.caption.position = "plot",
+      plot.title = element_textbox_simple(size = 19, face = "bold",
+                                          colour = sheet_ink,
+                                          margin = margin(b = 3)),
+      plot.subtitle = element_textbox_simple(size = 8.6, colour = "#1F2933",
+                                             margin = margin(b = 12)),
+      plot.caption = element_textbox_simple(size = 7.4, colour = sheet_mid,
+                                            margin = margin(t = 14))
+    )
+}
+
 # ggtext wraps, so the drawn line count is not known ahead of the draw. The map
 # caption carries explicit <br> breaks, so counting characters alone would
 # under-count it badly - each segment is measured separately and every break
@@ -417,7 +720,7 @@ plot_height <- function(d) {
 ui <- navbarPage(
   "Extreme Weather and Society Survey",
   tabPanel(
-  "Explore Survey Questions and Results",
+  "Explore Survey Results",
   helpText(
     "Click a survey question in the table below to see the weighted",
     "distribution of responses. Each question is listed once per survey hazard,",
@@ -491,7 +794,11 @@ ui <- navbarPage(
         # Nudged off the bottom edge so the button label sits on the same line
         # as the select, which carries a label above it.
         div(style = "padding-bottom: 6px;",
-            downloadButton("map_download", "Download map (PDF)"))
+            downloadButton("map_download", "Download map (PDF)")),
+        # Swapped for a prompt until an area has been clicked, because a
+        # download button that cannot say which area it covers is worse than
+        # one that is not there yet.
+        div(style = "padding-bottom: 6px;", uiOutput("overview_control"))
       )
     ),
     # Fixed height rather than auto: a map has no natural content height, and
@@ -612,17 +919,36 @@ server <- function(input, output, session) {
     # be written once. The archive link sits last rather than in a parenthesis
     # after the survey name, where it reads as an aside interrupting the first
     # sentence.
+    #
+    # Two paragraphs in the same order the map tab uses: what this is and how to
+    # read it, then where it came from. The second paragraph deliberately runs
+    # parallel to the map's, sentence for sentence - same opening, same "so they
+    # describe ... rather than only the people surveyed", same closing - because
+    # the two tabs answer the same question about provenance and should not
+    # sound like two different projects.
+    #
+    # Split on "\n\n" rather than "<br><br>" so the whole string can be escaped
+    # before the breaks are put back; see output$caption and the download.
     paste0(
-      "Public survey data from the Extreme Weather and Society Survey, run by ",
-      institute, ". ", format(nrow(d), big.mark = ","), " US adults answered ",
-      "this question about ", hazard_phrases[[selected()$hazard]], " ", waves,
-      ". Bars show the weighted percentage", split_text,
-      " giving each answer; every wave is raked to American Community Survey ",
-      "benchmarks for age, gender, race, education, income and region.",
-      smallest_text, " This question is stored as ", selected()$variable,
-      " in the survey data, which is available at ", archive, "."
+      format(nrow(d), big.mark = ","), " US adults answered this question ",
+      "about ", hazard_phrases[[selected()$hazard]], " ", waves,
+      ". Bars show the weighted percentage", split_text, " giving each answer.",
+      smallest_text,
+      "\n\n",
+      "From the Extreme Weather and Society Survey, run by ", institute,
+      ". Every wave is raked to American Community Survey benchmarks for age, ",
+      "gender, race, education, income and region, so the percentages ",
+      "describe US adults rather than only the people surveyed. This question ",
+      "is stored as ", selected()$variable, "; the survey data is available ",
+      "at ", archive, "."
     )
   })
+
+  # The page and the download both need the paragraph break as markup, and both
+  # need it put back after escaping rather than before.
+  caption_html <- function(text) {
+    str_replace_all(text, fixed("\n\n"), "<br><br>")
+  }
 
   # Built by substitution rather than assembled from tags: a tagList renders
   # each child on its own line, and the browser collapses that newline into a
@@ -631,14 +957,17 @@ server <- function(input, output, session) {
   # occurs inside "age group".
   output$caption <- renderUI({
     linked <- htmltools::htmlEscape(caption_text()) |>
+      caption_html() |>
       str_replace(
         fixed(institute),
         paste0("<a href=\"", institute_url, "\" target=\"_blank\">",
                institute, "</a>")
       ) |>
+      # Matched with the semicolon that follows it, since a variable name like
+      # "age" also occurs inside "age group".
       str_replace(
-        fixed(paste0("stored as ", selected()$variable, " in")),
-        paste0("stored as <code>", selected()$variable, "</code> in")
+        fixed(paste0("stored as ", selected()$variable, ";")),
+        paste0("stored as <code>", selected()$variable, "</code>;")
       ) |>
       str_replace(
         fixed(archive),
@@ -667,8 +996,9 @@ server <- function(input, output, session) {
     contentType = "application/pdf",
     content = function(file) {
       d <- distribution()
+      caption <- caption_html(caption_text())
       plot <- distribution_plot(d, input$ci, input$group, input$palette) +
-        labs(title = selected()$question, caption = caption_text()) +
+        labs(title = selected()$question, caption = caption) +
         theme(
           # Without the plot margin the first line of a wrapped title is
           # clipped by the top edge of the image. Both blocks are positioned
@@ -689,8 +1019,11 @@ server <- function(input, output, session) {
       # divisors are characters per line at 11 inches, measured off the two
       # longest questions in the sheet; the +80 is slack so a wrap that runs
       # one line longer than estimated is not clipped.
+      # textbox_lines rather than nchar alone: the caption now carries an
+      # explicit paragraph break, and counting characters through it would
+      # under-measure and clip the last line.
       title_height <- 26 * ceiling(nchar(selected()$question) / 90)
-      caption_height <- 18 * ceiling(nchar(caption_text()) / 135)
+      caption_height <- 18 * textbox_lines(caption, 135)
       height <- plot_height(d) + title_height + caption_height + 80
 
       # encoding = "WinAnsi" is not optional. ggtext renders the title and
@@ -712,13 +1045,50 @@ server <- function(input, output, session) {
   # both reference it by name and mapgl reads the name out of the source.
   cwa_selected <- reactive({
     measure <- input$measure
-    cwa_estimates |>
+
+    ranked <- cwa_estimates |>
       mutate(
         value = .data[[measure]],
-        # Built here rather than in the layer: mapgl takes a column name for the
-        # tooltip, so anything shown on hover has to exist as a column first.
-        tooltip = paste0("<strong>", CWA_NAME, " (", CWA, ")</strong><br>",
-                         measure_label(measure), ": ", round(value, 2))
+        # ties.method = "min" so two areas on the same estimate are both called
+        # the same rank rather than one of them being told it is a place lower
+        # for a difference that is not there.
+        rank = rank(-value, ties.method = "min"),
+        # Percentile rank: the share of areas scoring strictly below this one.
+        # Strictly, so tied areas get the same percentile as they get the same
+        # rank. The lowest area is the 0th percentile, which is what it is.
+        percentile = round(100 * map_int(value, ~sum(value < .x)) / n())
+      )
+
+    middle <- median(ranked$value)
+    n <- nrow(ranked)
+
+    ranked |>
+      mutate(
+        # Both built here rather than in the layer: mapgl takes a column name,
+        # so anything shown on hover or click has to exist as a column first.
+        #
+        # Hover stays short - it follows the cursor across 116 areas, and a
+        # paragraph chasing the mouse is unreadable. The narrative waits for a
+        # click, where it can be read at leisure.
+        # "Estimate" rather than the measure name: the drop-down above already
+        # says which measure is on screen, and repeating a label as long as
+        # "Winter storm warning comprehension" on every area crowds out the
+        # number, which is the thing being hovered for.
+        #
+        # The hint is here because nothing else signals that the areas are
+        # clickable - there is no cursor change on a fill layer.
+        tooltip = paste0(
+          "<strong>", CWA_DISPLAY, " (", CWA, ")</strong><br>",
+          "Estimate: ", sprintf("%.2f", value),
+          "<br><span style=\"font-size:11px;color:#6E737A\">",
+          "Click for more information</span>"
+        ),
+        popup = paste0(
+          "<strong>", CWA_DISPLAY, " (", CWA, ")</strong><br><br>",
+          map_chr(seq_len(n), ~cwa_narrative(measure, value[.x], rank[.x],
+                                             percentile[.x], n, middle)),
+          map_chr(seq_len(n), ~strip_plot(value, value[.x], middle))
+        )
       )
   })
 
@@ -748,7 +1118,19 @@ server <- function(input, output, session) {
 
     # bounds fits the view to the areas actually drawn, so the map opens on the
     # lower 48 rather than on the whole globe with the data in one corner.
-    maplibre(style = blank_basemap, bounds = d) |>
+    #
+    # Zoom is off. All four ways in have to be named: the scroll wheel, a
+    # double click, a pinch on a trackpad or touchscreen, and shift-drag. Any
+    # one left on is a way to end up somewhere the fitted view was chosen to
+    # avoid. No navigation control is added, so there are no +/- buttons.
+    maplibre(
+      style = blank_basemap,
+      bounds = d,
+      scrollZoom = FALSE,
+      doubleClickZoom = FALSE,
+      touchZoomRotate = FALSE,
+      boxZoom = FALSE
+    ) |>
       add_fill_layer(
         id = "cwa",
         source = d,
@@ -760,6 +1142,10 @@ server <- function(input, output, session) {
         # A boundary line, or 116 areas of similar colour read as one blob.
         fill_outline_color = "#FFFFFF",
         tooltip = "tooltip",
+        popup = "popup",
+        # Wider than the default, which wraps the narrative into a column a few
+        # words across.
+        popup_style = popup_style(max_width = "320px"),
         # Hover has to move opacity the other way now: raising it from 0.75 was
         # the old highlight and there is no headroom above 1.
         hover_options = list(fill_opacity = 0.7)
@@ -866,11 +1252,20 @@ server <- function(input, output, session) {
         " rather than the full 1 to 5, so areas are compared against each ",
         "other rather than against the ends of the scale."
       ),
+      # Deliberately parallel to the chart tab's second paragraph: same
+      # opening, same "so ... describe US adults ... rather than only the
+      # people surveyed", same archive close. The method sentence between them
+      # differs because the methods do.
+      #
+      # The chart tab names its column and this one does not, on purpose. There
+      # the name is how you find the question in the downloaded survey data;
+      # here the measure is a model output that is not in that archive under
+      # any name, so printing one would point at something that is not there.
       source = paste0(
         "From the Extreme Weather and Society Survey, run by ", institute,
         ". Estimates come from multilevel models fitted to survey responses ",
         "and reweighted to the adult population of each county, then combined ",
-        "to the County Warning Area, so they describe the whole population ",
+        "to the County Warning Area, so they describe US adults in each area ",
         "rather than only the people surveyed. The survey data behind them is ",
         "available at ", archive, "."
       )
@@ -955,6 +1350,74 @@ server <- function(input, output, session) {
       # quotes into typographic ones, which the pdf device cannot write in its
       # default encoding. Height is in pixels above, so /96 puts it in inches.
       ggsave(file, plot, width = 11, height = height / 96,
+             device = "pdf", encoding = "WinAnsi", limitsize = FALSE)
+    }
+  )
+
+  # Which area the overview sheet covers. Set by clicking the map, which is
+  # already how the popup opens, so the sheet follows what has just been read
+  # rather than needing a second control that says the same thing.
+  #
+  # NULL until the first click, and mapgl sends NULL again on a click that hits
+  # no area, so the previous pick is kept rather than being cleared by a stray
+  # click on the background.
+  overview_cwa <- reactiveVal(NULL)
+
+  observeEvent(input$cwa_map_feature_click, {
+    clicked <- input$cwa_map_feature_click$properties$CWA
+    if (!is.null(clicked) && nzchar(clicked)) overview_cwa(clicked)
+  })
+
+  output$overview_control <- renderUI({
+    cwa <- overview_cwa()
+    if (is.null(cwa)) {
+      return(div(class = "help-block", style = "margin: 0;",
+                 "Click an area for its overview sheet"))
+    }
+    downloadButton("overview_download",
+                   paste0("Overview sheet: ", cwa, " (PDF)"))
+  })
+
+  # Every measure for one area on a page. The caption runs parallel to the
+  # others: what this is, how to read it, then where it came from.
+  output$overview_download <- downloadHandler(
+    filename = function() {
+      paste0(str_to_lower(overview_cwa()), "_cwa_overview.pdf")
+    },
+    contentType = "application/pdf",
+    content = function(file) {
+      cwa <- overview_cwa()
+      req(cwa)
+      estimates <- st_drop_geometry(cwa_estimates)
+      display <- estimates$CWA_DISPLAY[estimates$CWA == cwa]
+
+      # Shorter than it was: the key at the top now explains the marks, so the
+      # footer only has to carry the caution about the scales and the
+      # provenance, in the same words the other two captions use.
+      caption <- paste0(
+        "Each row is one measure. Every row is stretched to its own range, so ",
+        "a point at the right of one row and a point at the right of another ",
+        "mean the same standing, not the same size of difference - the ",
+        "warning scales span about half a point across the ", nrow(estimates),
+        " areas and the risk items nearly three. The numbers at the ends of a ",
+        "row are that measure's lowest and highest estimate.<br><br>",
+        "From the Extreme Weather and Society Survey, run by ", institute,
+        ". Estimates come from multilevel models fitted to survey responses ",
+        "and reweighted to the adult population of each county, then combined ",
+        "to the County Warning Area, so they describe US adults in each area ",
+        "rather than only the people surveyed. The survey data behind them is ",
+        "available at ", archive, ". Sheet generated ",
+        format(Sys.Date(), "%d %B %Y"), "."
+      )
+
+      plot <- cwa_overview_plot(cwa, display, cwa, caption)
+
+      # 24 rows plus five section strips, at a fixed row height, so the sheet
+      # is the same size whichever area it is for.
+      caption_height <- 15 * textbox_lines(caption, 150)
+      height <- 24 * 20 + 5 * 22 + 60 + caption_height
+
+      ggsave(file, plot, width = 8.5, height = height / 96,
              device = "pdf", encoding = "WinAnsi", limitsize = FALSE)
     }
   )
