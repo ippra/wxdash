@@ -2,7 +2,7 @@
 "$schema" = "https://cdn.posit.co/publisher/schemas/posit-publishing-record-schema-v3.json"
 server_type = "connect_cloud"
 server_url = "https://connect.posit.cloud"
-client_version = "2.9.16"
+client_version = "2.9.18"
 created_at = "2026-08-10T16:37:56.868Z"
 type = "r-shiny"
 configuration_name = "09_wxdash_app-3K8A"
@@ -10,13 +10,15 @@ id = "019fec89-eed0-6215-ad91-8fa3b57a0a96"
 dashboard_url = "https://connect.posit.cloud/joeripberger/content/019fec89-eed0-6215-ad91-8fa3b57a0a96"
 direct_url = "https://019fec89-eed0-6215-ad91-8fa3b57a0a96.share.connect.posit.cloud"
 logs_url = "https://connect.posit.cloud/joeripberger/content/019fec89-eed0-6215-ad91-8fa3b57a0a96/history"
-deployed_at = "2026-08-10T16:38:25.905Z"
-bundle_id = "019fec89-eed2-6229-d2f1-c829f57967b9"
+deployed_at = "2026-08-12T20:45:02.835Z"
+bundle_id = "019ff7b8-648c-c966-dd95-2477e7e9bd61"
 files = [
     ".posit/publish/09_wxdash_app-3K8A.toml",
     ".posit/publish/deployments/deployment-K200.toml",
     "app.R",
     "data/09_create_dashboard_data.R",
+    "data/09_dashboard_cwa.rds",
+    "data/09_dashboard_measure_questions.csv",
     "data/09_dashboard_questions.csv",
     "data/09_dashboard_responses.rds",
 ]
@@ -899,6 +901,43 @@ author = "Brian Ripley [aut, cre, cph], William Venables [cph]"
 maintainer = "Brian Ripley <Brian.Ripley@R-project.org>"
 repository = "CRAN"
 
+[renv.packages.classInt]
+package = "classInt"
+version = "0.4-11"
+source = "Repository"
+date = "2025-01-06"
+title = "Choose Univariate Class Intervals"
+"authors@r" = "c( person(\"Roger\", \"Bivand\", role=c(\"aut\", \"cre\"), email=\"Roger.Bivand@nhh.no\", comment=c(ORCID=\"0000-0003-2392-6140\")), person(\"Bill\", \"Denney\", role=\"ctb\", comment=c(ORCID=\"0000-0002-5759-428X\")), person(\"Richard\", \"Dunlap\", role=\"ctb\"), person(\"Diego\", \"Hernangómez\", role=\"ctb\", comment=c(ORCID=\"0000-0001-8457-4658\")), person(\"Hisaji\", \"Ono\", role=\"ctb\"), person(\"Josiah\", \"Parry\", role = \"ctb\", comment = c(ORCID = \"0000-0001-9910-865X\")), person(\"Matthieu\", \"Stigler\", role=\"ctb\", comment =c(ORCID=\"0000-0002-6802-4290\")))"
+depends = [
+    "R (>= 2.2)",
+]
+imports = [
+    "grDevices",
+    "stats",
+    "graphics",
+    "e1071",
+    "class",
+    "KernSmooth",
+]
+suggests = [
+    "spData (>= 0.2.6.2)",
+    "units",
+    "knitr",
+    "rmarkdown",
+    "tinytest",
+]
+needs_compilation = "yes"
+description = "Selected commonly used methods for choosing univariate class intervals for mapping or other graphics purposes."
+license = "GPL (>= 2)"
+url = "https://r-spatial.github.io/classInt/, https://github.com/r-spatial/classInt/"
+bug_reports = "https://github.com/r-spatial/classInt/issues/"
+roxygen_note = "6.1.1"
+encoding = "UTF-8"
+vignette_builder = "knitr"
+author = "Roger Bivand [aut, cre] (<https://orcid.org/0000-0003-2392-6140>), Bill Denney [ctb] (<https://orcid.org/0000-0002-5759-428X>), Richard Dunlap [ctb], Diego Hernangómez [ctb] (<https://orcid.org/0000-0001-8457-4658>), Hisaji Ono [ctb], Josiah Parry [ctb] (<https://orcid.org/0000-0001-9910-865X>), Matthieu Stigler [ctb] (<https://orcid.org/0000-0002-6802-4290>)"
+maintainer = "Roger Bivand <Roger.Bivand@nhh.no>"
+repository = "CRAN"
+
 [renv.packages.cli]
 package = "cli"
 version = "3.6.6"
@@ -1467,6 +1506,41 @@ author = "Hadley Wickham [cre, aut], Maximilian Girlich [aut], Mark Fairbanks [a
 maintainer = "Hadley Wickham <hadley@posit.co>"
 repository = "CRAN"
 
+[renv.packages.e1071]
+package = "e1071"
+version = "1.7-17"
+source = "Repository"
+title = "Misc Functions of the Department of Statistics, Probability Theory Group (Formerly: E1071), TU Wien"
+imports = [
+    "graphics",
+    "grDevices",
+    "class",
+    "stats",
+    "methods",
+    "utils",
+    "proxy",
+]
+suggests = [
+    "cluster",
+    "mlbench",
+    "nnet",
+    "randomForest",
+    "rpart",
+    "SparseM",
+    "xtable",
+    "Matrix",
+    "MASS",
+    "slam",
+]
+"authors@r" = "c(person(given = \"David\", family = \"Meyer\", role = c(\"aut\", \"cre\"), email = \"David.Meyer@R-project.org\", comment = c(ORCID = \"0000-0002-5196-3048\")),     person(given = \"Evgenia\", family = \"Dimitriadou\", role = c(\"aut\",\"cph\")), person(given = \"Kurt\", family = \"Hornik\", role = \"aut\", email = \"Kurt.Hornik@R-project.org\", comment = c(ORCID = \"0000-0003-4198-9911\")), person(given = \"Andreas\", family = \"Weingessel\", role = \"aut\"), person(given = \"Friedrich\", family = \"Leisch\", role = \"aut\"), person(given = \"Chih-Chung\", family = \"Chang\", role = c(\"ctb\",\"cph\"), comment = \"libsvm C++-code\"), person(given = \"Chih-Chen\", family = \"Lin\", role = c(\"ctb\",\"cph\"), comment = \"libsvm C++-code\"))"
+description = "Functions for latent class analysis, short time Fourier transform, fuzzy clustering, support vector machines, shortest path computation, bagged clustering, naive Bayes classifier, generalized k-nearest neighbour ..."
+license = "GPL-2 | GPL-3"
+lazy_load = "yes"
+needs_compilation = "yes"
+author = "David Meyer [aut, cre] (ORCID: <https://orcid.org/0000-0002-5196-3048>), Evgenia Dimitriadou [aut, cph], Kurt Hornik [aut] (ORCID: <https://orcid.org/0000-0003-4198-9911>), Andreas Weingessel [aut], Friedrich Leisch [aut], Chih-Chung Chang [ctb, cph] (libsvm C++-code), Chih-Chen Lin [ctb, cph] (libsvm C++-code)"
+maintainer = "David Meyer <David.Meyer@R-project.org>"
+repository = "CRAN"
+
 [renv.packages.evaluate]
 package = "evaluate"
 version = "1.0.5"
@@ -1774,6 +1848,79 @@ roxygen_note = "7.3.2"
 needs_compilation = "no"
 author = "Hadley Wickham [aut, cre] (ORCID: <https://orcid.org/0000-0003-4757-117X>), Max Kuhn [aut], Davis Vaughan [aut], Posit Software, PBC [cph, fnd] (ROR: <https://ror.org/03wc8by49>)"
 maintainer = "Hadley Wickham <hadley@posit.co>"
+repository = "CRAN"
+
+[renv.packages.geojsonsf]
+package = "geojsonsf"
+version = "2.0.5"
+source = "Repository"
+type = "Package"
+title = "GeoJSON to Simple Feature Converter"
+date = "2025-11-25"
+"authors@r" = "c( person(\"David\", \"Cooley\", ,\"dcooley@symbolix.com.au\", role = c(\"aut\", \"cre\")), person(\"Andy\", \"Teucher\", ,\"andy.teucher@gmail.com\", role = \"ctb\") )"
+description = "Converts Between GeoJSON and simple feature objects."
+license = "MIT + file LICENSE"
+url = "https://github.com/SymbolixAU/geojsonsf"
+bug_reports = "https://github.com/SymbolixAU/geojsonsf/issues"
+encoding = "UTF-8"
+lazy_data = "true"
+depends = [
+    "R (>= 4.0.0)",
+]
+imports = [
+    "Rcpp (>= 1.1.0)",
+]
+linking_to = [
+    "geometries (>= 0.2.5)",
+    "jsonify (>= 1.2.3)",
+    "rapidjsonr (>= 1.2.1)",
+    "Rcpp",
+    "sfheaders (>= 0.4.5)",
+]
+roxygen_note = "7.3.3"
+suggests = [
+    "covr",
+    "jsonify",
+    "knitr",
+    "rmarkdown",
+    "tinytest",
+]
+vignette_builder = "knitr"
+needs_compilation = "yes"
+author = "David Cooley [aut, cre], Andy Teucher [ctb]"
+maintainer = "David Cooley <dcooley@symbolix.com.au>"
+repository = "CRAN"
+
+[renv.packages.geometries]
+package = "geometries"
+version = "0.2.5"
+source = "Repository"
+type = "Package"
+title = "Convert Between R Objects and Geometric Structures"
+date = "2025-11-23"
+"authors@r" = "c( person(\"David\", \"Cooley\", ,\"david.cooley.au@gmail.com\", role = c(\"aut\", \"cre\")) )"
+description = "Geometry shapes in 'R' are typically represented by matrices (points, lines), with more complex  shapes being lists of matrices (polygons). 'Geometries' will convert various 'R' objects into these shapes.  Conversion functions are available at both the 'R' level, and through 'Rcpp'."
+license = "MIT + file LICENSE"
+url = "https://dcooley.github.io/geometries/"
+bug_reports = "https://github.com/dcooley/geometries/issues"
+encoding = "UTF-8"
+roxygen_note = "7.2.3"
+linking_to = [
+    "Rcpp",
+]
+imports = [
+    "Rcpp (>= 1.1.0)",
+]
+suggests = [
+    "covr",
+    "knitr",
+    "rmarkdown",
+    "tinytest",
+]
+vignette_builder = "knitr"
+needs_compilation = "yes"
+author = "David Cooley [aut, cre]"
+maintainer = "David Cooley <david.cooley.au@gmail.com>"
 repository = "CRAN"
 
 [renv.packages.ggplot2]
@@ -2493,6 +2640,41 @@ author = "Carson Sievert [aut, cre] (<https://orcid.org/0000-0002-4958-2844>), J
 maintainer = "Carson Sievert <carson@rstudio.com>"
 repository = "CRAN"
 
+[renv.packages.jsonify]
+package = "jsonify"
+version = "1.2.3"
+source = "Repository"
+type = "Package"
+title = "Convert Between 'R' Objects and Javascript Object Notation (JSON)"
+date = "2025-11-24"
+"authors@r" = "c( person(\"David\", \"Cooley\", ,\"dcooley@symbolix.com.au\", role = c(\"aut\", \"cre\")), person(\"Chris\", \"Muir\", role = \"ctb\"), person(\"Brendan\", \"Knapp\", role = \"ctb\", comment = c(ORCID = \"0000-0003-3284-4972\")) )"
+description = "Conversions between 'R' objects and Javascript Object Notation (JSON) using  the 'rapidjsonr' library <https://CRAN.R-project.org/package=rapidjsonr>."
+license = "MIT + file LICENSE"
+depends = [
+    "R (>= 4.0.0)",
+]
+imports = [
+    "Rcpp (>= 1.1.0)",
+]
+linking_to = [
+    "rapidjsonr (>= 1.2.1)",
+    "Rcpp",
+]
+roxygen_note = "7.3.2"
+suggests = [
+    "covr",
+    "testthat",
+    "knitr",
+    "rmarkdown",
+]
+encoding = "UTF-8"
+url = "https://symbolixau.github.io/jsonify/, https://github.com/SymbolixAU/jsonify"
+bug_reports = "https://github.com/SymbolixAU/jsonify/issues"
+needs_compilation = "yes"
+author = "David Cooley [aut, cre], Chris Muir [ctb], Brendan Knapp [ctb] (ORCID: <https://orcid.org/0000-0003-3284-4972>)"
+maintainer = "David Cooley <dcooley@symbolix.com.au>"
+repository = "CRAN"
+
 [renv.packages.jsonlite]
 package = "jsonlite"
 version = "2.0.0"
@@ -2861,6 +3043,53 @@ roxygen_note = "7.3.3"
 needs_compilation = "yes"
 author = "Stefan Milton Bache [aut, cph] (Original author and creator of magrittr), Hadley Wickham [aut], Lionel Henry [cre], Posit Software, PBC [cph, fnd] (ROR: <https://ror.org/03wc8by49>)"
 maintainer = "Lionel Henry <lionel@posit.co>"
+repository = "CRAN"
+
+[renv.packages.mapgl]
+package = "mapgl"
+version = "0.5.0"
+source = "Repository"
+title = "Interactive Maps with 'Mapbox GL JS' and 'MapLibre GL JS'"
+date = "2026-06-19"
+"authors@r" = "c( person(given = \"Kyle\", family = \"Walker\", email = \"kyle@walker-data.com\", role = c(\"aut\", \"cre\")), person(given = \"Egor\", family = \"Kotov\", email = \"kotov.egor@gmail.com\", role = \"ctb\"))"
+description = "Provides an interface to the 'Mapbox GL JS' (<https://docs.mapbox.com/mapbox-gl-js/guides>) and the 'MapLibre GL JS' (<https://maplibre.org/maplibre-gl-js/docs/>) interactive mapping libraries to help users create custom interactive maps in R.  Users can create interactive globe visualizations; layer 'sf' objects to create filled maps, circle maps, 'heatmaps', and three-dimensional graphics; and customize map styles and views.  The package also includes utilities to use 'Mapbox' and 'MapLibre' maps in 'Shiny' web applications."
+url = "https://walker-data.com/mapgl/"
+bug_reports = "https://github.com/walkerke/mapgl/issues"
+license = "MIT + file LICENSE"
+encoding = "UTF-8"
+lazy_data = "true"
+roxygen_note = "7.3.3"
+depends = [
+    "R (>= 4.1.0)",
+]
+imports = [
+    "htmlwidgets",
+    "geojsonsf",
+    "sf",
+    "rlang",
+    "htmltools",
+    "grDevices",
+    "base64enc",
+    "terra",
+    "classInt",
+    "shiny",
+    "viridisLite",
+    "png",
+    "jsonlite",
+    "httpuv",
+]
+suggests = [
+    "chromote",
+    "knitr",
+    "mapboxapi",
+    "testthat (>= 3.0.0)",
+    "usethis",
+    "leaflet",
+]
+"config/testthat/edition" = "3"
+needs_compilation = "no"
+author = "Kyle Walker [aut, cre], Egor Kotov [ctb]"
+maintainer = "Kyle Walker <kyle@walker-data.com>"
 repository = "CRAN"
 
 [renv.packages.markdown]
@@ -3454,6 +3683,31 @@ author = "Joe Cheng [aut], Barret Schloerke [aut, cre] (ORCID: <https://orcid.or
 maintainer = "Barret Schloerke <barret@posit.co>"
 repository = "CRAN"
 
+[renv.packages.proxy]
+package = "proxy"
+version = "0.4-29"
+source = "Repository"
+type = "Package"
+title = "Distance and Similarity Measures"
+"authors@r" = "c(person(given = \"David\", family = \"Meyer\", role = c(\"aut\", \"cre\"), email = \"David.Meyer@R-project.org\", comment = c(ORCID = \"0000-0002-5196-3048\")),\t     person(given = \"Christian\", family = \"Buchta\", role = \"aut\"))"
+description = "Provides an extensible framework for the efficient calculation of auto- and cross-proximities, along with implementations of the most popular ones."
+depends = [
+    "R (>= 3.4.0)",
+]
+imports = [
+    "stats",
+    "utils",
+]
+suggests = [
+    "cba",
+]
+collate = "registry.R database.R dist.R similarities.R dissimilarities.R util.R seal.R"
+license = "GPL-2 | GPL-3"
+needs_compilation = "yes"
+author = "David Meyer [aut, cre] (ORCID: <https://orcid.org/0000-0002-5196-3048>), Christian Buchta [aut]"
+maintainer = "David Meyer <David.Meyer@R-project.org>"
+repository = "CRAN"
+
 [renv.packages.ps]
 package = "ps"
 version = "1.9.3"
@@ -3578,6 +3832,24 @@ roxygen_note = "7.3.3"
 system_requirements = "freetype2, libpng, libtiff, libjpeg, libwebp, libwebpmux"
 needs_compilation = "yes"
 author = "Thomas Lin Pedersen [cre, aut] (ORCID: <https://orcid.org/0000-0002-5147-4711>), Maxim Shemanarev [aut, cph] (Author of AGG), Tony Juricic [ctb, cph] (Contributor to AGG), Milan Marusinec [ctb, cph] (Contributor to AGG), Spencer Garrett [ctb] (Contributor to AGG), Posit Software, PBC [cph, fnd] (ROR: <https://ror.org/03wc8by49>)"
+repository = "CRAN"
+
+[renv.packages.rapidjsonr]
+package = "rapidjsonr"
+version = "1.2.1"
+source = "Repository"
+type = "Package"
+title = "'Rapidjson' C++ Header Files"
+date = "2025-11-23"
+"authors@r" = "c( person(\"David\", \"Cooley\", ,\"dcooley@symbolix.com.au\", role = c(\"aut\", \"cre\")), person(\"Milo\", \"Yip\", , role = \"ctb\", comment = \"Author of c++ rapidjson library, provided through THL A29 Limited, a Tencent company\"), person(\"Alexander\", \"Chemeris\", role = \"ctb\", comment = \"Author of c++ msinttypes library\") )"
+description = "Provides JSON parsing capability through the 'Rapidjson' 'C++' header-only library."
+license = "MIT + file LICENSE"
+encoding = "UTF-8"
+roxygen_note = "7.3.1"
+system_requirements = "GNU make"
+needs_compilation = "no"
+author = "David Cooley [aut, cre], Milo Yip [ctb] (Author of c++ rapidjson library, provided through THL A29 Limited, a Tencent company), Alexander Chemeris [ctb] (Author of c++ msinttypes library)"
+maintainer = "David Cooley <dcooley@symbolix.com.au>"
 repository = "CRAN"
 
 [renv.packages.rappdirs]
@@ -4077,6 +4349,42 @@ author = "Hadley Wickham [aut, cre], Posit Software, PBC [cph, fnd] (ROR: <https
 maintainer = "Hadley Wickham <hadley@posit.co>"
 repository = "CRAN"
 
+[renv.packages.s2]
+package = "s2"
+version = "1.1.11"
+source = "Repository"
+title = "Spherical Geometry Operators Using the S2 Geometry Library"
+"authors@r" = "c( person(given = \"Dewey\", family = \"Dunnington\", role = c(\"aut\"), email = \"dewey@fishandwhistle.net\", comment = c(ORCID = \"0000-0002-9415-4582\")), person(given = \"Edzer\", family = \"Pebesma\", role = c(\"aut\", \"cre\"), email = \"edzer.pebesma@uni-muenster.de\", comment = c(ORCID = \"0000-0001-8049-7069\")), person(\"Ege\", \"Rubak\", email=\"rubak@math.aau.dk\", role = c(\"aut\")), person(\"Jeroen\", \"Ooms\", , \"jeroen.ooms@stat.ucla.edu\", role = \"ctb\", comment = \"configure script\"), person(family = \"Google, Inc.\", role = \"cph\", comment = \"Original s2geometry.io source code\") )"
+description = "Provides R bindings for Google's s2 library for geometric calculations on the sphere. High-performance constructors and exporters provide high compatibility with existing spatial packages, transformers construct new geometries from existing geometries, predicates provide a means to select geometries based on spatial relationships, and accessors extract information about geometries."
+license = "Apache License (== 2.0)"
+encoding = "UTF-8"
+lazy_data = "true"
+system_requirements = "cmake, OpenSSL >= 1.0.1, Abseil >= 20230802.0"
+linking_to = [
+    "Rcpp",
+    "wk",
+]
+imports = [
+    "Rcpp",
+    "wk (>= 0.6.0)",
+]
+suggests = [
+    "bit64",
+    "testthat (>= 3.0.0)",
+    "vctrs",
+]
+url = "https://r-spatial.github.io/s2/, https://github.com/r-spatial/s2, https://s2geometry.io/"
+bug_reports = "https://github.com/r-spatial/s2/issues"
+depends = [
+    "R (>= 3.0.0)",
+]
+"config/testthat/edition" = "3"
+"config/roxygen2/version" = "8.0.0"
+needs_compilation = "yes"
+author = "Dewey Dunnington [aut] (ORCID: <https://orcid.org/0000-0002-9415-4582>), Edzer Pebesma [aut, cre] (ORCID: <https://orcid.org/0000-0001-8049-7069>), Ege Rubak [aut], Jeroen Ooms [ctb] (configure script), Google, Inc. [cph] (Original s2geometry.io source code)"
+maintainer = "Edzer Pebesma <edzer.pebesma@uni-muenster.de>"
+repository = "CRAN"
+
 [renv.packages.sass]
 package = "sass"
 version = "0.4.10"
@@ -4184,6 +4492,119 @@ description = "Translates a CSS selector into an equivalent XPath expression. Th
 needs_compilation = "no"
 author = "Simon Potter [aut, trl, cre], Simon Sapin [aut], Ian Bicking [aut]"
 maintainer = "Simon Potter <simon@sjp.co.nz>"
+repository = "CRAN"
+
+[renv.packages.sf]
+package = "sf"
+version = "1.1-1"
+source = "Repository"
+title = "Simple Features for R"
+"authors@r" = "c(person(given = \"Edzer\", family = \"Pebesma\", role = c(\"aut\", \"cre\"), email = \"edzer.pebesma@uni-muenster.de\", comment = c(ORCID = \"0000-0001-8049-7069\")), person(given = \"Roger\", family = \"Bivand\", role = \"ctb\", comment = c(ORCID = \"0000-0003-2392-6140\")), person(given = \"Etienne\", family = \"Racine\", role = \"ctb\"), person(given = \"Michael\", family = \"Sumner\", role = \"ctb\"), person(given = \"Ian\", family = \"Cook\", role = \"ctb\"), person(given = \"Tim\", family = \"Keitt\", role = \"ctb\"), person(given = \"Robin\", family = \"Lovelace\", role = \"ctb\"), person(given = \"Hadley\", family = \"Wickham\", role = \"ctb\"), person(given = \"Jeroen\", family = \"Ooms\", role = \"ctb\", comment = c(ORCID = \"0000-0002-4035-0289\")), person(given = \"Kirill\", family = \"M\\u00fcller\", role = \"ctb\"), person(given = \"Thomas Lin\", family = \"Pedersen\", role = \"ctb\"), person(given = \"Dan\", family = \"Baston\", role = \"ctb\"), person(given = \"Dewey\", family = \"Dunnington\", role = \"ctb\", comment = c(ORCID = \"0000-0002-9415-4582\")), person(given = \"Alexandre\", family = \"Courtiol\", role = \"ctb\", comment = c(ORCID = \"0000-0003-0637-2959\")) )"
+description = "Support for simple feature access, a standardized way to encode and analyze spatial vector data. Binds to 'GDAL'  <doi:10.5281/zenodo.5884351> for reading and writing data, to 'GEOS' <doi:10.5281/zenodo.11396894> for geometrical operations, and to 'PROJ' <doi:10.5281/zenodo.5884394> for projection conversions and datum transformations. Uses by default the 's2' package for geometry operations on geodetic (long/lat degree) coordinates."
+license = "GPL-2 | MIT + file LICENSE"
+url = "https://r-spatial.github.io/sf/, https://github.com/r-spatial/sf"
+bug_reports = "https://github.com/r-spatial/sf/issues"
+depends = [
+    "methods",
+    "R (>= 4.1.0)",
+]
+imports = [
+    "classInt (>= 0.4-1)",
+    "DBI (>= 0.8)",
+    "graphics",
+    "grDevices",
+    "grid",
+    "s2 (>= 1.1.0)",
+    "stats",
+    "tools",
+    "units (>= 0.7-0)",
+    "utils",
+]
+suggests = [
+    "blob",
+    "nanoarrow",
+    "covr",
+    "dplyr (>= 1.0.0)",
+    "ggplot2",
+    "knitr",
+    "lwgeom (>= 0.2-14)",
+    "maps",
+    "mapview",
+    "Matrix",
+    "microbenchmark",
+    "odbc",
+    "pbapply",
+    "pillar",
+    "pool",
+    "raster",
+    "rlang",
+    "rmarkdown",
+    "RPostgres (>= 1.1.0)",
+    "RPostgreSQL",
+    "RSQLite",
+    "sp (>= 1.2-4)",
+    "spatstat (>= 2.0-1)",
+    "spatstat.geom",
+    "spatstat.random",
+    "spatstat.linnet",
+    "spatstat.utils",
+    "stars (>= 0.6-0)",
+    "terra",
+    "testthat (>= 3.0.0)",
+    "tibble (>= 1.4.1)",
+    "tidyr (>= 1.2.0)",
+    "tidyselect (>= 1.0.0)",
+    "tmap (>= 2.0)",
+    "vctrs",
+    "wk (>= 0.9.0)",
+]
+linking_to = [
+    "Rcpp",
+]
+vignette_builder = "knitr"
+encoding = "UTF-8"
+"config/testthat/edition" = "2"
+"config/needs/coverage" = "XML"
+system_requirements = "GDAL (>= 2.0.1), GEOS (>= 3.4.0), PROJ (>= 4.8.0), sqlite3"
+collate = "'RcppExports.R' 'init.R' 'import-standalone-s3-register.R' 'crs.R' 'bbox.R' 'read.R' 'db.R' 'sfc.R' 'sfg.R' 'sf.R' 'bind.R' 'wkb.R' 'wkt.R' 'plot.R' 'geom-measures.R' 'geom-predicates.R' 'geom-transformers.R' 'transform.R' 'proj.R' 'sp.R' 'grid.R' 'arith.R' 'tidyverse.R' 'tidyverse-vctrs.R' 'cast_sfg.R' 'cast_sfc.R' 'graticule.R' 'datasets.R' 'aggregate.R' 'agr.R' 'maps.R' 'join.R' 'sample.R' 'valid.R' 'collection_extract.R' 'jitter.R' 'sgbp.R' 'spatstat.R' 'stars.R' 'crop.R' 'gdal_utils.R' 'nearest.R' 'normalize.R' 'sf-package.R' 'defunct.R' 'z_range.R' 'm_range.R' 'shift_longitude.R' 'make_grid.R' 's2.R' 'terra.R' 'geos-overlayng.R' 'break_antimeridian.R'"
+"config/roxygen2/version" = "8.0.0"
+needs_compilation = "yes"
+author = "Edzer Pebesma [aut, cre] (ORCID: <https://orcid.org/0000-0001-8049-7069>), Roger Bivand [ctb] (ORCID: <https://orcid.org/0000-0003-2392-6140>), Etienne Racine [ctb], Michael Sumner [ctb], Ian Cook [ctb], Tim Keitt [ctb], Robin Lovelace [ctb], Hadley Wickham [ctb], Jeroen Ooms [ctb] (ORCID: <https://orcid.org/0000-0002-4035-0289>), Kirill Müller [ctb], Thomas Lin Pedersen [ctb], Dan Baston [ctb], Dewey Dunnington [ctb] (ORCID: <https://orcid.org/0000-0002-9415-4582>), Alexandre Courtiol [ctb] (ORCID: <https://orcid.org/0000-0003-0637-2959>)"
+maintainer = "Edzer Pebesma <edzer.pebesma@uni-muenster.de>"
+repository = "CRAN"
+
+[renv.packages.sfheaders]
+package = "sfheaders"
+version = "0.4.5"
+source = "Repository"
+type = "Package"
+title = "Converts Between R Objects and Simple Feature Objects"
+date = "2025-11-24"
+"authors@r" = "c( person(\"David\", \"Cooley\", ,\"david.cooley.au@gmail.com\", role = c(\"aut\", \"cre\")), person(given = \"Michael\", family = \"Sumner\", role = \"ctb\") )"
+description = "Converts between R and Simple Feature 'sf' objects, without depending on the Simple Feature library. Conversion functions are available at both the R level,  and through 'Rcpp'."
+license = "MIT + file LICENSE"
+url = "https://dcooley.github.io/sfheaders/"
+bug_reports = "https://github.com/dcooley/sfheaders/issues"
+encoding = "UTF-8"
+roxygen_note = "7.3.2"
+depends = [
+    "R (>= 3.0.2)",
+]
+linking_to = [
+    "geometries (>= 0.2.5)",
+    "Rcpp",
+]
+imports = [
+    "Rcpp (>= 1.1.0)",
+]
+suggests = [
+    "covr",
+    "knitr",
+    "testthat",
+]
+needs_compilation = "yes"
+author = "David Cooley [aut, cre], Michael Sumner [ctb]"
+maintainer = "David Cooley <david.cooley.au@gmail.com>"
 repository = "CRAN"
 
 [renv.packages.shiny]
@@ -4586,6 +5007,49 @@ author = "Thomas Lin Pedersen [aut, cre] (ORCID: <https://orcid.org/0000-0002-51
 maintainer = "Thomas Lin Pedersen <thomas.pedersen@posit.co>"
 repository = "CRAN"
 
+[renv.packages.terra]
+package = "terra"
+version = "1.9-27"
+source = "Repository"
+type = "Package"
+title = "Spatial Data Analysis"
+date = "2026-05-09"
+depends = [
+    "R (>= 3.5.0)",
+    "methods",
+]
+suggests = [
+    "parallel",
+    "tinytest",
+    "ncdf4",
+    "sf (>= 0.9-8)",
+    "deldir",
+    "XML",
+    "leaflet (>= 2.2.1)",
+    "htmlwidgets",
+    "future",
+    "future.apply",
+]
+linking_to = [
+    "Rcpp",
+]
+imports = [
+    "Rcpp (>= 1.0-10)",
+]
+system_requirements = "C++17, GDAL (>= 2.2.3), GEOS (>= 3.4.0), PROJ (>= 4.9.3), TBB, sqlite3"
+encoding = "UTF-8"
+language = "en-US"
+maintainer = "Robert J. Hijmans <r.hijmans@gmail.com>"
+description = "Methods for spatial data analysis with vector (points, lines, polygons) and raster (grid) data. Methods for vector data include geometric operations such as intersect and buffer. Raster methods include local, focal, global, zonal and geometric operations. The predict and interpolate methods facilitate the use of regression type (interpolation, machine learning) models for spatial prediction, including with satellite remote sensing data. Processing of very large files is supported. See the manual and tutorials on <https://rspatial.org/> to get started."
+license = "GPL (>= 3)"
+url = "https://rspatial.org/, https://rspatial.github.io/terra/"
+bug_reports = "https://github.com/rspatial/terra/issues"
+lazy_load = "yes"
+"authors@r" = "c( person(\"Robert J.\", \"Hijmans\", role=c(\"cre\", \"aut\"),   email=\"r.hijmans@gmail.com\", comment=c(ORCID=\"0000-0001-5872-2872\")),\t\t\t person(\"Andrew\", \"Brown\", role=\"aut\", comment=c(ORCID=\"0000-0002-4565-533X\")), person(\"Márcia\", \"Barbosa\", role=\"aut\", comment=c(ORCID=\"0000-0001-8972-7713\")), person(\"Krzysztof\", \"Dyba\", role=\"ctb\", comment=c(ORCID=\"0000-0002-8614-3816\")), person(\"Roger\", \"Bivand\", role=\"ctb\", comment=c(ORCID=\"0000-0003-2392-6140\")), person(\"Michael\", \"Chirico\", role=\"ctb\", comment=c(ORCID=\"0000-0003-0787-087X\")), person(\"Emanuele\", \"Cordano\", role=\"ctb\",comment=c(ORCID=\"0000-0002-3508-5898\")), person(\"Edzer\", \"Pebesma\", role=\"ctb\", comment=c(ORCID=\"0000-0001-8049-7069\")), person(\"Barry\", \"Rowlingson\", role=\"ctb\", comment=c(ORCID=\"0000-0002-8586-6625\")), person(\"Michael D.\", \"Sumner\", role=\"ctb\", comment=c(ORCID=\"0000-0002-2471-7511\")))"
+needs_compilation = "yes"
+author = "Robert J. Hijmans [cre, aut] (ORCID: <https://orcid.org/0000-0001-5872-2872>), Andrew Brown [aut] (ORCID: <https://orcid.org/0000-0002-4565-533X>), Márcia Barbosa [aut] (ORCID: <https://orcid.org/0000-0001-8972-7713>), Krzysztof Dyba [ctb] (ORCID: <https://orcid.org/0000-0002-8614-3816>), Roger Bivand [ctb] (ORCID: <https://orcid.org/0000-0003-2392-6140>), Michael Chirico [ctb] (ORCID: <https://orcid.org/0000-0003-0787-087X>), Emanuele Cordano [ctb] (ORCID: <https://orcid.org/0000-0002-3508-5898>), Edzer Pebesma [ctb] (ORCID: <https://orcid.org/0000-0001-8049-7069>), Barry Rowlingson [ctb] (ORCID: <https://orcid.org/0000-0002-8586-6625>), Michael D. Sumner [ctb] (ORCID: <https://orcid.org/0000-0002-2471-7511>)"
+repository = "CRAN"
+
 [renv.packages.textshaping]
 package = "textshaping"
 version = "1.0.5"
@@ -4936,6 +5400,50 @@ author = "Davis Vaughan [aut, cre], Howard Hinnant [cph] (Author of the included
 maintainer = "Davis Vaughan <davis@posit.co>"
 repository = "CRAN"
 
+[renv.packages.units]
+package = "units"
+version = "1.0-1"
+source = "Repository"
+title = "Measurement Units for R Vectors"
+"authors@r" = "c(person(\"Edzer\", \"Pebesma\", role = c(\"aut\", \"cre\"), email = \"edzer.pebesma@uni-muenster.de\", comment = c(ORCID = \"0000-0001-8049-7069\")), person(\"Thomas\", \"Mailund\", role = \"aut\", email = \"mailund@birc.au.dk\"), person(\"Tomasz\", \"Kalinowski\", role = \"aut\"), person(\"James\", \"Hiebert\", role = \"ctb\"), person(\"Iñaki\", \"Ucar\", role = \"aut\", email = \"iucar@fedoraproject.org\", comment = c(ORCID = \"0000-0001-6403-5550\")), person(\"Thomas Lin\", \"Pedersen\", role = \"ctb\") )"
+depends = [
+    "R (>= 3.5.0)",
+]
+imports = [
+    "Rcpp",
+]
+linking_to = [
+    "Rcpp (>= 1.1.0)",
+]
+suggests = [
+    "NISTunits",
+    "measurements",
+    "xml2",
+    "magrittr",
+    "pillar (>= 1.3.0)",
+    "dplyr (>= 1.0.0)",
+    "vctrs (>= 0.3.1)",
+    "ggplot2 (> 3.2.1)",
+    "testthat (>= 3.0.0)",
+    "vdiffr",
+    "knitr",
+    "rvest",
+    "rmarkdown",
+]
+vignette_builder = "knitr"
+description = "Support for measurement units in R vectors, matrices and arrays: automatic propagation, conversion, derivation and simplification of units; raising errors in case of unit incompatibility. Compatible with the POSIXct, Date and difftime  classes. Uses the UNIDATA udunits library and unit database for  unit compatibility checking and conversion. Documentation about 'units' is provided in the paper by Pebesma, Mailund & Hiebert (2016, <doi:10.32614/RJ-2016-061>), included in this package as a vignette; see 'citation(\"units\")' for details."
+system_requirements = "udunits-2"
+license = "GPL-2"
+url = "https://r-quantities.github.io/units/, https://github.com/r-quantities/units"
+bug_reports = "https://github.com/r-quantities/units/issues"
+roxygen_note = "7.3.3"
+encoding = "UTF-8"
+"config/testthat/edition" = "3"
+needs_compilation = "yes"
+author = "Edzer Pebesma [aut, cre] (ORCID: <https://orcid.org/0000-0001-8049-7069>), Thomas Mailund [aut], Tomasz Kalinowski [aut], James Hiebert [ctb], Iñaki Ucar [aut] (ORCID: <https://orcid.org/0000-0001-6403-5550>), Thomas Lin Pedersen [ctb]"
+maintainer = "Edzer Pebesma <edzer.pebesma@uni-muenster.de>"
+repository = "CRAN"
+
 [renv.packages.utf8]
 package = "utf8"
 version = "1.2.6"
@@ -5171,6 +5679,35 @@ collate = "'aaa.R' 'collate.R' 'connection.R' 'db.R' 'defer-exit.R' 'standalone-
 needs_compilation = "no"
 author = "Jim Hester [aut], Lionel Henry [aut, cre], Kirill Müller [aut], Kevin Ushey [aut], Hadley Wickham [aut], Winston Chang [aut], Jennifer Bryan [ctb], Richard Cotton [ctb], Posit Software, PBC [cph, fnd]"
 maintainer = "Lionel Henry <lionel@posit.co>"
+repository = "CRAN"
+
+[renv.packages.wk]
+package = "wk"
+version = "0.9.5"
+source = "Repository"
+title = "Lightweight Well-Known Geometry Parsing"
+"authors@r" = "c( person(given = \"Dewey\", family = \"Dunnington\", role = c(\"aut\", \"cre\"), email = \"dewey@fishandwhistle.net\", comment = c(ORCID = \"0000-0002-9415-4582\")), person(given = \"Edzer\", family = \"Pebesma\", role = c(\"aut\"), email = \"edzer.pebesma@uni-muenster.de\", comment = c(ORCID = \"0000-0001-8049-7069\")), person(given = \"Anthony\", family = \"North\", email = \"anthony.jl.north@gmail.com\", role = c(\"ctb\")) )"
+maintainer = "Dewey Dunnington <dewey@fishandwhistle.net>"
+description = "Provides a minimal R and C++ API for parsing well-known binary and well-known text representation of geometries to and from R-native formats. Well-known binary is compact and fast to parse; well-known text is human-readable and is useful for writing tests. These formats are useful in R only if the information they contain can be accessed in R, for which high-performance functions are provided here."
+license = "MIT + file LICENSE"
+encoding = "UTF-8"
+roxygen_note = "7.3.2"
+suggests = [
+    "testthat (>= 3.0.0)",
+    "vctrs (>= 0.3.0)",
+    "sf",
+    "tibble",
+    "readr",
+]
+url = "https://paleolimbot.github.io/wk/, https://github.com/paleolimbot/wk"
+bug_reports = "https://github.com/paleolimbot/wk/issues"
+"config/testthat/edition" = "3"
+depends = [
+    "R (>= 2.10)",
+]
+lazy_data = "true"
+needs_compilation = "yes"
+author = "Dewey Dunnington [aut, cre] (ORCID: <https://orcid.org/0000-0002-9415-4582>), Edzer Pebesma [aut] (ORCID: <https://orcid.org/0000-0001-8049-7069>), Anthony North [ctb]"
 repository = "CRAN"
 
 [renv.packages.xfun]
