@@ -202,5 +202,5 @@ if (max(agreement_check$gap) > 1e-8) {
 # Output Data ------------------------------------------------------------------
 # Long format, one row per area per measure, matching what the previous
 # generation of prediction scripts produced.
-# write_csv(county_estimates, paste0(outputs, "07_county_estimates.csv"))
-# write_csv(cwa_estimates, paste0(outputs, "07_cwa_estimates.csv"))
+write_csv(county_estimates, paste0(outputs, "07_county_estimates.csv"))
+write_csv(cwa_estimates, paste0(outputs, "07_cwa_estimates.csv"))
