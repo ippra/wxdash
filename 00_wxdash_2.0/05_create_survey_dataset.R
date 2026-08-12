@@ -59,8 +59,10 @@ survey_data <- survey_data |>
 survey_data |> summarise(n = n(), n_id = n_distinct(p_id))
 
 # Alert Data -------------------------------------------------------------------
-alert_hazards <- c("COLD", "FREEZE", "FIRE", "FLOOD", "HEAT", "HURR", "ICE",
-                   "SNOW", "TORN", "WIND")
+alert_hazards <- c(
+  "COLD", "FREEZE", "FIRE", "FLOOD", "HEAT", "HURR", "ICE", "SNOW", "SURG",
+  "TORN", "WIND"
+)
 
 cwa_alert_data <- read_csv(paste0(outputs, "02_cwa_alert_counts.csv"),
                            show_col_types = FALSE) |>

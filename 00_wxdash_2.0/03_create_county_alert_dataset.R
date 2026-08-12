@@ -66,7 +66,13 @@ process_wwa_year <- function(shp_path) {
         PHENOM %in% c("TO") ~ "TORN",
         PHENOM %in% c("SV", "HW", "WI") ~ "WIND",
         PHENOM %in% c("CF", "FA", "FF", "FL", "LS", "DF", "HY", "LO") ~ "FLOOD",
-        PHENOM %in% c("EW", "HF", "HU", "SS", "TR", "TY", "HI", "TI") ~ "HURR",
+        PHENOM %in% c("EW", "HF", "HU", "TR", "TY", "HI", "TI") ~ "HURR",
+        # SS (storm surge watch/warning) is split out of HURR so risk_surge has
+        # an exposure measure of its own. Dropping it costs the hurricane models
+        # nothing: risk_hur correlates .5675 with HURR including SS and .5674
+        # without. SS was introduced in 2017, so SURG spans 9 of the 16 archive
+        # years and only the 18 CWAs that issue it -- zero everywhere else.
+        PHENOM %in% c("SS") ~ "SURG",
         PHENOM %in% c("FW") ~ "FIRE",
         TRUE ~ NA_character_
       )

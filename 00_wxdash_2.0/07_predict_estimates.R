@@ -40,7 +40,7 @@ risk_fire_fit <- read_rds(paste0(outputs, "06_models/risk_fire_fit.rds"))
 # covariates, which are county- and CWA-level and would repeat across all 192
 # cells of a county. They join on here instead of being stored 192 times over.
 #
-# Only the five hazards the models use are taken from each alert file. Selecting
+# Only the hazards the models use are taken from each alert file. Selecting
 # them explicitly avoids the leftover hazard columns arriving unprefixed, which
 # is what happens in 05 where COLD, FIRE and WIND fall outside the rename range.
 poststrat_data <- read_csv(
@@ -54,8 +54,9 @@ poststrat_data <- read_csv(
   )
 )
 
-model_hazards <- c("COLD", "FIRE", "FLOOD", "HEAT", "HURR", "ICE", "SNOW",
-                   "TORN")
+model_hazards <- c(
+  "COLD", "FIRE", "FLOOD", "HEAT", "HURR", "ICE", "SNOW", "SURG", "TORN"
+)
 
 county_alert_data <- read_csv(
   paste0(outputs, "03_county_alert_counts.csv"),

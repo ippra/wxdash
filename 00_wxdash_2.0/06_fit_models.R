@@ -255,7 +255,7 @@ summary(fl_resp_fit)
 #
 # Only the items with a direct alert category are fitted. Correlations with
 # their own category, at CWA level: hurricane .57, tornado .42, ice .39,
-# snow .38, cold .34, fire .29, surge .23, heat .20, flood .15.
+# snow .38, cold .34, fire .29, surge .21, heat .20, flood .15.
 #
 # Five items are deliberately absent. risk_wind has a matching category but
 # correlates .02 with it, because the WIND bucket is mostly severe thunderstorm
@@ -264,7 +264,21 @@ summary(fl_resp_fit)
 # and risk_rain likewise. Fitting those on a proxy alert would attribute a
 # geographic pattern to a hazard the counts do not measure.
 #
-# risk_surge uses HURR because storm surge warnings (SS) sit in that bucket.
+# risk_surge carries SURG, the storm surge watch/warning bucket 02 and 03 split
+# out of HURR. HURR predicts the item better -- .23 against SURG's .21, and 30
+# AIC points -- but it is the wrong measurement: it is dominated by tropical
+# storm and hurricane wind products, so it would credit inland tropical exposure
+# to a hazard that only reaches the coast. That was the trade accepted here.
+#
+# SURG is zero outside the 18 CWAs that issue SS and outside 2017-2025, so 77%
+# of respondents to this item are carried by the CWA and county intercepts
+# rather than by an exposure term. Both surge terms still clear |t| > 3 on the
+# 2,006 who are not.
+#
+# This fit reports a singular boundary. The cause is (1 | survey_year) -- the
+# item was fielded only in 2024 and 2025, so its variance collapses to zero. It
+# is not the surge terms: the model is singular with HURR and with no exposure
+# term at all.
 risk_tor_fit <- lmer(
   risk_tor ~
     GENDER_GROUP +
@@ -306,8 +320,8 @@ risk_surge_fit <- lmer(
     RACE_GROUP +
     EDUC_GROUP +
     INCOME_GROUP +
-    scale(FIPS_HURR) +
-    scale(CWA_HURR) +
+    scale(FIPS_SURG) +
+    scale(CWA_SURG) +
     scale(SVI_RPL_THEMES) +
     (1 | CWA) +
     (1 | FIPS) +
