@@ -250,3 +250,90 @@ Two shell traps when editing R in bulk:
   truncates trailing `t` characters. Use R for whitespace normalisation.
 - Escapes like `\d`, `\.` and `\(` do not survive `Rscript -e` through a shell.
   Write the script to a file and run it.
+
+---
+
+# This repository: wxdash 2.0
+
+Everything above is general IPPRA style. This section is specific to
+`00_wxdash_2.0` and is the orientation a new session needs before touching
+anything.
+
+## The pipeline
+
+Scripts run in number order; each output is named for the script that wrote it,
+so provenance reads off the filename. All of them `source(here::here(
+"00_wxdash_2.0", "00_paths.R"))`, which resolves `WXDASH_LOCAL` and
+`WXSURVEYS_ROOT` from `~/.Renviron`.
+
+| script | what it produces |
+|---|---|
+| `01` | county-to-CWA crosswalk |
+| `02`, `03` | CWA and county alert counts from NWS archives |
+| `04` | poststratification cells and county covariates |
+| `05` | `05_survey_responses.csv` — 22 pooled waves, 2,085 columns, ~400 MB |
+| `06` | multilevel models; fixed effects are the five poststrat cells |
+| `07` | CWA and county estimates |
+| `08` | `variable_reference.csv` — the codebook, read off instruments |
+| `09_wxdash_app/` | the Shiny app, with `data/09_create_dashboard_data.R` |
+
+The five poststratification cells — `AGE_GROUP`, `GENDER_GROUP`, `RACE_GROUP`,
+`EDUC_GROUP`, `INCOME_GROUP` — are built in `04` and fit in `06`. Anything
+that splits the data should use those, so the app cuts it the way the models
+do.
+
+## The variable reference
+
+`08_create_variable_reference/variable_reference.csv` is one row per survey
+hazard per variable, carrying each question as it was actually asked. It covers
+all 22 instruments. Two companions matter as much as the sheet:
+
+- `NOTES.md` — what still needs a second pair of eyes, grouped by what to do
+  about it. Instrument errors are recorded there and in the `notes` column,
+  never corrected in the sheet: the sheet records what the documents say.
+- `.claude/skills/survey-variable-reference/` — the procedure. Adding an
+  instrument means following it, not improvising. Read the instruments end to
+  end; do not write a parser for what the text *means*. Extraction is scripted,
+  judgment is not.
+
+Its judgment columns are independent and easy to confuse:
+
+- `experimental` — what the respondent read varied. Order-only randomization
+  (`RANDOM ORDER`) is **not** experimental; that would sweep in the core trend
+  batteries.
+- `graphic_shown` — a graphic was displayed and the answer rests on it. Not
+  the same as the `graphics` keyword, which is a topic tag and includes
+  questions *about* maps where nothing was shown.
+- `question_focus` — `weather` or `background`; `09` drops background items.
+
+Watch two traps. `"graphics" in keywords` also matches `demographics`, so match
+keyword tokens exactly. And the option separator is `" | "`, so a pipe inside an
+option label makes `response_options` unsplittable.
+
+The `.docx` instruments are gitignored, so a fresh clone has the sheet and the
+skill but not the sources.
+
+## The app
+
+`09_wxdash_app/app.R` reads only `data/09_dashboard_questions.csv` and
+`data/09_dashboard_responses.rds`, written by `data/09_create_dashboard_data.R`.
+Both paths are **relative** on purpose: a deployed Shiny app is a copy of its
+own directory, with no `00_paths.R` and no `WXDASH_LOCAL` on the server. That
+is the one place this pipeline departs from "every script writes to
+`outputs/`".
+
+`data/` is gitignored — derived, and the `.rds` would otherwise land in git
+history on every rebuild. A fresh clone must run `09` before the app starts,
+which is what the guard at the top of `app.R` says.
+
+If the app directory is ever renamed again, `09_create_dashboard_data.R` has to
+be pointed at the new name. It refuses to write unless `app.R` sits beside the
+target, because the failure it is guarding against — writing to the old path
+while the app reads the new one — looks like a successful rebuild that changes
+nothing.
+
+Percentages are weighted with `srvyr` on `PERSON_WEIGHT`, which comes from
+`rake()` against six ACS margins in the `wxsurveys` repo. Two estimators are in
+play: `survey_prop(proportion = TRUE)` when confidence intervals are shown, and
+`proportion = FALSE` when they are not — identical point estimates, but the
+logit fit warns on a cell at 0 or 100%.
