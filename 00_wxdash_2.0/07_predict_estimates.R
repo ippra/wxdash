@@ -1,5 +1,6 @@
 library(tidyverse)
 library(lme4)
+library(sf)
 
 source(here::here("00_wxdash_2.0", "00_paths.R"))
 
@@ -204,3 +205,73 @@ if (max(agreement_check$gap) > 1e-8) {
 # generation of prediction scripts produced.
 write_csv(county_estimates, paste0(outputs, "07_county_estimates.csv"))
 write_csv(cwa_estimates, paste0(outputs, "07_cwa_estimates.csv"))
+
+# Mapped Estimates -------------------------------------------------------------
+# The join to geometry happens once here rather than on every dashboard start.
+#
+# Written as sf .rds rather than shapefile for two reasons. A shapefile's DBF
+# caps field names at 10 characters, which would silently shorten RISK_DROUGHT
+# and the four *_SUBJ_COMP measures. And these are written wide, one row per
+# area, because the long form would repeat every polygon 24 times over -- 74,616
+# county geometries for the same 3,109 shapes.
+#
+# County geometry is cb_2025_us_county_20m, the file 03 already counts alerts
+# against, so FIPS keys to GEOID directly. The NWS county file c_16ap26 is the
+# wrong vintage for this: it predates Connecticut's planning regions, so joining
+# to it leaves nine holes in Connecticut. 01 uses it for the CWA assignment only
+# and patches those regions by hand.
+#
+# CWA geometry is w_16ap26, the authoritative NWS boundary. Note that it is not
+# exactly the union of the counties aggregated into each CWA estimate: 01
+# assigns a county spanning two CWAs wholly to the first, so the two disagree
+# along those few borders.
+county_shapes <- st_read(paste0(downloads, "cb_2025_us_county_20m"),
+                         quiet = TRUE) |>
+  select(FIPS = GEOID) |>
+  st_transform(4326) # 4326 because web maps require it and ggplot accepts it
+
+cwa_shapes <- st_read(paste0(downloads, "w_16ap26"), quiet = TRUE) |>
+  select(CWA) |>
+  st_transform(4326)
+
+# Check before joining, not after. An estimate whose geometry is missing would
+# vanish from the map with nothing said, which reads as a county that was never
+# surveyed rather than one that was dropped.
+missing_county <- setdiff(unique(county_estimates$FIPS), county_shapes$FIPS)
+missing_cwa <- setdiff(unique(cwa_estimates$CWA), cwa_shapes$CWA)
+
+if (length(missing_county) > 0 || length(missing_cwa) > 0) {
+  print(missing_county)
+  print(missing_cwa)
+  stop("Areas above have estimates but no geometry - they would not be drawn.")
+}
+
+county_map <- county_estimates |>
+  pivot_wider(names_from = measure, values_from = estimate) |>
+  left_join(county_shapes, by = "FIPS") |>
+  st_as_sf()
+
+cwa_map <- cwa_estimates |>
+  pivot_wider(names_from = measure, values_from = estimate) |>
+  left_join(cwa_shapes, by = "CWA") |>
+  st_as_sf()
+
+# The CWA boundaries are 27 MB at full resolution, which a dashboard redraws on
+# every input; they come out at 1.4 MB here. ms_simplify rather than
+# st_simplify: it simplifies shared borders once rather than once per polygon,
+# so adjacent areas still meet and the choropleth has no slivers between them.
+# keep_shapes holds on to the small coastal and island polygons that carry the
+# surge estimates.
+county_map <- rmapshaper::ms_simplify(county_map, keep = 0.05,
+                                      keep_shapes = TRUE)
+cwa_map <- rmapshaper::ms_simplify(cwa_map, keep = 0.05, keep_shapes = TRUE)
+
+# Simplification drops vertices, not features. Losing one would lose an area
+# from the map, so check rather than assume.
+if (nrow(county_map) != n_distinct(county_estimates$FIPS) ||
+    nrow(cwa_map) != n_distinct(cwa_estimates$CWA)) {
+  stop("Simplification changed the number of areas.")
+}
+
+write_rds(county_map, paste0(outputs, "07_county_estimates_sf.rds"))
+write_rds(cwa_map, paste0(outputs, "07_cwa_estimates_sf.rds"))
