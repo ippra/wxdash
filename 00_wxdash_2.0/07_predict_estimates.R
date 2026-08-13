@@ -253,8 +253,35 @@ county_map <- county_estimates |>
   left_join(county_shapes, by = "FIPS") |>
   st_as_sf()
 
+# The alert counts the models are fitted on, carried onto the map so the
+# exposure and the estimate it helps explain can be looked at side by side.
+#
+# ALERT_ rather than the CWA_ prefix 05 and 06 use, because on this file the
+# columns sit beside the predicted measures and CWA_ already means "the area"
+# here - CWA and CWA_NAME. The nine are exactly the terms 06 fits.
+#
+# Counts are alert days summed over the archive, which is what the models scale
+# and fit; they are not divided by years. The span is not the same for all of
+# them - storm surge warnings only exist from 2017 - so anything that presents
+# these has to say which years each one covers rather than implying sixteen.
+# Renamed from the frame the models were just predicted on rather than read
+# from the CSV a second time, so the counts drawn on the map are provably the
+# same numbers the fits were scaled against.
+cwa_alert_counts <- cwa_alert_data |>
+  rename_with(~str_replace(.x, "^CWA_", "ALERT_"), .cols = -CWA)
+
+# Checked before the join, not after: a CWA with no alert row would join to NA
+# and paint as a hole in the map with nothing said.
+missing_alerts <- setdiff(unique(cwa_estimates$CWA), cwa_alert_counts$CWA)
+
+if (length(missing_alerts) > 0) {
+  print(missing_alerts)
+  stop("CWAs above have estimates but no alert counts.")
+}
+
 cwa_map <- cwa_estimates |>
   pivot_wider(names_from = measure, values_from = estimate) |>
+  left_join(cwa_alert_counts, by = "CWA") |>
   left_join(cwa_shapes, by = "CWA") |>
   st_as_sf()
 

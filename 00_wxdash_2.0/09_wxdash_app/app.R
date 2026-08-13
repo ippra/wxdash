@@ -65,6 +65,11 @@ institute_url <- "https://www.ou.edu/ippra"
 archive <- "dataverse.harvard.edu/dataverse/wxsurvey"
 archive_url <- "https://dataverse.harvard.edu/dataverse/wxsurvey"
 
+# Where the alert counts come from - the same archive 02 and 03 read, recorded
+# there in a comment and named here so the map can point at it.
+mesonet <- "Iowa Environmental Mesonet"
+mesonet_url <- "https://mesonet.agron.iastate.edu/request/gis/watchwarn.phtml"
+
 # The five demographics are the poststratification cells 04 builds and 06 fits
 # on, so a split here cuts the data the same way the estimates do. Census region
 # is a county attribute rather than a cell dimension and no model fits it, so it
@@ -218,6 +223,19 @@ map_measures <- list(
     "Drought risk perceptions" = "RISK_DROUGHT",
     "Hail risk perceptions" = "RISK_HAIL",
     "Lightning risk perceptions" = "RISK_LIGNT"
+  ),
+  # Last, and deliberately apart from everything above it: these are observed
+  # counts from the NWS archive, not estimates of what anyone said.
+  "Alert frequency" = c(
+    "Tornado alert days" = "ALERT_TORN",
+    "Hurricane alert days" = "ALERT_HURR",
+    "Storm surge alert days" = "ALERT_SURG",
+    "Flood alert days" = "ALERT_FLOOD",
+    "Snow alert days" = "ALERT_SNOW",
+    "Ice alert days" = "ALERT_ICE",
+    "Extreme cold alert days" = "ALERT_COLD",
+    "Extreme heat alert days" = "ALERT_HEAT",
+    "Fire weather alert days" = "ALERT_FIRE"
   )
 )
 
@@ -256,6 +274,7 @@ ordinal <- function(n) {
 # unambiguous in that order.
 measure_construct <- function(measure) {
   case_when(
+    str_starts(measure, "ALERT_") ~ "ALERT",
     str_starts(measure, "RISK_") ~ "RISK",
     str_ends(measure, "_SUBJ_COMP") ~ "SUBJ_COMP",
     str_ends(measure, "_RECEP") ~ "RECEP",
@@ -269,13 +288,23 @@ measure_construct <- function(measure) {
 measure_hazard <- function(measure) {
   str_to_lower(str_remove(
     measure_label(measure),
-    " (warning (reception|comprehension|response)|risk perceptions)$"
+    paste0(" (warning (reception|comprehension|response)",
+           "|risk perceptions|alert days)$")
   ))
+}
+
+# The archive each alert count is drawn from. Storm surge is the exception that
+# makes this a lookup rather than one sentence: the SS product only exists from
+# 2017, so its total covers nine years where the others cover sixteen, and
+# printing "2010-2025" against it would overstate how little it fires.
+alert_span <- function(measure) {
+  if (measure == "ALERT_SURG") "2017 and 2025" else "2010 and 2025"
 }
 
 # What the 1-5 scale is measuring, as a phrase that follows "out of 5 for".
 # {hazard} is filled in below.
 construct_quantity <- c(
+  ALERT = "{hazard} watch, warning, and advisory events",
   RECEP = paste("agreement that people receive the {hazard} warnings issued",
                 "for their area"),
   RESP = paste("agreement that people take protective action when {hazard}",
@@ -294,7 +323,7 @@ construct_quantity <- c(
 #
 # Positions are rounded to one decimal for the same reason: at 260px wide a
 # tenth of a pixel is not a distinction anyone can see.
-strip_plot <- function(values, this_value, middle) {
+strip_plot <- function(measure, values, this_value, middle) {
   width <- 280
   pad <- 10
   span <- range(values)
@@ -327,9 +356,9 @@ strip_plot <- function(values, this_value, middle) {
     "<circle cx=\"", scale_x(this_value), "\" cy=\"19\" r=\"4.5\" ",
     "fill=\"#111827\"/>",
     "<text x=\"", pad, "\" y=\"9\" font-size=\"10\" fill=\"#6E737A\">",
-    sprintf("%.1f", span[1]), "</text>",
+    format_range(measure, span[1]), "</text>",
     "<text x=\"", width - pad, "\" y=\"9\" font-size=\"10\" fill=\"#6E737A\" ",
-    "text-anchor=\"end\">", sprintf("%.1f", span[2]), "</text>",
+    "text-anchor=\"end\">", format_range(measure, span[2]), "</text>",
     "</svg>"
   )
 }
@@ -348,6 +377,16 @@ strip_plot <- function(values, this_value, middle) {
 # "Agrees more strongly than most" is false at rank 58 and needed a whole set
 # of bands with a separate sentence for the middle; rank and percentile say
 # where an area sits without any of that.
+# Alert counts are whole days and estimates are on a 1-5 scale, so they are
+# formatted apart rather than everything carrying two decimals.
+format_estimate <- function(measure, value) {
+  if (measure_construct(measure) == "ALERT") {
+    format(round(value), big.mark = ",")
+  } else {
+    sprintf("%.2f", value)
+  }
+}
+
 cwa_narrative <- function(measure, value, rank, percentile, n, middle) {
   quantity <- str_replace_all(
     construct_quantity[[measure_construct(measure)]],
@@ -358,18 +397,33 @@ cwa_narrative <- function(measure, value, rank, percentile, n, middle) {
   # read badly - and "highest" is only added in the top half, where it clarifies
   # the direction. On a low rank it fights it: 109th highest is not how anyone
   # describes a low-ranking area.
+  noun <- if (measure_construct(measure) == "ALERT") "count" else "estimate"
   standing <- case_when(
-    rank == 1 ~ paste0("has the highest estimate of the ", n),
-    rank == n ~ paste0("has the lowest estimate of the ", n),
+    rank == 1 ~ paste0("has the highest ", noun, " of the ", n),
+    rank == n ~ paste0("has the lowest ", noun, " of the ", n),
     rank <= n / 2 ~ paste0("ranks ", ordinal(rank), " highest of the ", n),
     TRUE ~ paste0("ranks ", ordinal(rank), " of the ", n)
   )
 
+  # Alert counts are observed, not estimated, and are days rather than a score
+  # out of five, so they get their own sentence rather than being forced
+  # through wording built for the survey measures.
+  if (measure_construct(measure) == "ALERT") {
+    return(paste0(
+      "The National Weather Service issued ", quantity, " on ",
+      format_estimate(measure, value), " days in this area between ",
+      alert_span(measure), ". The median across the ", n,
+      " County Warning Areas is ", format_estimate(measure, middle),
+      " days. This area ", standing, ", at the ", ordinal(percentile),
+      " percentile."
+    ))
+  }
+
   paste0(
-    "The estimate for this area is ", sprintf("%.2f", value), " out of 5 for ",
-    quantity, ". The median estimate across the ", n,
-    " County Warning Areas is ", sprintf("%.2f", middle), ". This area ",
-    standing, ", at the ", ordinal(percentile), " percentile."
+    "The estimate for this area is ", format_estimate(measure, value),
+    " out of 5 for ", quantity, ". The median estimate across the ", n,
+    " County Warning Areas is ", format_estimate(measure, middle),
+    ". This area ", standing, ", at the ", ordinal(percentile), " percentile."
   )
 }
 
@@ -569,6 +623,7 @@ cwa_overview_data <- function(cwa) {
 
     tibble(
       row = i,
+      measure = measure,
       section = measure_lookup$group[i],
       label = measure_lookup$label[i],
       value = values,
@@ -594,6 +649,15 @@ sheet_grey <- "#B8BEC5"    # the other 115
 sheet_mid <- "#6E737A"     # their median, and secondary type
 sheet_band <- "#F4F6F8"    # alternating row tint
 
+# The row ends carry one decimal for a 1-5 estimate and none for a day count.
+format_range <- function(measure, value) {
+  if (measure_construct(measure) == "ALERT") {
+    format(round(value), big.mark = ",")
+  } else {
+    sprintf("%.1f", value)
+  }
+}
+
 cwa_overview_plot <- function(cwa, display_name, code, caption) {
   # fct_inorder reads the drop-down order out of the row order, and fct_rev puts
   # the first measure listed at the top rather than the bottom. Set before the
@@ -603,8 +667,8 @@ cwa_overview_plot <- function(cwa, display_name, code, caption) {
     mutate(label = fct_rev(fct_inorder(label)),
            section = fct_inorder(section))
 
-  one <- d |> distinct(row, section, label, here_pos, middle_pos, lo, hi,
-                       here, rank, percentile) |>
+  one <- d |> distinct(row, measure, section, label, here_pos, middle_pos,
+                       lo, hi, here, rank, percentile) |>
     # Every other row tinted, because these rows are wide and the eye has to
     # carry a label on the far left to a number on the far right.
     mutate(band = as.integer(label) %% 2 == 0)
@@ -645,11 +709,15 @@ cwa_overview_plot <- function(cwa, display_name, code, caption) {
                       breaks = keys) +
     # The ends of each row's own scale, then this area's estimate and standing.
     # Placed outside the panel, which is why clipping is off below.
-    geom_text(data = one, aes(x = -0.03, label = sprintf("%.1f", lo)),
+    geom_text(data = one,
+              aes(x = -0.03, label = map2_chr(measure, lo, format_range)),
               hjust = 1, size = 2.6, colour = sheet_mid) +
-    geom_text(data = one, aes(x = 1.03, label = sprintf("%.1f", hi)),
+    geom_text(data = one,
+              aes(x = 1.03, label = map2_chr(measure, hi, format_range)),
               hjust = 0, size = 2.6, colour = sheet_mid) +
-    geom_text(data = one, aes(x = 1.30, label = sprintf("%.2f", here)),
+    geom_text(data = one,
+              aes(x = 1.30, label = map2_chr(measure, here,
+                                             format_estimate)),
               hjust = 1, size = 3.1, colour = sheet_ink, fontface = "bold") +
     geom_text(data = one, aes(x = 1.46, label = ordinal(percentile)),
               hjust = 1, size = 3, colour = sheet_mid) +
@@ -1079,7 +1147,9 @@ server <- function(input, output, session) {
         # clickable - there is no cursor change on a fill layer.
         tooltip = paste0(
           "<strong>", CWA_DISPLAY, " (", CWA, ")</strong><br>",
-          "Estimate: ", sprintf("%.2f", value),
+          if (measure_construct(measure) == "ALERT") "Alert days: "
+          else "Estimate: ",
+          format_estimate(measure, value),
           "<br><span style=\"font-size:11px;color:#6E737A\">",
           "Click for more information</span>"
         ),
@@ -1087,7 +1157,7 @@ server <- function(input, output, session) {
           "<strong>", CWA_DISPLAY, " (", CWA, ")</strong><br><br>",
           map_chr(seq_len(n), ~cwa_narrative(measure, value[.x], rank[.x],
                                              percentile[.x], n, middle)),
-          map_chr(seq_len(n), ~strip_plot(value, value[.x], middle))
+          map_chr(seq_len(n), ~strip_plot(measure, value, value[.x], middle))
         )
       )
   })
@@ -1212,6 +1282,43 @@ server <- function(input, output, session) {
     # The survey name rides here rather than in the title, which would otherwise
     # carry both a hazard and a survey name and read as a repetition.
     anchors <- scale_anchors(items$response_options[1])
+    # Alert counts have no survey items behind them and no response scale, so
+    # the sentence describing what the number is has to be written rather than
+    # assembled from the instrument.
+    if (measure_construct(input$measure) == "ALERT") {
+      return(list(
+        title = paste0(
+          measure_label(input$measure), " across the ", nrow(d),
+          " National Weather Service County Warning Areas of the contiguous ",
+          "United States."
+        ),
+        alert = TRUE,
+        stem = NA_character_,
+        question_text = character(0),
+        reverse_coded = logical(0),
+        reading = paste0(
+          "Each value is the number of days on which the National Weather ",
+          "Service issued at least one VTEC-enabled ",
+          measure_hazard(input$measure),
+          " watch, warning, or advisory event anywhere in the area, between ",
+          alert_span(input$measure), ". Days are counted once however many ",
+          "products were issued on them. Colors are stretched over ",
+          format_estimate(input$measure, min(d$value)), " to ",
+          format_estimate(input$measure, max(d$value)),
+          ", the range these counts actually take."
+        ),
+        source = paste0(
+          "Counts come from the ", mesonet, " archive of National Weather ",
+          "Service VTEC-enabled watch, warning, and advisory events. These ",
+          "are the ",
+          "same exposure measures the survey models are fitted on, which is ",
+          "why they are shown here beside the estimates they help explain. ",
+          "They are observed counts rather than survey estimates: no one was ",
+          "asked anything to produce them."
+        )
+      ))
+    }
+
     scored <- if (nrow(items) > 1) {
       paste0(
         "The ", count_word(nrow(items)), " answers, all from the ",
@@ -1243,6 +1350,7 @@ server <- function(input, output, session) {
         " National Weather Service County Warning Areas of the contiguous ",
         "United States."
       ),
+      alert = FALSE,
       stem = if (shared) items$question_intro[1] else NA_character_,
       question_text = question_text,
       reverse_coded = items$reverse_coded,
@@ -1280,6 +1388,11 @@ server <- function(input, output, session) {
 
     linked <- htmltools::htmlEscape(p$source) |>
       str_replace(
+        fixed(mesonet),
+        paste0("<a href=\"", mesonet_url, "\" target=\"_blank\">",
+               mesonet, "</a>")
+      ) |>
+      str_replace(
         fixed(institute),
         paste0("<a href=\"", institute_url, "\" target=\"_blank\">",
                institute, "</a>")
@@ -1289,6 +1402,15 @@ server <- function(input, output, session) {
         paste0("<a href=\"", archive_url, "\" target=\"_blank\">",
                archive, "</a>")
       )
+
+    if (isTRUE(p$alert)) {
+      return(div(
+        class = "help-block",
+        tags$p(p$title),
+        tags$p(p$reading),
+        tags$p(HTML(linked))
+      ))
+    }
 
     div(
       class = "help-block",
@@ -1397,17 +1519,26 @@ server <- function(input, output, session) {
       caption <- paste0(
         "Each row is one measure. Every row is stretched to its own range, so ",
         "a point at the right of one row and a point at the right of another ",
-        "mean the same standing, not the same size of difference - the ",
-        "warning scales span about half a point across the ", nrow(estimates),
-        " areas and the risk items nearly three. The numbers at the ends of a ",
-        "row are that measure's lowest and highest estimate.<br><br>",
+        "mean the same standing, not the same size of difference - across the ",
+        nrow(estimates), " areas the warning scales span about half a point, ",
+        "the risk items nearly three, and the alert counts thousands of days. ",
+        "The numbers at the ends of a row are that measure's lowest and ",
+        "highest value.<br><br>",
         "From the Extreme Weather and Society Survey, run by ", institute,
         ". Estimates come from multilevel models fitted to survey responses ",
         "and reweighted to the adult population of each county, then combined ",
         "to the County Warning Area, so they describe US adults in each area ",
         "rather than only the people surveyed. The survey data behind them is ",
-        "available at ", archive, ". Sheet generated ",
-        format(Sys.Date(), "%d %B %Y"), "."
+        "available at ", archive, ".<br><br>",
+        "The alert counts are not estimates. They are days on which the ",
+        "National Weather Service issued at least one VTEC-enabled watch, ",
+        "warning, or advisory event of that kind, taken from the ", mesonet,
+        " archive at ",
+        "mesonet.agron.iastate.edu/request/gis/watchwarn.phtml, and they are ",
+        "the exposure measures the models above are ",
+        "fitted on. All cover 2010 to 2025 except storm surge, which covers ",
+        "2017 to 2025 because the product did not exist before then. Sheet ",
+        "generated ", format(Sys.Date(), "%d %B %Y"), "."
       )
 
       plot <- cwa_overview_plot(cwa, display, cwa, caption)

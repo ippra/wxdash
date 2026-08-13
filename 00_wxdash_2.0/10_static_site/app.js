@@ -14,6 +14,10 @@ const INSTITUTE =
 const INSTITUTE_URL = "https://www.ou.edu/ippra";
 const ARCHIVE = "dataverse.harvard.edu/dataverse/wxsurvey";
 const ARCHIVE_URL = "https://dataverse.harvard.edu/dataverse/wxsurvey";
+/* Where the alert counts come from - the same archive 02 and 03 read. */
+const MESONET = "Iowa Environmental Mesonet";
+const MESONET_URL =
+  "https://mesonet.agron.iastate.edu/request/gis/watchwarn.phtml";
 
 /*
   The ramps validated for the R charts, carried over unchanged. Blue and grey
@@ -145,6 +149,8 @@ function countWord(n) {
 
 function linkify(text) {
   return escapeHtml(text)
+    .replace(MESONET,
+      `<a href="${MESONET_URL}" target="_blank">${MESONET}</a>`)
     .replace(escapeHtml(INSTITUTE),
       `<a href="${INSTITUTE_URL}" target="_blank">${escapeHtml(INSTITUTE)}</a>`)
     .replace(ARCHIVE,
@@ -473,7 +479,9 @@ function attachMapInteraction() {
     tip.setLngLat(e.lngLat).setHTML(
       `<strong>${escapeHtml(f.properties.CWA_DISPLAY)} ` +
       `(${escapeHtml(f.properties.CWA)})</strong><br>` +
-      `Estimate: ${Number(f.properties[state.measure]).toFixed(2)}` +
+      `${constructOf(state.measure) === "ALERT" ? "Alert days"
+                                                : "Estimate"}: ` +
+      `${formatValue(state.measure, Number(f.properties[state.measure]))}` +
       `<br><span style="font-size:11px;color:#6E737A">` +
       `Click for more information</span>`
     ).addTo(state.map);
@@ -507,7 +515,7 @@ function areaPopup(props) {
   return `<strong>${escapeHtml(props.CWA_DISPLAY)} ` +
     `(${escapeHtml(props.CWA)})</strong><br><br>` +
     escapeHtml(narrative(m, here, rank, percentile, n, middle)) +
-    stripPlot(values, here, middle);
+    stripPlot(state.measure, values, here, middle);
 }
 
 function median(sorted) {
@@ -520,6 +528,7 @@ function median(sorted) {
    Naming the quantity is what lets the sentence work at any rank: a
    comparative would be false in the middle of the distribution. */
 const CONSTRUCT_QUANTITY = {
+  ALERT: "{hazard} watch, warning, and advisory events",
   RECEP: "agreement that people receive the {hazard} warnings issued for " +
          "their area",
   RESP: "agreement that people take protective action when {hazard} " +
@@ -529,6 +538,7 @@ const CONSTRUCT_QUANTITY = {
 };
 
 function constructOf(id) {
+  if (id.startsWith("ALERT_")) return "ALERT";
   if (id.startsWith("RISK_")) return "RISK";
   if (id.endsWith("_SUBJ_COMP")) return "SUBJ_COMP";
   if (id.endsWith("_RECEP")) return "RECEP";
@@ -539,29 +549,58 @@ function hazardOf(m) {
   return m.label
     .replace(/ warning (reception|comprehension|response)$/, "")
     .replace(/ risk perceptions$/, "")
+    .replace(/ alert days$/, "")
     .toLowerCase();
 }
 
+/* The row and axis ends carry one decimal for a 1-5 estimate and none for a
+   day count. */
+function formatRange(id, v) {
+  return constructOf(id) === "ALERT"
+    ? Math.round(v).toLocaleString()
+    : v.toFixed(1);
+}
+
+/* Alert counts are whole days; estimates are on a 1-5 scale. Formatted apart so
+   a count never prints as "342.00". */
+function formatValue(id, v) {
+  return constructOf(id) === "ALERT"
+    ? Math.round(v).toLocaleString()
+    : v.toFixed(2);
+}
+
 function narrative(m, here, rank, percentile, n, middle) {
+  const isAlert = constructOf(m.measure) === "ALERT";
   const quantity = CONSTRUCT_QUANTITY[constructOf(m.measure)]
     .replace("{hazard}", hazardOf(m));
+  const noun = isAlert ? "count" : "estimate";
 
   let standing;
-  if (rank === 1) standing = `has the highest estimate of the ${n}`;
-  else if (rank === n) standing = `has the lowest estimate of the ${n}`;
+  if (rank === 1) standing = `has the highest ${noun} of the ${n}`;
+  else if (rank === n) standing = `has the lowest ${noun} of the ${n}`;
   else if (rank <= n / 2)
     standing = `ranks ${ordinal(rank)} highest of the ${n}`;
   else standing = `ranks ${ordinal(rank)} of the ${n}`;
 
-  return `The estimate for this area is ${here.toFixed(2)} out of 5 for ` +
-    `${quantity}. The median estimate across the ${n} County Warning Areas ` +
-    `is ${middle.toFixed(2)}. This area ${standing}, at the ` +
-    `${ordinal(percentile)} percentile.`;
+  /* Alert counts are observed, not estimated, and are days rather than a score
+     out of five, so they get their own sentence. */
+  if (isAlert) {
+    return `The National Weather Service issued ${quantity} on ` +
+      `${formatValue(m.measure, here)} days in this area between ${m.span}. ` +
+      `The median across the ${n} County Warning Areas is ` +
+      `${formatValue(m.measure, middle)} days. This area ${standing}, at the ` +
+      `${ordinal(percentile)} percentile.`;
+  }
+
+  return `The estimate for this area is ${formatValue(m.measure, here)} out ` +
+    `of 5 for ${quantity}. The median estimate across the ${n} County ` +
+    `Warning Areas is ${formatValue(m.measure, middle)}. This area ` +
+    `${standing}, at the ${ordinal(percentile)} percentile.`;
 }
 
 /* All 116 on one axis with this area marked. The other areas are one path
    rather than 116 lines, which keeps the popup markup small. */
-function stripPlot(values, here, middle) {
+function stripPlot(id, values, here, middle) {
   const width = 280;
   const pad = 10;
   const lo = Math.min(...values);
@@ -580,9 +619,9 @@ function stripPlot(values, here, middle) {
     `text-anchor="middle">median</text>` +
     `<circle cx="${at(here)}" cy="19" r="4.5" fill="#111827"/>` +
     `<text x="${pad}" y="9" font-size="10" fill="#6E737A">` +
-    `${lo.toFixed(1)}</text>` +
+    `${formatRange(id, lo)}</text>` +
     `<text x="${width - pad}" y="9" font-size="10" fill="#6E737A" ` +
-    `text-anchor="end">${hi.toFixed(1)}</text></svg>`;
+    `text-anchor="end">${formatRange(id, hi)}</text></svg>`;
 }
 
 function renderLegend() {
@@ -615,6 +654,29 @@ function renderMapNotes() {
   const values = valuesFor(state.measure);
   const lo = Math.min(...values), hi = Math.max(...values);
   const n = state.areas;
+
+  if (constructOf(state.measure) === "ALERT") {
+    const source =
+      `Counts come from the ${MESONET} archive of National Weather ` +
+      "Service VTEC-enabled watch, warning, and advisory events. These are " +
+      "the same " +
+      "exposure measures the survey models are fitted on, which is why they " +
+      "are shown here beside the estimates they help explain. They are " +
+      "observed counts rather than survey estimates: no one was asked " +
+      "anything to produce them.";
+    el("map-notes").innerHTML =
+      `<p>${escapeHtml(m.label)} across the ${n} National Weather Service ` +
+      `County Warning Areas of the contiguous United States.</p>` +
+      `<p>Each value is the number of days on which the National Weather ` +
+      `Service issued at least one VTEC-enabled ${escapeHtml(hazardOf(m))} ` +
+      `watch, warning, or advisory event anywhere in the area, between ` +
+      `${escapeHtml(m.span)}. Days ` +
+      `are counted once however many products were issued on them. Colors ` +
+      `are stretched over ${formatRange(state.measure, lo)} to ` +
+      `${formatRange(state.measure, hi)}, the range these counts actually ` +
+      `take.</p><p>${linkify(source)}</p>`;
+    return;
+  }
 
   const anchors = scaleAnchors(m.response_options);
   const items = m.items;

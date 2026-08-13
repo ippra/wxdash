@@ -34,6 +34,16 @@ source(here::here("00_wxdash_2.0", "00_paths.R"))
 # an R script served at /10_build_static_site.R is source nobody chose to
 # publish. The filter is on extension rather than on a list of names, so a file
 # added to the folder later is treated as site content unless it is R.
+# Two halves that change on different cadences. The question files depend on 05
+# and 09 and take about fifteen minutes; the map data and the site files take
+# seconds. A change to the map does not touch a single question, so:
+#
+#   Rscript 00_wxdash_2.0/10_static_site/10_build_static_site.R --map-only
+#
+# rebuilds the map, the measure list and the HTML/CSS/JS and leaves the question
+# files alone. Without the flag everything is rebuilt.
+map_only <- "--map-only" %in% commandArgs(trailingOnly = TRUE)
+
 site_dir <- paste0(outputs, "10_site/")
 template_dir <- here::here("00_wxdash_2.0", "10_static_site")
 
@@ -192,6 +202,20 @@ narrow_for <- function(variable, hazard) {
            PERSON_WEIGHT)
 }
 
+# --map-only is only safe if a previous full run left the question files and
+# their index behind. Checked, because the alternative is a site that serves a
+# map and an empty question table.
+if (map_only && !file.exists(paste0(site_dir, "data/questions.json"))) {
+  stop("--map-only needs a previous full build; no data/questions.json found.")
+}
+
+if (map_only) {
+  message("Map only: reusing the question files already in ", site_dir)
+  index <- read_json(paste0(site_dir, "data/questions.json"),
+                     simplifyVector = TRUE)
+  written <- nrow(index)
+} else {
+
 message("Building ", nrow(questions), " questions x ", length(groups),
         " splits. This takes about 15 minutes.")
 
@@ -262,18 +286,25 @@ if (nrow(index) == 0) stop("No questions were written - nothing to serve.")
 write_json(index, paste0(site_dir, "data/questions.json"),
            auto_unbox = TRUE, na = "null")
 
+}
+
 # Map Data ---------------------------------------------------------------------
 # GeoJSON because that is what MapLibre reads directly, with the estimates as
 # feature properties so the page needs one request rather than two.
-measure_columns <- setdiff(names(st_drop_geometry(cwa_estimates)),
-                           c("CWA", "CWA_NAME", "geometry"))
+# ALERT_ columns are the alert counts 07 carries: the exposure the models are
+# fitted on, not predicted measures. Held out of measure_columns because the
+# check below requires survey wording for every measure and these have none.
+all_columns <- names(st_drop_geometry(cwa_estimates))
+alert_columns <- grep("^ALERT_", all_columns, value = TRUE)
+measure_columns <- setdiff(all_columns,
+                           c("CWA", "CWA_NAME", "geometry", alert_columns))
 
 cwa_site <- cwa_estimates |>
   mutate(CWA_DISPLAY = paste0(
     "NWS ",
     gsub(" ([A-Za-z]{2})(?=/|$)", ", \\U\\1\\E", CWA_NAME, perl = TRUE)
   )) |>
-  select(CWA, CWA_DISPLAY, all_of(measure_columns))
+  select(CWA, CWA_DISPLAY, all_of(measure_columns), all_of(alert_columns))
 
 geojson_path <- paste0(site_dir, "data/cwa.geojson")
 if (file.exists(geojson_path)) unlink(geojson_path)
@@ -315,13 +346,40 @@ map_measures <- list(
     "Drought risk perceptions" = "RISK_DROUGHT",
     "Hail risk perceptions" = "RISK_HAIL",
     "Lightning risk perceptions" = "RISK_LIGNT"
+  ),
+  # Last, and deliberately apart from everything above it: these are observed
+  # counts from the NWS archive, not estimates of what anyone said.
+  "Alert frequency" = c(
+    "Tornado alert days" = "ALERT_TORN",
+    "Hurricane alert days" = "ALERT_HURR",
+    "Storm surge alert days" = "ALERT_SURG",
+    "Flood alert days" = "ALERT_FLOOD",
+    "Snow alert days" = "ALERT_SNOW",
+    "Ice alert days" = "ALERT_ICE",
+    "Extreme cold alert days" = "ALERT_COLD",
+    "Extreme heat alert days" = "ALERT_HEAT",
+    "Fire weather alert days" = "ALERT_FIRE"
   )
 )
 
 measures <- imap(map_measures, function(x, group) {
   imap(set_names(unname(x), names(x)), function(measure, label) {
+    if (str_starts(measure, "ALERT_")) {
+      return(list(
+        measure = measure, label = label, group = group, alert = TRUE,
+        span = if (measure == "ALERT_SURG") "2017 and 2025"
+               else "2010 and 2025",
+        hazard = NA_character_, response_options = NA_character_,
+        n_intros = 1L, shared_intro = FALSE, intro = NA_character_,
+        items = tibble(question_intro = character(),
+                       question_text = character(),
+                       reverse_coded = logical())
+      ))
+    }
+
     items <- measure_questions |> filter(measure == .env$measure)
     list(
+      alert = FALSE,
       measure = measure,
       label = label,
       group = group,
@@ -338,7 +396,7 @@ measures <- imap(map_measures, function(x, group) {
 
 # Offered but absent from the data would be an empty map with no error.
 offered <- unlist(map_measures, use.names = FALSE)
-missing_measures <- setdiff(offered, measure_columns)
+missing_measures <- setdiff(offered, c(measure_columns, alert_columns))
 
 if (length(missing_measures) > 0) {
   print(missing_measures)
