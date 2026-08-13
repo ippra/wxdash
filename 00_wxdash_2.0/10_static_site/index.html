@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Extreme Weather and Society Survey</title>
+
+<!--
+  MapLibre from a CDN. It is the one library the page needs, and pulling it
+  from unpkg keeps the upload to a folder of files rather than a build step.
+  To run somewhere with no outbound internet, download these two next to
+  app.js and point the src and href at them instead.
+-->
+<link rel="stylesheet"
+      href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header>
+  <h1>Extreme Weather and Society Survey</h1>
+  <nav id="tabs">
+    <button class="tab is-active" data-tab="results">
+      Explore Survey Results
+    </button>
+    <button class="tab" data-tab="map">Map Survey Estimates</button>
+  </nav>
+</header>
+
+<!-- Explore Survey Results -->
+<section id="panel-results" class="panel">
+  <p class="help">
+    Click a survey question in the table below to see the weighted distribution
+    of responses. Each question is listed once per survey hazard, because the
+    wording differs between hazards. Where the wording also changed between
+    waves, the most recent version is shown.
+  </p>
+
+  <div class="controls">
+    <label>Split responses by
+      <select id="split"></select>
+    </label>
+    <div class="controls-right">
+      <label>Change color scheme
+        <select id="palette"></select>
+      </label>
+      <label class="check">
+        <input type="checkbox" id="ci"> Show 95% confidence intervals
+      </label>
+      <button id="print-chart" type="button">Print / Save as PDF</button>
+    </div>
+  </div>
+
+  <h4 id="question-text"></h4>
+  <div id="chart"></div>
+  <div id="chart-caption" class="help"></div>
+
+  <hr>
+
+  <div class="table-controls">
+    <input type="search" id="question-search"
+           placeholder="Search questions, variable names, scales, keywords">
+    <select id="hazard-filter"></select>
+    <select id="kind-filter"></select>
+    <span id="question-count" class="muted"></span>
+  </div>
+  <div id="question-table"></div>
+  <div class="pager">
+    <button id="prev-page">Previous</button>
+    <span id="page-label" class="muted"></span>
+    <button id="next-page">Next</button>
+  </div>
+</section>
+
+<!-- Map Survey Estimates -->
+<section id="panel-map" class="panel is-hidden">
+  <p class="help">
+    These are model estimates, not raw survey responses. Each County Warning
+    Area gets a value built from the demographic makeup of its counties and how
+    people like them answered, so every area has an estimate, including those
+    where few people were surveyed. Hover an area to read its value, and click
+    for more.
+  </p>
+
+  <div class="controls">
+    <label>Map estimates for
+      <select id="measure"></select>
+    </label>
+    <div class="controls-right">
+      <label>Change color scheme
+        <select id="map-palette"></select>
+      </label>
+      <button id="print-map" type="button">Print / Save as PDF</button>
+    </div>
+  </div>
+
+  <div id="map"></div>
+  <div id="map-notes" class="help"></div>
+</section>
+
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
