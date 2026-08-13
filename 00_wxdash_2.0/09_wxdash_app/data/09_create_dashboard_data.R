@@ -290,9 +290,26 @@ if (length(measure_columns) == 0 || !"CWA_NAME" %in% names(cwa_estimates)) {
 
 alert_columns <- grep("^ALERT_", names(cwa_estimates), value = TRUE)
 
+# Which years each alert category actually covers, from 02. Carried into the
+# app rather than written down there, because a hardcoded "2010 to 2025" is
+# wrong the day a 2026 archive is added and nothing would catch it.
+alert_years <- read_csv(paste0(outputs, "02_alert_years.csv"),
+                        show_col_types = FALSE) |>
+  mutate(measure = paste0("ALERT_", CATEGORY)) |>
+  filter(measure %in% alert_columns) |>
+  select(measure, first_year, last_year)
+
+missing_spans <- setdiff(alert_columns, alert_years$measure)
+
+if (length(missing_spans) > 0) {
+  print(missing_spans)
+  stop("Alert measures above have no year span - rerun 02.")
+}
+
 message("CWA estimates: ", nrow(cwa_estimates), " areas, ",
         length(measure_columns), " measures, ",
-        length(alert_columns), " alert counts")
+        length(alert_columns), " alert counts spanning ",
+        min(alert_years$first_year), "-", max(alert_years$last_year))
 
 write_rds(cwa_estimates, file.path(app_data, "09_dashboard_cwa.rds"),
           compress = "gz")
@@ -382,5 +399,7 @@ message("Measure questions: ", nrow(measure_questions), " items across ",
 
 write_csv(measure_questions,
           file.path(app_data, "09_dashboard_measure_questions.csv"))
+
+write_csv(alert_years, file.path(app_data, "09_dashboard_alert_years.csv"))
 
 message("Wrote app data to ", app_data)

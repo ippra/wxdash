@@ -95,3 +95,22 @@ result_summary <- combined_summary |>
 
 # Save results
 write_csv(result_summary, paste0(outputs, "02_cwa_alert_counts.csv"))
+
+# Category Spans ---------------------------------------------------------------
+# Which years each category actually appears in. The totals above sum the years
+# away, and anything reporting "alert days between X and Y" needs the span for
+# that hazard rather than the archive's: SS was not issued before 2017, so a
+# SURG total covers nine years where TORN covers sixteen. Presenting the two
+# against the same dates understates how rarely surge fires.
+#
+# Derived here rather than written down downstream, because this is the only
+# place that still has the year on every row.
+alert_years <- combined_summary |>
+  filter(!is.na(CATEGORY)) |>
+  group_by(CATEGORY) |>
+  summarise(first_year = min(year), last_year = max(year), .groups = "drop") |>
+  arrange(CATEGORY)
+
+alert_years
+
+write_csv(alert_years, paste0(outputs, "02_alert_years.csv"))

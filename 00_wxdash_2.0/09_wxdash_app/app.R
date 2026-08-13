@@ -15,7 +15,8 @@ data_dir <- "data"
 needed <- file.path(data_dir, c("09_dashboard_questions.csv",
                                 "09_dashboard_responses.rds",
                                 "09_dashboard_cwa.rds",
-                                "09_dashboard_measure_questions.csv"))
+                                "09_dashboard_measure_questions.csv",
+                                "09_dashboard_alert_years.csv"))
 
 # Failing here with the reason beats failing later with "object not found".
 if (!all(file.exists(needed))) {
@@ -49,6 +50,11 @@ cwa_estimates <- cwa_estimates |>
 # composition and the variable reference. The app quotes these rather than
 # describing them, so what it says was asked is what the instrument says.
 measure_questions <- read_csv(needed[4], show_col_types = FALSE)
+
+# Which years each alert category covers, traced back to 02 rather than written
+# here. Storm surge covers fewer years than the rest because SS did not exist
+# before 2017, and that is a fact about the archive, not a constant.
+alert_years <- read_csv(needed[5], show_col_types = FALSE)
 
 # The map is MapLibre on CARTO basemap tiles, which need no access token.
 # Mapbox was the other option and was dropped: at national zoom, under polygons
@@ -293,12 +299,36 @@ measure_hazard <- function(measure) {
   ))
 }
 
-# The archive each alert count is drawn from. Storm surge is the exception that
-# makes this a lookup rather than one sentence: the SS product only exists from
+# The years an alert count covers, read from the table 02 wrote. Storm surge is
+# the reason this is per measure rather than one sentence: SS only exists from
 # 2017, so its total covers nine years where the others cover sixteen, and
-# printing "2010-2025" against it would overstate how little it fires.
+# printing the archive's dates against it would overstate how little it fires.
 alert_span <- function(measure) {
-  if (measure == "ALERT_SURG") "2017 and 2025" else "2010 and 2025"
+  row <- alert_years[alert_years$measure == measure, ]
+  if (nrow(row) == 0) return("the archive period")
+  paste(row$first_year[1], "and", row$last_year[1])
+}
+
+# The same spans as one sentence for the overview sheet, which lists every
+# measure at once. Written from the data so a category whose coverage changes
+# moves itself into or out of the exception clause.
+alert_span_sentence <- function() {
+  common <- alert_years |>
+    count(first_year, last_year, sort = TRUE) |>
+    slice(1)
+  odd <- alert_years |>
+    filter(first_year != common$first_year | last_year != common$last_year)
+
+  base <- paste0("All cover ", common$first_year, " to ", common$last_year)
+  if (nrow(odd) == 0) return(paste0(base, "."))
+
+  paste0(
+    base, " except ",
+    paste(str_to_lower(str_remove(measure_label(odd$measure), " alert days$")),
+          collapse = ", "),
+    ", which covers ", odd$first_year[1], " to ", odd$last_year[1],
+    " because the product did not exist before then."
+  )
 }
 
 # What the 1-5 scale is measuring, as a phrase that follows "out of 5 for".
@@ -1536,8 +1566,7 @@ server <- function(input, output, session) {
         " archive at ",
         "mesonet.agron.iastate.edu/request/gis/watchwarn.phtml, and they are ",
         "the exposure measures the models above are ",
-        "fitted on. All cover 2010 to 2025 except storm surge, which covers ",
-        "2017 to 2025 because the product did not exist before then. Sheet ",
+        "fitted on. ", alert_span_sentence(), " Sheet ",
         "generated ", format(Sys.Date(), "%d %B %Y"), "."
       )
 

@@ -48,3 +48,23 @@ vignettes/*.pdf
 
 # R Environment Variables
 .Renviron
+
+# Quarto output. README.html, NOTES.html and their _files directories are
+# rendered from the .md sources beside them - `quarto render` reproduces any of
+# them - so they are build output, not source.
+#
+# They were tracked until 2026-08-13 and had started to lie: README.html
+# predated README.md and was missing eight of its twenty headings, including
+# every per-script section. Each _files directory is also 888 KB of vendored
+# Bootstrap and clipboard.js, byte-identical to the other, rewritten in full on
+# every render.
+#
+# The .md files are the ones to read and the ones that are versioned.
+*.html
+*_files/
+
+# The static site is the exception: under 10_static_site/ the HTML is source,
+# not output - it is the page itself, not a render of a .md beside it. Without
+# this a second page added there would be silently skipped, which the blanket
+# rule above did on its first day.
+!/00_wxdash_2.0/10_static_site/*.html

@@ -7,8 +7,10 @@ social and hazard indicators, then uses multilevel regression and
 poststratification (MRP) to produce an estimate for every county in the
 contiguous United States and every NWS County Warning Area (CWA).
 
-The pipeline is seven R scripts, run in order. Each output file is named for the
-script that wrote it, so `03_county_alert_counts.csv` came from `03`.
+The pipeline is ten numbered steps, run in order. Each output file is named for
+the script that wrote it, so `03_county_alert_counts.csv` came from `03`.
+Steps `01`-`07` build the estimates; `08` documents the survey instruments, and
+`09` and `10` are the two dashboards that present the results.
 
 ---
 
@@ -20,6 +22,18 @@ Two files, both long format, one row per area per measure:
 |---|---|---|
 | `07_county_estimates.csv` | 74,616 | 3,109 counties × 24 measures |
 | `07_cwa_estimates.csv` | 2,784 | 116 CWAs × 24 measures |
+
+and the same estimates joined to simplified boundaries for mapping, wide rather
+than long:
+
+| file | contents |
+|---|---|
+| `07_county_estimates_sf.rds` | 3,109 counties × 24 measures + geometry |
+| `07_cwa_estimates_sf.rds` | 116 CWAs × 24 measures + 9 alert counts |
+
+The CWA file also carries the nine alert counts the models are fitted on, under
+an `ALERT_` prefix, so exposure can be read beside the estimate it helps
+explain. They are counts of days, not a 1–5 scale.
 
 Twenty-four measures in four families. Twelve are composite scales, each the
 mean of several 1–5 survey items; twelve are single 1–5 risk perception items.
@@ -132,7 +146,16 @@ since the CWA is already an attribute and no geometry is needed. Counts are
 distinct **days**, not events, so a hazard producing twenty warnings in one day
 counts once.
 
-**Writes** `02_cwa_alert_counts.csv` — 124 CWAs × 9 hazard categories.
+`FREEZE` is kept separate from `COLD`, and `SURG` separate from `HURR`. Both
+splits are deliberate: frost and freeze products are issued for agriculture in
+California, Oregon and Florida rather than for cold places, and storm surge
+warnings did not exist before 2017. Merging either would blur an exposure
+measure the models rely on.
+
+**Writes** `02_cwa_alert_counts.csv` — 124 CWAs × 11 hazard categories — and
+`02_alert_years.csv`, the first and last year each category appears in. The
+totals sum the years away, and anything reporting "alert days between X and Y"
+needs the span for that hazard rather than the archive's.
 
 ### `03_create_county_alert_dataset.R`
 
@@ -143,7 +166,8 @@ boundaries in EPSG:5070 (Albers equal area), so a county is credited when any
 part of it was covered. This is the slowest script in the pipeline by a wide
 margin.
 
-**Writes** `03_county_alert_counts.csv` — 3,222 counties × 9 hazard categories.
+**Writes** `03_county_alert_counts.csv` — 3,222 counties × 11 hazard
+categories.
 
 ### `04_create_poststrat_dataset.R`
 
@@ -189,6 +213,13 @@ built last, each the mean of its items, requiring a minimum number of
 non-missing responses.
 
 **Writes** `05_survey_responses.csv` — 35,600 respondents.
+
+The twelve composite scales are defined here and nowhere else: which items go
+into each, and which are reverse coded. That definition is written out as
+`05_scale_items.csv` — 50 items across 12 scales — so the dashboards can
+show the questions behind a scale without keeping a second copy that would
+drift from this one.
+
 
 ### `06_fit_models.R`
 
@@ -241,7 +272,58 @@ estimates are the population-weighted mean over every cell in the CWA. Both come
 from the same prediction set, and the script verifies that rebuilding the CWA
 figures from county estimates reproduces them to within 1e-8.
 
-**Writes** `07_county_estimates.csv` and `07_cwa_estimates.csv`.
+The estimates are also joined to boundaries for mapping. County geometry comes
+from `cb_2025_us_county_20m`, the same file `03` counts against, so `FIPS` keys
+to `GEOID` directly — the NWS county file predates Connecticut's planning
+regions and would leave nine holes in the state. CWA geometry is `w_16ap26`.
+Both are simplified with `rmapshaper`, which simplifies shared borders once
+rather than once per polygon, so adjacent areas still meet.
+
+**Writes** `07_county_estimates.csv`, `07_cwa_estimates.csv`, and the two
+`_sf.rds` files described under **What it produces**.
+
+### `08_create_variable_reference/`
+
+The codebook: one row per survey hazard per variable, carrying each question as
+it was actually asked across all 22 instruments.
+
+Read off the `.docx` instruments by hand rather than parsed. Extraction is
+scripted; judgment is not. Instrument errors are recorded in `NOTES.md` and in
+the `notes` column, never corrected in the sheet — the sheet records what the
+documents say.
+
+**Writes** `variable_reference.csv`. The `.docx` instruments are gitignored, so
+a fresh clone has the sheet but not the sources.
+
+### `09_wxdash_app/`
+
+The Shiny dashboard, in two tabs. **Explore Survey Results** shows weighted
+response distributions for any of 915 questions, split by twelve demographic and
+survey variables. **Map Survey Estimates** maps the 24 CWA estimates and the
+nine alert counts, with a printable one-page overview sheet per area.
+
+`data/09_create_dashboard_data.R` builds what the app reads: it will not write
+unless `app.R` sits beside the target, because writing to an old path while the
+app reads a new one looks like a successful rebuild that changes nothing.
+
+Percentages are weighted with `srvyr` on `PERSON_WEIGHT`, which comes from
+raking against six ACS margins in the `wxsurveys` repository.
+
+### `10_static_site/`
+
+The same dashboard as static files — plain HTML, one JavaScript file and a
+folder of data. No server, no Shiny, no R at run time.
+
+Nothing in the dashboard is computed from user input: every view it can draw is
+one slice of a fixed set, so `10_build_static_site.R` works all of them out in
+advance. The 915 questions across 45 split levels come to about 204,000 rows,
+small enough to ship as files. Upload the output directory to any web host.
+
+A full build takes about fifteen minutes, almost all of it the questions.
+`--map-only` reuses the existing question files and rebuilds the map, the
+measure list and the HTML in about two seconds.
+
+**Writes** `outputs/10_site/`.
 
 ---
 
@@ -266,8 +348,10 @@ WX25_RAW="/path/to/WX25 Raw Data"
 A Census API key is required as `CENSUS_API_KEY`, and an IPUMS key as
 `IPUMS_API_KEY` if you rebuild the microdata extract.
 
-**Packages:** `tidyverse`, `data.table`, `sf`, `lubridate`, `readxl`, `here`,
-`ipumsr`, `tidycensus`, `mipfp`, `lme4`, `psych`.
+**Packages.** Estimation: `tidyverse`, `data.table`, `sf`, `lubridate`,
+`readxl`, `here`, `ipumsr`, `tidycensus`, `mipfp`, `lme4`, `psych`,
+`rmapshaper`. Dashboards: `shiny`, `DT`, `srvyr`, `ggtext`, `mapgl`,
+`viridisLite`, `htmltools`, `jsonlite`.
 
 ---
 
@@ -281,14 +365,31 @@ source("04_create_poststrat_dataset.R")
 source("05_create_survey_dataset.R")
 source("06_fit_models.R")
 source("07_predict_estimates.R")
+source("09_wxdash_app/data/09_create_dashboard_data.R")
+source("10_static_site/10_build_static_site.R")
 ```
 
 `01` through `03` depend only on downloaded data and can run in any order. `04`
 needs `01`. `05` needs `01` through `04`. `06` needs `05`. `07` needs `02`,
-`03`, `04` and `06`.
+`03`, `04` and `06`. `09` needs `05`, `07` and `08`; `10` needs `09`.
 
 Re-running only the tail is common and safe: if the survey data has not changed,
 `06` and `07` can be run on their own.
+
+`06` is not push-button. It prints a summary for each of the 24 models and
+expects someone to read them before `07` publishes anything from the fits.
+
+### Adding a survey wave
+
+One line of code: the `waves` vector at the top of `05`. Everything else is
+data — the new instrument added to `08` following the procedure there, and a
+new `_all` alert year in `downloads/` if the archive has moved.
+
+Then rerun `02` and `03` (only if the alert year is new), `05`, `06`, `07`, `09`
+and `10`. Two rough edges: `07` names `04_county_poststrat_2024.csv`
+explicitly, so a new poststratification vintage means editing `07`; and the
+alert archive spans differ by hazard, which `02` records rather than anything
+assuming.
 
 ---
 

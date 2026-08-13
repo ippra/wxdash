@@ -52,7 +52,8 @@ app_data <- here::here("00_wxdash_2.0", "09_wxdash_app", "data")
 needed <- file.path(app_data, c("09_dashboard_questions.csv",
                                 "09_dashboard_responses.rds",
                                 "09_dashboard_cwa.rds",
-                                "09_dashboard_measure_questions.csv"))
+                                "09_dashboard_measure_questions.csv",
+                                "09_dashboard_alert_years.csv"))
 
 if (!all(file.exists(needed))) {
   print(basename(needed[!file.exists(needed)]))
@@ -66,6 +67,7 @@ if (!dir.exists(template_dir)) {
 questions <- read_csv(needed[1], show_col_types = FALSE)
 responses <- read_rds(needed[2])
 cwa_estimates <- read_rds(needed[3])
+alert_years <- read_csv(needed[5], show_col_types = FALSE)
 measure_questions <- read_csv(needed[4], show_col_types = FALSE)
 
 dir.create(paste0(site_dir, "data/q"), recursive = TRUE, showWarnings = FALSE)
@@ -367,8 +369,12 @@ measures <- imap(map_measures, function(x, group) {
     if (str_starts(measure, "ALERT_")) {
       return(list(
         measure = measure, label = label, group = group, alert = TRUE,
-        span = if (measure == "ALERT_SURG") "2017 and 2025"
-               else "2010 and 2025",
+        # From 02 by way of 09, not written here: a literal is wrong the
+        # day a 2026 archive is added and nothing would notice.
+        span = alert_years |>
+          filter(measure == .env$measure) |>
+          transmute(s = paste(first_year, "and", last_year)) |>
+          pull(s),
         hazard = NA_character_, response_options = NA_character_,
         n_intros = 1L, shared_intro = FALSE, intro = NA_character_,
         items = tibble(question_intro = character(),
