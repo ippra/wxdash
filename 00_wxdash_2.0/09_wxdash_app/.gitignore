@@ -1,9 +1,18 @@
-# data/ is written by 09_create_dashboard_data.R and is derived, not source.
-# It is deliberately not versioned: the .rds is a binary that changes on every
-# rebuild, and git would keep every version of it forever.
+# The data/ directory is written by 09_create_dashboard_data.R and is derived,
+# not source. It is deliberately not versioned: the .rds files are binaries that
+# change on every rebuild, and git would keep every version of them forever.
 #
+# The script that writes them is the exception. It lives in this directory and
+# is source like any other, but a bare "data/" swallowed it - git never saw it,
+# and a fresh clone got an app.R demanding four files with no way to build them.
+#
+# data/* rather than data/ is what makes the exception possible: with a trailing
+# slash git will not descend into the directory at all, so a negation inside it
+# never gets a chance to match.
+data/*
+!data/09_create_dashboard_data.R
+
 # This does not affect deploying. rsconnect bundles the files on disk, so as
 # long as 09 has been run, data/ goes up with the app whether or not git tracks
 # it. It does mean a fresh clone must run 09 before the app will start, which
 # is what the guard at the top of app.R says when it hasn't.
-data/

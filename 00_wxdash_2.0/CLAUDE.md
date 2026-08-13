@@ -271,16 +271,49 @@ so provenance reads off the filename. All of them `source(here::here(
 | `01` | county-to-CWA crosswalk |
 | `02`, `03` | CWA and county alert counts from NWS archives |
 | `04` | poststratification cells and county covariates |
-| `05` | `05_survey_responses.csv` — 22 pooled waves, 2,085 columns, ~400 MB |
+| `05` | `05_survey_responses.csv`, 22 waves, ~400 MB; `05_scale_items.csv` |
 | `06` | multilevel models; fixed effects are the five poststrat cells |
-| `07` | CWA and county estimates |
+| `07` | CWA and county estimates, as CSV and as simplified `sf` for mapping |
 | `08` | `variable_reference.csv` — the codebook, read off instruments |
 | `09_wxdash_app/` | the Shiny app, with `data/09_create_dashboard_data.R` |
+| `10_static_site/` | the dashboard as static files; no R at run time |
+
+Adding a survey wave is one line of code: the `waves` vector at the top of
+`05`. Everything else is data — a new instrument in `08`, a new `_all` alert
+year in `downloads/` — then rerun `02` and `03` (only if the alert year is
+new), `05`, `06`, `07`, `09`, `10`. Two rough edges on that path: `07` names
+`04_county_poststrat_2024.csv` explicitly, so a new poststrat vintage means
+editing `07`; and `06` expects a human to read 24 model summaries, which is
+deliberate and means the chain is not push-button.
 
 The five poststratification cells — `AGE_GROUP`, `GENDER_GROUP`, `RACE_GROUP`,
 `EDUC_GROUP`, `INCOME_GROUP` — are built in `04` and fit in `06`. Anything
 that splits the data should use those, so the app cuts it the way the models
 do.
+
+`05` also writes `05_scale_items.csv`: which survey items went into each of the
+twelve reception, comprehension and response scales, and which were reverse
+coded. The item lists in `05` are the only definition of those scales; `09`
+reads this file to show the questions behind a scale rather than keeping a
+second copy that would drift.
+
+## Alert categories
+
+`02` and `03` bucket VTEC phenomena into hazard categories. Two splits are
+deliberate and easy to undo by accident:
+
+- `FREEZE` is separate from `COLD`. Frost and freeze products are issued for
+  agriculture in CA, OR and FL, not for cold places — the two correlate -0.21
+  across CWAs, and merging them halved every winter risk correlation.
+- `SURG` is separate from `HURR`, so `risk_surge` has an exposure measure of
+  its own. `HURR` predicts the item better (.23 against .21) but is dominated
+  by tropical wind products; the split was chosen for measurement validity, not
+  fit, and dropping `SS` costs the hurricane models nothing. `SS` only exists
+  from 2017, so `SURG` spans nine of the sixteen archive years.
+
+`07` carries the nine alert counts the models fit onto the CWA map file under an
+`ALERT_` prefix, so exposure can be read beside the estimate it helps explain.
+They are counts of days, not a 1-5 scale, and both dashboards branch on that.
 
 ## The variable reference
 
@@ -315,16 +348,23 @@ skill but not the sources.
 
 ## The app
 
-`09_wxdash_app/app.R` reads only `data/09_dashboard_questions.csv` and
-`data/09_dashboard_responses.rds`, written by `data/09_create_dashboard_data.R`.
-Both paths are **relative** on purpose: a deployed Shiny app is a copy of its
+`09_wxdash_app/app.R` has two tabs. **Explore Survey Results** is the weighted
+response distributions; **Map Survey Estimates** maps the 24 CWA estimates from
+`07` on MapLibre, with a printable overview sheet per area. It reads four files
+from `data/`, all written by `data/09_create_dashboard_data.R`: the questions,
+the responses, the CWA geometry and the questions behind each mapped measure.
+Those paths are **relative** on purpose: a deployed Shiny app is a copy of its
 own directory, with no `00_paths.R` and no `WXDASH_LOCAL` on the server. That
 is the one place this pipeline departs from "every script writes to
 `outputs/`".
 
 `data/` is gitignored — derived, and the `.rds` would otherwise land in git
-history on every rebuild. A fresh clone must run `09` before the app starts,
-which is what the guard at the top of `app.R` says.
+history on every rebuild. The one exception is
+`data/09_create_dashboard_data.R`, negated in the app's `.gitignore` because it
+is source, not output. That negation needs `data/*` rather than `data/`: with a
+trailing slash git will not descend into the directory, so a negation inside it
+never matches. A fresh clone must still run `09` before the app starts, which is
+what the guard at the top of `app.R` says.
 
 If the app directory is ever renamed again, `09_create_dashboard_data.R` has to
 be pointed at the new name. It refuses to write unless `app.R` sits beside the
@@ -336,4 +376,34 @@ Percentages are weighted with `srvyr` on `PERSON_WEIGHT`, which comes from
 `rake()` against six ACS margins in the `wxsurveys` repo. Two estimators are in
 play: `survey_prop(proportion = TRUE)` when confidence intervals are shown, and
 `proportion = FALSE` when they are not — identical point estimates, but the
-logit fit warns on a cell at 0 or 100%.
+logit fit warns on a cell at 0 or 100%. Measured across 3,109 cells, the two
+differ by at most 2.9e-09, so `10` precomputes only the first and uses it for
+both.
+
+## The static site
+
+`10_static_site/` holds `10_build_static_site.R` and the site source it copies.
+The build writes `outputs/10_site/` — plain HTML, one JavaScript file and a
+folder of data — which needs no R, no Shiny and no server. Nothing in the
+dashboard is computed from user input, so every view it can draw is precomputed
+here instead.
+
+The build script lives in the folder it copies, so the copy filters `.R` files
+out and then checks the built site for them. Without that, the script would be
+published as readable source at `/10_build_static_site.R`.
+
+A full build takes about fifteen minutes, almost all of it the 915 questions.
+`--map-only` reuses the existing question files and rebuilds the map, the
+measure list and the HTML in about two seconds; use it for anything that does
+not touch survey data. It refuses to run without a previous full build.
+
+**The measure list, splits, palettes and phrasing are declared three times** —
+in `app.R`, in `10_build_static_site.R` and in `10_static_site/app.js`, across
+two languages. Adding a measure means three edits and nothing catches a missed
+one. This is the largest maintenance cost in the repo; the fix is for the build
+script to write that list to JSON and both front ends to read it.
+
+Neither dashboard was ever verified in a browser from a session — there is no
+headless browser on the workstation. Checks are `testServer`, serving the site
+locally and reading the payloads. Ask before claiming anything about how it
+looks.
