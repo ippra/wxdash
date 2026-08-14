@@ -21,7 +21,7 @@ order,group,label,measure
 20,Risk perceptions,Extreme heat risk perceptions,RISK_HEAT
 21,Risk perceptions,Wildfire risk perceptions,RISK_FIRE
 22,Risk perceptions,Drought risk perceptions,RISK_DROUGHT
-23,Risk perceptions,Hail risk perceptions,RISK_HAIL
+23,Risk perceptions,Tornado risk perceptions,RISK_HAIL
 24,Risk perceptions,Lightning risk perceptions,RISK_LIGNT
 25,Alert frequency,Tornado alert days,ALERT_TORN
 26,Alert frequency,Hurricane alert days,ALERT_HURR
