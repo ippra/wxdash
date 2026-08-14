@@ -16,7 +16,7 @@ Steps `01`-`07` build the estimates; `08` documents the survey instruments, and
 
 ## What it produces
 
-Two files, both long format, one row per area per measure:
+Two long-format files, one row per area per measure:
 
 | file | rows | contents |
 |---|---|---|
@@ -79,19 +79,25 @@ data is stored in this repository.
 
 Prefixes denote the survey instrument: `WX` general severe weather, `TC`
 tropical cyclone, `WW` winter weather, `FL` flood. The `_wtd` suffix indicates
-the released file carries survey weights. 35,600 respondents across 22 waves
+the released file carries survey weights. 35,457 respondents across 22 waves
 survive processing.
 
 ### Geography
 
 | file | source |
 |---|---|
-| `c_16ap26/` — NWS county and CWA boundaries | [weather.gov/gis/Counties](https://www.weather.gov/gis/Counties) |
+| `c_16ap26/` — NWS county-to-CWA assignment | [weather.gov/gis/Counties](https://www.weather.gov/gis/Counties) |
+| `w_16ap26/` — NWS CWA boundaries | [weather.gov/gis/CWA](https://www.weather.gov/gis/CWABounds) |
 | `cb_2025_us_county_20m/` — Census county boundaries, 20m generalization | [Census cartographic boundary files](https://www.census.gov/geographies/mapping-files/time-series/geo/cartographic-boundary.html) |
-| `ZIP_COUNTY_122025.xlsx` — ZIP to county crosswalk | [HUD USPS crosswalk](https://www.huduser.gov/portal/datasets/usps_crosswalk.html) |
 
-The HUD crosswalk is read from a separate directory, not from `downloads/`. See
-**Configuration**.
+`c_16ap26` supplies the county-to-CWA assignment in `01`; its geometry is not
+used, because it predates Connecticut's planning regions. County geometry comes
+from `cb_2025_us_county_20m` throughout, and CWA geometry from `w_16ap26` in
+`07`.
+
+Respondent location is not resolved here. The wave files arrive from the
+`wxsurveys` repository already carrying `ZIP_FIPS`, `ZIP_CWA` and `ZIP_STATE`,
+so no ZIP crosswalk is read by this pipeline.
 
 ### Warning records
 
@@ -99,8 +105,8 @@ The HUD crosswalk is read from a separate directory, not from `downloads/`. See
 |---|---|
 | `2010_all/` … `2025_all/` — archived watch, warning and advisory polygons, one directory per year | [Iowa Environmental Mesonet, Iowa State University](https://mesonet.agron.iastate.edu/request/gis/watchwarn.phtml) |
 
-By far the largest inputs, roughly 1.3 GB per year. VTEC phenomenon codes are
-grouped into nine hazard categories following
+By far the largest inputs, roughly 1.4 GB per year. VTEC phenomenon codes are
+grouped into eleven hazard categories following
 [pyIEM's VTEC reference](https://github.com/akrherz/pyIEM/blob/main/src/pyiem/nws/vtec.py).
 
 ### Population and area characteristics
@@ -122,8 +128,10 @@ filename in the script must be updated to match when it is.
 
 ### `00_paths.R`
 
-Defines `downloads`, `outputs` and `location_files`. Every other script sources
-it, so directory locations exist in exactly one place. Not a pipeline step.
+Defines `downloads`, `outputs` and `survey_files`. Every other script sources
+it, so directory locations exist in exactly one place, and it stops if either
+root in `~/.Renviron` is unset or points somewhere that does not exist. Not a
+pipeline step.
 
 ### `01_create_county_cwa_crosswalk.R`
 
@@ -132,8 +140,8 @@ Assigns each county to one NWS County Warning Area.
 Counties spanning multiple CWAs are assigned to the first listed. Two
 corrections are applied by hand: mainland Monroe County, Florida is assigned to
 Key West, and Connecticut's nine planning regions are assigned individually,
-because the NWS county file still uses Connecticut's retired county geography
-and would otherwise leave the entire state unmatched.
+because the NWS county file uses Connecticut's pre-2022 county geography and
+would otherwise leave the entire state unmatched.
 
 **Writes** `01_county_cwa_crosswalk.csv` — 3,222 counties and their CWA.
 
@@ -199,26 +207,33 @@ county fails to converge or has no CWA.
 
 Combines the 22 survey waves into one respondent-level file.
 
-Waves differ in structure, so this script reconciles them. ZIP codes stored as
-numbers lose their leading zero and are repaired to five digits; several columns
-change type between years. Respondents are assigned a county from their ZIP
-using the HUD crosswalk, taking the county with the largest residential share,
-then a CWA from that county. Where a respondent's self-reported state disagrees
-with the state implied by their ZIP, the record is dropped as a data-entry
-error.
+The wave files arrive from the `wxsurveys` repository already carrying
+`SURVEY_YEAR`, `SURVEY_HAZARD` and `SURVEY_LANGUAGE`, the poststratification
+groups, `PERSON_WEIGHT`, and the respondent's location as `ZIP_FIPS`, `ZIP_CWA`
+and `ZIP_STATE`. Location is resolved upstream, and the `ZIP_` prefix records
+that all three are derived from the respondent's zip rather than from anything
+self-reported. This script renames them to `FIPS`, `CWA` and `STATE_NAME`, which
+is what `06` and `07` model on.
 
-Demographics are recoded to match the poststratification categories exactly.
-Alert counts and county covariates are joined on. The four reception scales are
-built last, each the mean of its items, requiring a minimum number of
-non-missing responses.
+`WX17` is handled separately: it asked the reception and response batteries on a
+1–7 scale where 2018 onward use 1–5, so those columns are dropped rather than
+pooled across incompatible scales.
 
-**Writes** `05_survey_responses.csv` — 35,600 respondents.
+Alert counts and county covariates are joined on, and the twelve composite
+scales are built — four reception, four comprehension, four response. Each is
+the mean of its items and requires at least two non-missing responses, because a
+one-item "scale" is a different quantity from the multi-item mean rather than a
+noisier version of it. Reverse coding is decided per scale: `rec_time` is
+negatively worded in the severe weather instrument and positively worded in the
+other three, so a uniform rule would mis-key it in one or the other.
 
-The twelve composite scales are defined here and nowhere else: which items go
-into each, and which are reverse coded. That definition is written out as
-`05_scale_items.csv` — 50 items across 12 scales — so the dashboards can
-show the questions behind a scale without keeping a second copy that would
-drift from this one.
+This script is the single definition of those scales — which items go into each,
+and which are reverse coded. It writes that definition out alongside the
+responses, so the dashboards can show the questions behind a scale from one
+source rather than a second copy.
+
+**Writes** `05_survey_responses.csv` — 35,457 respondents — and
+`05_scale_items.csv`, 50 items across 12 scales.
 
 
 ### `06_fit_models.R`
@@ -277,7 +292,8 @@ from `cb_2025_us_county_20m`, the same file `03` counts against, so `FIPS` keys
 to `GEOID` directly — the NWS county file predates Connecticut's planning
 regions and would leave nine holes in the state. CWA geometry is `w_16ap26`.
 Both are simplified with `rmapshaper`, which simplifies shared borders once
-rather than once per polygon, so adjacent areas still meet.
+rather than once per polygon, so adjacent areas meet exactly instead of
+leaving slivers between them.
 
 **Writes** `07_county_estimates.csv`, `07_cwa_estimates.csv`, and the two
 `_sf.rds` files described under **What it produces**.
@@ -306,10 +322,10 @@ nine alert counts, with a printable one-page overview sheet per area.
 unless `app.R` sits beside the target, because writing to an old path while the
 app reads a new one looks like a successful rebuild that changes nothing.
 
-The six files it writes are versioned rather than ignored, so a clone has
-everything the app needs and anyone building against them can pin a commit.
-Rerun `09` when the survey data changes; the app's `.gitignore` records the
-reasoning and the measured cost.
+The six files it writes are versioned, so a clone has everything the app needs
+and anyone building against them can pin a commit. Rerun `09` when the survey
+data changes; the app's `.gitignore` records why they are tracked and what it
+costs.
 
 Percentages are weighted with `srvyr` on `PERSON_WEIGHT`, which comes from
 raking against six ACS margins in the `wxsurveys` repository.
@@ -339,15 +355,16 @@ Data lives outside the repository. Two roots are set once per machine in
 
 ```
 WXDASH_LOCAL="/path/to/local files"
-WX25_RAW="/path/to/WX25 Raw Data"
+WXSURVEYS_ROOT="/path/to/wxsurveys/"
 ```
 
-`00_paths.R` derives three directories from these:
+`00_paths.R` derives three directories from these, and stops if either root is
+unset or missing:
 
 - `downloads/` — everything listed under **Data sources**
 - `outputs/` — everything the pipeline writes
-- `location_files/` — the HUD ZIP crosswalk, which lives with the survey
-  project rather than this one
+- `survey_files/` — the 22 built wave datasets, read from the `wxsurveys`
+  repository rather than downloaded
 
 `.Renviron` is read once at R startup, so restart the session after editing it.
 A Census API key is required as `CENSUS_API_KEY`, and an IPUMS key as
@@ -405,19 +422,24 @@ and CWA random effects account for this share of total variance:
 
 | family | geographic variance | county estimate spread |
 |---|---|---|
-| risk perception | 3.0 – 29.5% | 1.5 – 3.5 points |
-| comprehension | 2.8 – 7.4% | 0.8 – 1.1 points |
-| response | 1.0 – 3.1% | 0.3 – 0.6 points |
-| reception | 0.1 – 2.9% | 0.3 – 0.7 points |
+| risk perception | 2.6 – 29.3% | 1.5 – 3.5 points |
+| comprehension | 2.8 – 7.2% | 0.8 – 1.1 points |
+| response | 0.9 – 3.1% | 0.3 – 0.6 points |
+| reception | 0.1 – 3.0% | 0.3 – 0.6 points |
 
 Risk perception is where places genuinely differ — whether you face snow or
 wildfire is largely determined by where you live. Reception and response are
-mostly individual, and their county estimates span a third of a point on a 1–5
-scale.
+mostly individual, and their county estimates span a third to two thirds of a
+point on a 1–5 scale.
 
-**Use one color scale across measures.** Scaling each map to its own range makes
-a 0.33-point reception spread look as differentiated as a 3.5-point risk spread.
-They are not comparable, and a per-measure scale implies they are.
+**Choose a colour scale deliberately.** Scaling every map to its own range
+makes a 0.3-point reception spread look as differentiated as a 3.5-point risk
+spread, and the two are not comparable. A shared 1–5 scale keeps measures
+comparable to each other. Stretching each measure to its own range instead shows
+where places differ on that measure, at the cost of comparability — necessary
+for the warning measures, which on a shared scale render as a single flat tone.
+The dashboards stretch, and name the range beneath every map so the span is
+stated rather than assumed.
 
 **Estimates carry no uncertainty.** Given that most counties contribute no
 respondents, the interval around a county estimate is substantially wider than
