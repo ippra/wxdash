@@ -306,6 +306,11 @@ nine alert counts, with a printable one-page overview sheet per area.
 unless `app.R` sits beside the target, because writing to an old path while the
 app reads a new one looks like a successful rebuild that changes nothing.
 
+The six files it writes are versioned rather than ignored, so a clone has
+everything the app needs and anyone building against them can pin a commit.
+Rerun `09` when the survey data changes; the app's `.gitignore` records the
+reasoning and the measured cost.
+
 Percentages are weighted with `srvyr` on `PERSON_WEIGHT`, which comes from
 raking against six ACS margins in the `wxsurveys` repository.
 

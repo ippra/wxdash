@@ -358,13 +358,21 @@ own directory, with no `00_paths.R` and no `WXDASH_LOCAL` on the server. That
 is the one place this pipeline departs from "every script writes to
 `outputs/`".
 
-`data/` is gitignored — derived, and the `.rds` would otherwise land in git
-history on every rebuild. The one exception is
-`data/09_create_dashboard_data.R`, negated in the app's `.gitignore` because it
-is source, not output. That negation needs `data/*` rather than `data/`: with a
-trailing slash git will not descend into the directory, so a negation inside it
-never matches. A fresh clone must still run `09` before the app starts, which is
-what the guard at the top of `app.R` says.
+`data/` **is versioned**, as of 2026-08-13, and its `.gitignore` records why.
+It was ignored on the reasoning that the `.rds` files are binaries rewritten on
+every rebuild; that was outweighed by the fact that these six files are the
+contract other people build against, and what they need is provenance — which
+commit produced them — which git answers natively and a synced folder cannot.
+Measured cost: about 6 MB a refresh against a `.git` already 93 MB. Revisit if
+the refresh cadence becomes weekly rather than a few times a year.
+
+Nothing in that directory is ignored, deliberately: a seventh output file added
+later should be tracked without anyone remembering to allow it. That was the
+failure that kept `09_create_dashboard_data.R` out of git entirely — a bare
+`data/` never let git descend far enough to see it.
+
+A fresh clone therefore has everything the app needs and starts without running
+`09` first. Rerun `09` when the survey data changes.
 
 If the app directory is ever renamed again, `09_create_dashboard_data.R` has to
 be pointed at the new name. It refuses to write unless `app.R` sits beside the
