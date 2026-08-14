@@ -25,14 +25,15 @@ so provenance reads off the filename. All of them `source(here::here(
 | `08` | `variable_reference.csv` — the codebook, read off instruments |
 | `09_wxdash_app/` | the Shiny app, with `data/09_create_dashboard_data.R` |
 | `10_static_site/` | the dashboard as static files; no R at run time |
+| `11_dashboard/` | the production site, assembled from `10`'s output |
 
 Adding a survey wave is one line of code: the `waves` vector at the top of
 `05`. Everything else is data — a new instrument in `08`, a new `_all` alert
 year in `downloads/` — then rerun `02` and `03` (only if the alert year is
-new), `05`, `06`, `07`, `09`, `10`. Two rough edges on that path: `07` names
-`04_county_poststrat_2024.csv` explicitly, so a new poststrat vintage means
-editing `07`; and `06` expects a human to read 24 model summaries, which is
-deliberate and means the chain is not push-button.
+new), `05`, `06`, `07`, `09`, `10`, `11`. Two rough edges on that path: `07`
+names `04_county_poststrat_2024.csv` explicitly, so a new poststrat vintage
+means editing `07`; and `06` expects a human to read 24 model summaries, which
+is deliberate and means the chain is not push-button.
 
 The five poststratification cells — `AGE_GROUP`, `GENDER_GROUP`, `RACE_GROUP`,
 `EDUC_GROUP`, `INCOME_GROUP` — are built in `04` and fit in `06`. Anything
@@ -163,14 +164,48 @@ duplicates — copies it into `data/`, and both front ends read it from there.
 Adding a measure is a row in that CSV, and a measure that no longer exists
 upstream stops the build rather than vanishing from a menu.
 
-**Splits and palettes are still declared three times** — in `app.R`, in
-`10_build_static_site.R` and in `10_static_site/app.js`, across two languages.
-Thirteen splits and four palettes, and nothing catches a missed edit. This is
-the largest remaining maintenance cost in the repo; the fix is the one that
-worked for measures — declare them in a CSV the build script publishes and both
-front ends read.
+**Splits are declared four times** — in `app.R`, in `10_build_static_site.R`,
+in `10_static_site/app.js` and in `11_build_dashboard.R`, across two languages.
+Thirteen splits with a caption phrase each, currently identical in all four,
+and nothing catches a missed edit. Palettes are worse: four in `10`, and
+`11_dashboard/site/engine.js` carries its own viridis, cividis and greys plus a
+scheme picker. This is the largest remaining maintenance cost in the repo; the
+fix is the one that worked for measures — declare them in a CSV the build
+scripts publish and every front end reads.
 
-A session can see either dashboard. Chrome is installed and runs headless:
+## The production site
+
+`11_dashboard/` is the deployed dashboard, maintained by Matthew Henderson on
+top of `01`–`10`. It has its own `README.md`, which is the fuller account; what
+matters from here is the property the arrangement buys. `11_build_dashboard.R`
+computes **no statistics**: every percentage, interval and estimate is `10`'s
+output carried over verbatim, so the production site cannot disagree with the
+reference site. A calculation added to the builder gives that up, and the
+verification harness it replaced would have to come back.
+
+`site/` is the hand-edited front end — `engine.js`, `engine.css`, `index.html`,
+vendored Leaflet, Chart.js and jsPDF. The builder copies it, fills the
+`__BUILD__` cache-busting stamp, drops anything hidden, and refuses to publish
+a built site containing `.R` files. It writes `outputs/11_site/`, which is the
+rsync unit; a run takes seconds, so iterating on the front end is cheap.
+
+The quiz is the one place the builder authors claims about the data. Prompts
+are fixed, answers and reveal numbers are read off `10`'s distributions, and
+guards halt the build when the data stops supporting the sentence: an answer
+naming a winner has to clear the runner-up by three points, more than the
+intervals the reveal chart draws beside it, while an answer resting on an
+ordered split claims a direction instead and is guarded for the run still going
+one way. Shares are carried unrounded for exactly this reason — rounding first
+moves a group up to a point, which is enough to walk an answer past a margin it
+does not clear.
+
+The comparison pairings in `11` are transcribed from `06_fit_models.R`: the map
+crossfades a measure against the alert history its model was fitted on. Drought,
+hail and lightning are fitted on FEMA NRI frequencies rather than an NWS
+product, so they have no pairing and the page says so.
+
+A session can see any of the three dashboards. Chrome is installed and runs
+headless:
 
 ```sh
 "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
@@ -184,10 +219,14 @@ WebGL, which MapLibre needs; `--disable-gpu` removes WebGL entirely and the map
 comes back blank. `preserveDrawingBuffer: true` is already set in `app.js`, so
 the canvas survives being read back.
 
-Two traps when driving the map tab. Tabs switch on click, with no URL for the
-map, so reaching it means injecting a click - and `showTab()` resizes the map
-only if it already exists, so wait for `canvas.maplibregl-canvas` to appear
-before clicking or the map keeps MapLibre's 400x300 zero-container fallback and
-renders nothing. To tell a real blank from a capture artifact, draw the canvas
-into a 2D context and count non-white pixels rather than trusting the
-screenshot.
+Two traps when driving `09` or `10`'s map tab. Tabs switch on click, with no
+URL for the map, so reaching it means injecting a click - and `showTab()`
+resizes the map only if it already exists, so wait for
+`canvas.maplibregl-canvas` to appear before clicking or the map keeps
+MapLibre's 400x300 zero-container fallback and renders nothing. To tell a real
+blank from a capture artifact, draw the canvas into a 2D context and count
+non-white pixels rather than trusting the screenshot.
+
+Neither trap applies to `11`, which routes on the hash - `#survey`, `#map`,
+`#quiz` go straight to a page - and draws with Leaflet on a 2D canvas, so it
+needs no WebGL and no swiftshader flag.

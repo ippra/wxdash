@@ -111,10 +111,16 @@ deploy.
 - **Test Your Knowledge quiz**: five two-part questions. Prompts are fixed;
   answer keys and reveal numbers are derived from `10`'s distributions at
   build time, so they always agree with what the explorer shows. Prose
-  guards halt the build when the data stops supporting a hand-written claim
-  (a share that left its answer band, a trend like "reliance falls with
-  age" that flipped, a tie for a "which is highest" question) and name the
-  sentence to re-write. On answer the front end also charts the real
+  guards halt the build when the data stops supporting a hand-written claim,
+  naming the sentence to re-write. A "which group is highest" answer has to
+  clear the runner-up by three points (0.2 on a 1–5 mean) — more than the
+  confidence intervals the reveal chart draws on the same numbers, so the
+  reader can see the answer rather than being told they lost a coin flip. An
+  answer that rests on an ordered split instead claims a direction —
+  understanding rises with age — and is guarded for the run still going one
+  way end to end, which lets adjacent groups sit close together. A share
+  that leaves its answer band, or lands between two bands, halts too.
+  On answer the front end also charts the real
   distribution straight from the question's `data/q/` file (part 1 national,
   follow-up split by the question's `explore.params.grouping`); parts whose
   prompt compares several survey variables (the Q2/Q4 openers) instead carry

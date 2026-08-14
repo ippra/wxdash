@@ -81,6 +81,16 @@ if (length(absent) > 0) {
 }
 
 df <- st_drop_geometry(cwa)
+
+# Checked before the rank arithmetic below, which reads an NA as the best value
+# in the country: sum(v > NA, na.rm = TRUE) is 0, so the area would ship as
+# rank 1 at the 0th percentile rather than as missing.
+incomplete <- offered[vapply(offered, function(m) anyNA(df[[m]]), logical(1))]
+if (length(incomplete) > 0) {
+  print(incomplete)
+  stop("Measures above have areas with no value - 07 dropped a CWA.")
+}
+
 measure_values <- setNames(lapply(menu, function(m) {
   code <- m$measure
   is_alert <- isTRUE(m$alert)
@@ -290,6 +300,15 @@ if (length(unpaired) > 0) {
        "decide their alert pairing (see 06_fit_models.R) and add it.")
 }
 
+# The other direction: a pairing naming an alert layer the menu no longer
+# offers leaves the crossfade with nothing to fade to, and the front end has
+# no values for it either — cwa_values.json is keyed by the menu.
+dangling <- setdiff(compare_pairing[!is.na(compare_pairing)], offered)
+if (length(dangling) > 0) {
+  print(unname(dangling))
+  stop("Alert layers above are paired to a measure but are not in the menu.")
+}
+
 catalog <- lapply(menu, function(m) list(
   code = m$measure, label = m$label, group = m$group,
   kind = if (isTRUE(m$alert)) "alert" else "estimate",
@@ -311,41 +330,83 @@ split_rows <- function(q, split) {
   if (is.null(rows)) stop("Quiz needs split ", split, " on ", q$id, ".")
   rows
 }
-# Share (percent, 0 dp) answering within codes, per group.
+# Share answering within codes, per group. Carried at full precision: the
+# guards below measure how far apart two groups really are, and a share
+# rounded first can gain or lose a point on the way, which is enough to walk
+# an answer past a margin it does not clear.
 share_of <- function(id, codes, split = "All") {
   rows <- split_rows(q_data(id), split)
   groups <- unique(map_chr(rows, "group"))
   out <- vapply(groups, function(g) {
-    round(sum(map_dbl(rows, function(r)
-      if (r$group == g && as.numeric(r$resp) %in% codes) r$p else 0)))
+    sum(map_dbl(rows, function(r)
+      if (r$group == g && as.numeric(r$resp) %in% codes) r$p else 0))
   }, double(1))
   setNames(out, groups)
 }
-# Weighted mean (1 dp) of the response codes, per group: the shares are
-# weighted, so sum(code * p) / sum(p) IS the weighted mean of the item.
+# Weighted mean of the response codes, per group: the shares are weighted, so
+# sum(code * p) / sum(p) IS the weighted mean of the item.
 mean_of <- function(id, split = "All") {
   rows <- split_rows(q_data(id), split)
   groups <- unique(map_chr(rows, "group"))
   out <- vapply(groups, function(g) {
     gr <- keep(rows, function(r) r$group == g)
-    round(sum(map_dbl(gr, function(r) as.numeric(r$resp) * r$p)) /
-            sum(map_dbl(gr, "p")), 1)
+    sum(map_dbl(gr, function(r) as.numeric(r$resp) * r$p)) /
+      sum(map_dbl(gr, "p"))
   }, double(1))
   setNames(out, groups)
 }
+# Written into prose and chart labels at the precision the explorer shows:
+# whole percentage points for a share, one decimal for a 1-5 mean.
+shown_pct <- function(x) round(x)
+shown_mean <- function(x) round(x, 1)
 check_prose <- function(ok, what) {
   if (!ok) stop("Quiz prose drifted: ", what, " — re-word that question in ",
                 "11_build_dashboard.R before shipping.")
 }
+# The nearest offered band, guarded so that "nearest" means something: the
+# tolerance is half the narrowest gap between bands, so a share sitting
+# between two of them halts rather than being rounded into the lower one.
 pct_band <- function(share, options_pcts) {
-  check_prose(min(abs(options_pcts - share)) <= 12,
-              paste0("computed share ", share, "% is not close to any ",
-                     "offered band (", paste(options_pcts, collapse = "/"),
-                     ")"))
+  tol <- min(diff(sort(options_pcts))) / 2
+  check_prose(min(abs(options_pcts - share)) < tol,
+              paste0("computed share ", share, "% is not within ", tol,
+                     " points of one offered band (",
+                     paste(options_pcts, collapse = "/"), ")"))
   which.min(abs(options_pcts - share)) - 1L
 }
 no_tie <- function(x, what) {
   check_prose(sum(x == max(x)) == 1, paste0(what, " has a tie for first"))
+}
+# A quiz answer has to be one the reader can see for themselves in the chart
+# the reveal draws, and the two kinds of answer here are true in different
+# ways.
+#
+# decisive() is for a single winner among unordered choices. It has to clear
+# the runner-up by more than the confidence intervals 10 puts on the same
+# numbers - those run about 1.6 points on a share - or the answer is a coin
+# flip the reader is told they lost. Means on the 1-5 scale take margin = 0.2.
+#
+# gradient() is for ordered splits, where the reveal claims a direction rather
+# than a winner: understanding rises with age, reliance on social media falls
+# with it. The claim is the whole run, so the guard is that it still runs one
+# way end to end; adjacent groups are allowed to sit close together, which is
+# why age survives here on a 1.7-point top pair.
+decisive <- function(x, what, low = FALSE, margin = 3) {
+  o <- order(x, decreasing = !low)
+  gap <- abs(x[[o[1]]] - x[[o[2]]])
+  check_prose(gap >= margin, paste0(
+    what, ": ", names(x)[o[1]], " and ", names(x)[o[2]], " are ", round(gap, 2),
+    " apart, under the ", margin, " the intervals on the same numbers can ",
+    "separate - re-word it or ask a different group"))
+  o[1]
+}
+gradient <- function(x, what, low = FALSE) {
+  steps <- diff(unname(x))
+  check_prose(all(steps >= 0) || all(steps <= 0), paste0(
+    what, ": the run across the groups no longer goes one way (",
+    paste(round(x, 2), collapse = ", "), ")"))
+  no_tie(if (low) -x else x, what)
+  if (low) which.min(x) else which.max(x)
 }
 # Q2 and Q4 open by comparing four separate survey variables, so no single
 # data/q file matches the prompt; these rows ARE the comparison the prompt
@@ -362,21 +423,22 @@ quiz <- local({
   q1_by <- share_of("WX_alert_und", c(4, 5), "AGE_GROUP")
   q1_opts <- c("About 40%", "About 60%", "About 80%", "Nearly 100%")
   q1_ans <- pct_band(q1_all, c(40, 60, 80, 98))
+  q1_top <- gradient(q1_by, "Q1 reveal: understanding rises with age")
 
   rely_vars <- c(Television = "WX_wx_info3", `Social media` = "WX_wx_info5",
                  `Weather radio` = "WX_wx_info2",
                  `Word of mouth` = "WX_wx_info6")
   rely_means <- vapply(rely_vars, function(v) mean_of(v)[["All"]], double(1))
-  no_tie(rely_means, "Q2 most-relied source")
+  rely_top <- decisive(rely_means, "Q2 most-relied source", margin = 0.2)
   q2_by <- mean_of("WX_wx_info5", "AGE_GROUP")
-  check_prose(which.max(q2_by) == 1 && which.min(q2_by) == length(q2_by),
-              "Q2 reveal claims social-media reliance falls with age")
+  q2_top <- gradient(q2_by, "Q2 reveal: social-media reliance falls with age")
 
   wep_shares <- vapply(1:3, function(k)
     share_of("TC_wep_rec", k)[["All"]], double(1))
   q3_opts <- c("Numbers", "Words", "A combination of both")
-  no_tie(wep_shares, "Q3 numbers/words/both")
+  wep_top <- decisive(setNames(wep_shares, q3_opts), "Q3 numbers/words/both")
   q3_by <- share_of("TC_wep_rec", 1, "EDUC_GROUP")
+  q3_top <- gradient(q3_by, "Q3 reveal: numbers-only rises with education")
   check_prose(all(q3_by < 50),
               "Q3 reveal calls numbers-only a minority in every group")
 
@@ -385,13 +447,19 @@ quiz <- local({
                  Flooding = "WX_risk_flood")
   risk_shares <- vapply(risk_vars, function(v)
     share_of(v, c(4, 5))[["All"]], double(1))
-  no_tie(risk_shares, "Q4 highest-rated risk")
+  risk_top <- decisive(risk_shares, "Q4 highest-rated risk")
   q4_by <- share_of("WX_risk_flood", c(4, 5), "CENSUS_REGION")
+  q4_top <- decisive(q4_by, "Q4 highest-flood-risk region")
 
   q5_all <- share_of("WX_rec_all", c(4, 5))[["All"]]
   q5_opts <- c("About 30%", "About 50%", "About 70%", "About 90%")
   q5_ans <- pct_band(q5_all, c(30, 50, 70, 90))
-  q5_by <- share_of("WX_rec_all", c(4, 5), "RURAL_GROUP")
+  # Asked by region rather than by community type: urban, suburban and rural
+  # sit within three points of each other on this item, which is inside the
+  # intervals the reveal chart draws, so the answer was one the reader could
+  # not see. Tornado warnings are rare in the West, and that shows here.
+  q5_by <- share_of("WX_rec_all", c(4, 5), "CENSUS_REGION")
+  q5_low <- decisive(q5_by, "Q5 lowest-reception region", low = TRUE)
 
   list(
     list(
@@ -400,14 +468,15 @@ quiz <- local({
                         "they understand the difference between a tornado ",
                         "WATCH and a tornado WARNING?"),
         options = q1_opts, answer = q1_ans,
-        reveal = paste0(q1_all, "% say they probably or definitely ",
+        reveal = paste0(shown_pct(q1_all), "% say they probably or ",
+                        "definitely ",
                         "understand the difference.")),
       part2 = list(
         prompt = "Which age group reports the highest understanding?",
-        options = names(q1_by), answer = which.max(q1_by) - 1L,
-        reveal = paste0(names(q1_by)[which.max(q1_by)], " — ", max(q1_by),
-                        "% say so, against ", min(q1_by),
-                        "% of the lowest group.")),
+        options = names(q1_by), answer = q1_top - 1L,
+        reveal = paste0(names(q1_by)[q1_top], " — ",
+                        shown_pct(q1_by[[q1_top]]), "% say so, against ",
+                        shown_pct(min(q1_by)), "% of the lowest group.")),
       explore = list(href = "#survey",
                      label = "Explore this question in the data",
                      params = list(q = "WX_alert_und",
@@ -415,17 +484,20 @@ quiz <- local({
     list(
       part1 = list(
         prompt = "What source do people rely on most for weather information?",
-        options = names(rely_vars), answer = which.max(rely_means) - 1L,
-        reveal = paste0(names(rely_vars)[which.max(rely_means)], " — ",
-                        max(rely_means), " on the 1–5 reliance scale."),
-        chart = cmp_chart(rely_means, "Mean reliance (1–5 scale)")),
+        options = names(rely_vars), answer = rely_top - 1L,
+        reveal = paste0(names(rely_vars)[rely_top], " — ",
+                        shown_mean(rely_means[[rely_top]]),
+                        " on the 1–5 reliance scale."),
+        chart = cmp_chart(shown_mean(rely_means),
+                          "Mean reliance (1–5 scale)")),
       part2 = list(
         prompt = paste0("Which age group relies most on social media for ",
                         "weather information?"),
-        options = names(q2_by), answer = which.max(q2_by) - 1L,
-        reveal = paste0(names(q2_by)[which.max(q2_by)], " (", max(q2_by),
+        options = names(q2_by), answer = q2_top - 1L,
+        reveal = paste0(names(q2_by)[q2_top], " (",
+                        shown_mean(q2_by[[q2_top]]),
                         " of 5). Reliance falls with age — the lowest group ",
-                        "averages ", min(q2_by), ".")),
+                        "averages ", shown_mean(min(q2_by)), ".")),
       explore = list(href = "#survey",
                      label = "Explore this question in the data",
                      params = list(q = "WX_wx_info5",
@@ -434,15 +506,17 @@ quiz <- local({
       part1 = list(
         prompt = paste0("When getting information from forecasters, what do ",
                         "most people prefer: numbers, words, or both?"),
-        options = q3_opts, answer = which.max(wep_shares) - 1L,
-        reveal = paste0("Numbers alone: ", wep_shares[1], "%. Words alone: ",
-                        wep_shares[2], "%. A combination of both: ",
-                        wep_shares[3], "%.")),
+        options = q3_opts, answer = wep_top - 1L,
+        reveal = paste0("Numbers alone: ", shown_pct(wep_shares[1]),
+                        "%. Words alone: ", shown_pct(wep_shares[2]),
+                        "%. A combination of both: ",
+                        shown_pct(wep_shares[3]), "%.")),
       part2 = list(
         prompt = paste0("Which education group is most likely to prefer ",
                         "numbers only?"),
-        options = names(q3_by), answer = which.max(q3_by) - 1L,
-        reveal = paste0(names(q3_by)[which.max(q3_by)], " (", max(q3_by),
+        options = names(q3_by), answer = q3_top - 1L,
+        reveal = paste0(names(q3_by)[q3_top], " (",
+                        shown_pct(q3_by[[q3_top]]),
                         "%) — though numbers-only is a minority preference ",
                         "in every group.")),
       explore = list(href = "#survey",
@@ -453,18 +527,21 @@ quiz <- local({
       part1 = list(
         prompt = paste0("Which hazard do the most Americans rate as a high ",
                         "or extreme risk where they live?"),
-        options = names(risk_vars), answer = which.max(risk_shares) - 1L,
-        reveal = paste0(names(risk_vars)[which.max(risk_shares)], " — ",
-                        max(risk_shares), "% rate it high or extreme."),
-        chart = cmp_chart(risk_shares, "Rate it high or extreme (%)",
+        options = names(risk_vars), answer = risk_top - 1L,
+        reveal = paste0(names(risk_vars)[risk_top], " — ",
+                        shown_pct(risk_shares[[risk_top]]),
+                        "% rate it high or extreme."),
+        chart = cmp_chart(shown_pct(risk_shares),
+                          "Rate it high or extreme (%)",
                           function(v) paste0(v, "%"))),
       part2 = list(
         prompt = paste0("Which census region reports the highest perceived ",
                         "flood risk?"),
-        options = names(q4_by), answer = which.max(q4_by) - 1L,
-        reveal = paste0("The ", names(q4_by)[which.max(q4_by)], " — ",
-                        max(q4_by), "% rate flood risk high or extreme, ",
-                        "against ", min(q4_by), "% in the lowest region.")),
+        options = names(q4_by), answer = q4_top - 1L,
+        reveal = paste0("The ", names(q4_by)[q4_top], " — ",
+                        shown_pct(q4_by[[q4_top]]),
+                        "% rate flood risk high or extreme, against ",
+                        shown_pct(min(q4_by)), "% in the lowest region.")),
       explore = list(href = "#survey",
                      label = "Explore this question in the data",
                      params = list(q = "WX_risk_flood",
@@ -474,19 +551,21 @@ quiz <- local({
         prompt = paste0("What share of people agree they receive all ",
                         "tornado warnings issued for their area?"),
         options = q5_opts, answer = q5_ans,
-        reveal = paste0(q5_all, "% — meaning many people are not confident ",
-                        "they get every warning.")),
+        reveal = paste0(shown_pct(q5_all), "% — meaning many people are ",
+                        "not confident they get every warning.")),
       part2 = list(
-        prompt = paste0("Which community type is LEAST likely to say they ",
-                        "receive all warnings?"),
-        options = names(q5_by), answer = which.min(q5_by) - 1L,
-        reveal = paste0(names(q5_by)[which.min(q5_by)], " residents — ",
-                        min(q5_by), "% agree they receive them all, against ",
-                        max(q5_by), "% in the highest group.")),
+        prompt = paste0("Which census region is LEAST likely to say they ",
+                        "receive all tornado warnings?"),
+        options = names(q5_by), answer = q5_low - 1L,
+        reveal = paste0("The ", names(q5_by)[q5_low], " — ",
+                        shown_pct(q5_by[[q5_low]]),
+                        "% agree they receive them all, against ",
+                        shown_pct(max(q5_by)), "% in the ",
+                        names(q5_by)[which.max(q5_by)], ".")),
       explore = list(href = "#survey",
                      label = "Explore this question in the data",
                      params = list(q = "WX_rec_all",
-                                   grouping = "RURAL_GROUP")))
+                                   grouping = "CENSUS_REGION")))
   )
 })
 
@@ -681,6 +760,14 @@ invisible(file.copy(list.files(site_src, full.names = TRUE), out,
                     recursive = TRUE, overwrite = TRUE))
 index_html <- readLines(file.path(site_src, "index.html"))
 writeLines(gsub("__BUILD__", BUILD, index_html), paste0(out, "index.html"))
+
+# list.files() skips dotfiles at the top of site/, but the copy above descends
+# into assets/ as whole directories, so macOS's .DS_Store rides along and is
+# published. Dropped here rather than filtered on the way in, because the trap
+# is anything hidden, not that one filename.
+copied <- list.files(out, recursive = TRUE, all.files = TRUE,
+                     full.names = TRUE)
+unlink(copied[startsWith(basename(copied), ".")])
 
 # Guarded rather than trusted: nothing under site/ should be R, but a script
 # saved there by mistake would otherwise become readable source on a public
