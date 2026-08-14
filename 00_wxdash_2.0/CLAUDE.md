@@ -349,27 +349,30 @@ skill but not the sources.
 ## The app
 
 `09_wxdash_app/app.R` has two tabs. **Explore Survey Results** is the weighted
-response distributions; **Map Survey Estimates** maps the 24 CWA estimates from
-`07` on MapLibre, with a printable overview sheet per area. It reads four files
+response distributions; **Map Survey Estimates** maps 33 measures across the 116
+CWAs on MapLibre, with a printable overview sheet per area. The 33 are the 24
+measures `06` predicts — twelve reception, comprehension and response scales for
+four hazards, plus twelve risk perceptions — and the nine alert-day counts `07`
+carries alongside them. It reads six files
 from `data/`, all written by `data/09_create_dashboard_data.R`: the questions,
-the responses, the CWA geometry and the questions behind each mapped measure.
+the responses, the CWA geometry, the questions behind each mapped measure, the
+measure menu and the year span each alert count covers.
 Those paths are **relative** on purpose: a deployed Shiny app is a copy of its
 own directory, with no `00_paths.R` and no `WXDASH_LOCAL` on the server. That
 is the one place this pipeline departs from "every script writes to
 `outputs/`".
 
-`data/` **is versioned**, as of 2026-08-13, and its `.gitignore` records why.
-It was ignored on the reasoning that the `.rds` files are binaries rewritten on
-every rebuild; that was outweighed by the fact that these six files are the
-contract other people build against, and what they need is provenance — which
-commit produced them — which git answers natively and a synced folder cannot.
-Measured cost: about 6 MB a refresh against a `.git` already 93 MB. Revisit if
-the refresh cadence becomes weekly rather than a few times a year.
+`data/` **is versioned**, and its `.gitignore` records why. These six files are
+the contract other people build against, and what such a build needs is
+provenance — which commit produced these numbers — which git answers natively
+and a folder sent out of band cannot. The cost is about 6 MB a refresh, since
+`.rds` stores a full new object rather than a delta. Revisit if the refresh
+cadence becomes weekly rather than a few times a year.
 
 Nothing in that directory is ignored, deliberately: a seventh output file added
-later should be tracked without anyone remembering to allow it. That was the
-failure that kept `09_create_dashboard_data.R` out of git entirely — a bare
-`data/` never let git descend far enough to see it.
+later should be tracked without anyone remembering to allow it, and an explicit
+list of six is a list that goes out of date silently. A bare `data/` rule also
+never lets git descend far enough to see the build script itself.
 
 A fresh clone therefore has everything the app needs and starts without running
 `09` first. Rerun `09` when the survey data changes.
@@ -405,13 +408,20 @@ A full build takes about fifteen minutes, almost all of it the 915 questions.
 measure list and the HTML in about two seconds; use it for anything that does
 not touch survey data. It refuses to run without a previous full build.
 
-**The measure list, splits, palettes and phrasing are declared three times** —
-in `app.R`, in `10_build_static_site.R` and in `10_static_site/app.js`, across
-two languages. Adding a measure means three edits and nothing catches a missed
-one. This is the largest maintenance cost in the repo; the fix is for the build
-script to write that list to JSON and both front ends to read it.
+**The measure menu is declared once**, in `09_wxdash_app/measures.csv`: one row
+per mapped measure, giving its order, its group and its label. `09` validates
+that file against what `07` actually produces — in both directions, plus
+duplicates — copies it into `data/`, and both front ends read it from there.
+Adding a measure is a row in that CSV, and a measure that no longer exists
+upstream stops the build rather than vanishing from a menu.
 
-Neither dashboard was ever verified in a browser from a session — there is no
-headless browser on the workstation. Checks are `testServer`, serving the site
-locally and reading the payloads. Ask before claiming anything about how it
-looks.
+**Splits and palettes are still declared three times** — in `app.R`, in
+`10_build_static_site.R` and in `10_static_site/app.js`, across two languages.
+Thirteen splits and four palettes, and nothing catches a missed edit. This is
+the largest remaining maintenance cost in the repo; the fix is the one that
+worked for measures — declare them in a CSV the build script publishes and both
+front ends read.
+
+A session cannot verify either dashboard in a browser: there is no headless
+browser on the workstation. Checks are `testServer`, serving the site locally
+and reading the payloads. Ask before claiming anything about how it looks.
