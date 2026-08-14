@@ -16,7 +16,8 @@ needed <- file.path(data_dir, c("09_dashboard_questions.csv",
                                 "09_dashboard_responses.rds",
                                 "09_dashboard_cwa.rds",
                                 "09_dashboard_measure_questions.csv",
-                                "09_dashboard_alert_years.csv"))
+                                "09_dashboard_alert_years.csv",
+                                "09_dashboard_measures.csv"))
 
 # Failing here with the reason beats failing later with "object not found".
 if (!all(file.exists(needed))) {
@@ -184,66 +185,23 @@ blank_basemap <- list(
   ))
 )
 
-# Grouped by hazard, with the risk battery kept together at the end. The map is
-# read by people who did not fit the models, so the label is what it is called
-# here and RISK_SURGE is what it is called in the data.
+# The measure menu, read rather than declared. measures.csv beside this file is
+# the one place it is written down; 09 validates it against what 07 actually
+# produces and copies it here, and the static site build reads the same file.
+# It used to be declared here and again in 10_build_static_site.R, character for
+# character, with nothing checking that the two agreed.
 #
-# Every label names its hazard even though the group heading already does. A
-# closed select shows the option and not the group it came from, so a label of
-# "Reception" alone would leave the control reading as nothing once chosen.
-#
-# Reception, comprehension and response are the three constructs the models in
-# 06 fit, named here as they are named there. The hazard word follows the
-# instrument: ice is "ice and freezing rain" because that is what was asked.
-map_measures <- list(
-  "Tornadoes" = c(
-    "Tornado warning reception" = "TO_RECEP",
-    "Tornado warning comprehension" = "TO_SUBJ_COMP",
-    "Tornado warning response" = "TO_RESP"
-  ),
-  "Hurricanes" = c(
-    "Hurricane warning reception" = "HU_RECEP",
-    "Hurricane warning comprehension" = "HU_SUBJ_COMP",
-    "Hurricane warning response" = "HU_RESP"
-  ),
-  "Winter storms" = c(
-    "Winter storm warning reception" = "WW_RECEP",
-    "Winter storm warning comprehension" = "WW_SUBJ_COMP",
-    "Winter storm warning response" = "WW_RESP"
-  ),
-  "Floods" = c(
-    "Flood warning reception" = "FL_RECEP",
-    "Flood warning comprehension" = "FL_SUBJ_COMP",
-    "Flood warning response" = "FL_RESP"
-  ),
-  "Risk perceptions" = c(
-    "Tornado risk perceptions" = "RISK_TOR",
-    "Hurricane risk perceptions" = "RISK_HUR",
-    "Storm surge risk perceptions" = "RISK_SURGE",
-    "Flood risk perceptions" = "RISK_FLOOD",
-    "Snow risk perceptions" = "RISK_SNOW",
-    "Ice and freezing rain risk perceptions" = "RISK_ICE",
-    "Extreme cold risk perceptions" = "RISK_COLD",
-    "Extreme heat risk perceptions" = "RISK_HEAT",
-    "Wildfire risk perceptions" = "RISK_FIRE",
-    "Drought risk perceptions" = "RISK_DROUGHT",
-    "Hail risk perceptions" = "RISK_HAIL",
-    "Lightning risk perceptions" = "RISK_LIGNT"
-  ),
-  # Last, and deliberately apart from everything above it: these are observed
-  # counts from the NWS archive, not estimates of what anyone said.
-  "Alert frequency" = c(
-    "Tornado alert days" = "ALERT_TORN",
-    "Hurricane alert days" = "ALERT_HURR",
-    "Storm surge alert days" = "ALERT_SURG",
-    "Flood alert days" = "ALERT_FLOOD",
-    "Snow alert days" = "ALERT_SNOW",
-    "Ice alert days" = "ALERT_ICE",
-    "Extreme cold alert days" = "ALERT_COLD",
-    "Extreme heat alert days" = "ALERT_HEAT",
-    "Fire weather alert days" = "ALERT_FIRE"
-  )
-)
+# fct_inorder on the sorted order is what preserves the drop-down sequence:
+# split() would otherwise return the groups alphabetically.
+measure_menu <- read_csv(needed[6], show_col_types = FALSE) |>
+  arrange(order) |>
+  mutate(group = fct_inorder(group))
+
+map_measures <- measure_menu |>
+  group_by(group) |>
+  group_map(~set_names(.x$measure, .x$label)) |>
+  set_names(levels(measure_menu$group))
+
 
 # The ends of the response scale, read off the options the instrument offered
 # rather than described from memory. "3.4" means nothing without knowing what 5

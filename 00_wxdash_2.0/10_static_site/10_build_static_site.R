@@ -53,7 +53,8 @@ needed <- file.path(app_data, c("09_dashboard_questions.csv",
                                 "09_dashboard_responses.rds",
                                 "09_dashboard_cwa.rds",
                                 "09_dashboard_measure_questions.csv",
-                                "09_dashboard_alert_years.csv"))
+                                "09_dashboard_alert_years.csv",
+                                "09_dashboard_measures.csv"))
 
 if (!all(file.exists(needed))) {
   print(basename(needed[!file.exists(needed)]))
@@ -68,6 +69,12 @@ questions <- read_csv(needed[1], show_col_types = FALSE)
 responses <- read_rds(needed[2])
 cwa_estimates <- read_rds(needed[3])
 alert_years <- read_csv(needed[5], show_col_types = FALSE)
+
+# The same menu app.R reads, from the same file 09 wrote. It was declared in
+# both files until now, identically and with nothing checking that.
+measure_menu <- read_csv(needed[6], show_col_types = FALSE) |>
+  arrange(order) |>
+  mutate(group = fct_inorder(group))
 measure_questions <- read_csv(needed[4], show_col_types = FALSE)
 
 dir.create(paste0(site_dir, "data/q"), recursive = TRUE, showWarnings = FALSE)
@@ -312,57 +319,11 @@ geojson_path <- paste0(site_dir, "data/cwa.geojson")
 if (file.exists(geojson_path)) unlink(geojson_path)
 st_write(cwa_site, geojson_path, driver = "GeoJSON", quiet = TRUE)
 
-# The drop-down, its labels and the questions behind each measure, in the order
-# the app lists them.
-map_measures <- list(
-  "Tornadoes" = c(
-    "Tornado warning reception" = "TO_RECEP",
-    "Tornado warning comprehension" = "TO_SUBJ_COMP",
-    "Tornado warning response" = "TO_RESP"
-  ),
-  "Hurricanes" = c(
-    "Hurricane warning reception" = "HU_RECEP",
-    "Hurricane warning comprehension" = "HU_SUBJ_COMP",
-    "Hurricane warning response" = "HU_RESP"
-  ),
-  "Winter storms" = c(
-    "Winter storm warning reception" = "WW_RECEP",
-    "Winter storm warning comprehension" = "WW_SUBJ_COMP",
-    "Winter storm warning response" = "WW_RESP"
-  ),
-  "Floods" = c(
-    "Flood warning reception" = "FL_RECEP",
-    "Flood warning comprehension" = "FL_SUBJ_COMP",
-    "Flood warning response" = "FL_RESP"
-  ),
-  "Risk perceptions" = c(
-    "Tornado risk perceptions" = "RISK_TOR",
-    "Hurricane risk perceptions" = "RISK_HUR",
-    "Storm surge risk perceptions" = "RISK_SURGE",
-    "Flood risk perceptions" = "RISK_FLOOD",
-    "Snow risk perceptions" = "RISK_SNOW",
-    "Ice and freezing rain risk perceptions" = "RISK_ICE",
-    "Extreme cold risk perceptions" = "RISK_COLD",
-    "Extreme heat risk perceptions" = "RISK_HEAT",
-    "Wildfire risk perceptions" = "RISK_FIRE",
-    "Drought risk perceptions" = "RISK_DROUGHT",
-    "Hail risk perceptions" = "RISK_HAIL",
-    "Lightning risk perceptions" = "RISK_LIGNT"
-  ),
-  # Last, and deliberately apart from everything above it: these are observed
-  # counts from the NWS archive, not estimates of what anyone said.
-  "Alert frequency" = c(
-    "Tornado alert days" = "ALERT_TORN",
-    "Hurricane alert days" = "ALERT_HURR",
-    "Storm surge alert days" = "ALERT_SURG",
-    "Flood alert days" = "ALERT_FLOOD",
-    "Snow alert days" = "ALERT_SNOW",
-    "Ice alert days" = "ALERT_ICE",
-    "Extreme cold alert days" = "ALERT_COLD",
-    "Extreme heat alert days" = "ALERT_HEAT",
-    "Fire weather alert days" = "ALERT_FIRE"
-  )
-)
+map_measures <- measure_menu |>
+  group_by(group) |>
+  group_map(~set_names(.x$measure, .x$label)) |>
+  set_names(levels(measure_menu$group))
+
 
 measures <- imap(map_measures, function(x, group) {
   imap(set_names(unname(x), names(x)), function(measure, label) {

@@ -290,6 +290,43 @@ if (length(measure_columns) == 0 || !"CWA_NAME" %in% names(cwa_estimates)) {
 
 alert_columns <- grep("^ALERT_", names(cwa_estimates), value = TRUE)
 
+# The measure menu ---------------------------------------------------------
+# What the map offers, what each entry is called, and the order it is listed
+# in. Held as a spreadsheet beside app.R rather than as code, because it is the
+# part that changes most often and it is read by three things: this script, the
+# Shiny app, and the static site build. Adding a measure is a row here, in one
+# place, in no language.
+#
+# It lives outside data/ because it is source, not output.
+measure_menu <- read_csv(
+  here::here("00_wxdash_2.0", "09_wxdash_app", "measures.csv"),
+  col_types = cols(order = col_integer(), .default = col_character())
+) |>
+  arrange(order)
+
+# Checked here so a typo fails at build time with a name, rather than in a
+# browser as a map that paints nothing.
+unknown <- setdiff(measure_menu$measure, c(measure_columns, alert_columns))
+
+if (length(unknown) > 0) {
+  print(unknown)
+  stop("measures.csv lists measures above that 07 does not produce.")
+}
+
+# The other direction matters too: a measure produced but never listed is
+# invisible in both dashboards, which looks like the model was never fitted.
+unlisted <- setdiff(c(measure_columns, alert_columns), measure_menu$measure)
+
+if (length(unlisted) > 0) {
+  print(unlisted)
+  stop("Measures above are produced by 07 but missing from measures.csv.")
+}
+
+if (anyDuplicated(measure_menu$measure) > 0 ||
+    anyDuplicated(measure_menu$label) > 0) {
+  stop("measures.csv has a duplicate measure or label.")
+}
+
 # Which years each alert category actually covers, from 02. Carried into the
 # app rather than written down there, because a hardcoded "2010 to 2025" is
 # wrong the day a 2026 archive is added and nothing would catch it.
@@ -310,6 +347,9 @@ message("CWA estimates: ", nrow(cwa_estimates), " areas, ",
         length(measure_columns), " measures, ",
         length(alert_columns), " alert counts spanning ",
         min(alert_years$first_year), "-", max(alert_years$last_year))
+
+message("Measure menu: ", nrow(measure_menu), " entries in ",
+        n_distinct(measure_menu$group), " groups")
 
 write_rds(cwa_estimates, file.path(app_data, "09_dashboard_cwa.rds"),
           compress = "gz")
@@ -401,5 +441,6 @@ write_csv(measure_questions,
           file.path(app_data, "09_dashboard_measure_questions.csv"))
 
 write_csv(alert_years, file.path(app_data, "09_dashboard_alert_years.csv"))
+write_csv(measure_menu, file.path(app_data, "09_dashboard_measures.csv"))
 
 message("Wrote app data to ", app_data)
