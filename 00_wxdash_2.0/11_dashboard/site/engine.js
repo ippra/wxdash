@@ -428,7 +428,7 @@ function dataTable({ columns, rows, pageSize = 25, pageSizeOptions = null, colum
    data (which preserves R's factor-level ordering from the compiler), unless
    an explicit categoryOrder is supplied by config. */
 let activeChart = null;
-function groupedBarChart(canvas, rows, { title = "", xLabel = "", yLabel = "", categoryOrder = null, showCI = false, horizontal = false, colors = null }) {
+function groupedBarChart(canvas, rows, { title = "", xLabel = "", yLabel = "", categoryOrder = null, showCI = false, horizontal = false, colors = null, legend = true }) {
   const groupsSeen = [], catsSeen = [];
   for (const r of rows) {
     const g = naLabel(r.group), c = naLabel(r.category);
@@ -477,7 +477,10 @@ function groupedBarChart(canvas, rows, { title = "", xLabel = "", yLabel = "", c
       plugins: {
         title: title ? { display: true, text: title, align: "start",
           font: { size: 15, weight: "600" }, padding: { bottom: 16 } } : { display: false },
-        legend: { position: "bottom", title: { display: true, text: "Group" } },
+        // legend:false for single-group charts (quiz reveal) — a one-entry
+        // "Group: All" legend is noise.
+        legend: legend ? { position: "bottom", title: { display: true, text: "Group" } }
+          : { display: false },
         datalabels: showCI ? { display: false } : {
           anchor: "end", align: "end", offset: 0, clip: false,
           color: getComputedStyle(document.body).getPropertyValue("--text").trim() || "#000",
@@ -1241,7 +1244,14 @@ components.wx_landing = async function (page, container) {
 /* Test Your Knowledge — Joe's quiz (Aug 2026): each question is guess the
  * national result, then guess the subgroup, then a deep link into the
  * dashboard to see why. Content + answer keys are compiler-authored
- * (config.pages[quiz].questions) and derived from bundle data. */
+ * (config.pages[quiz].questions) and derived from bundle data.
+ *
+ * Visual pass (Aug 2026): answering reveals the REAL distribution as a chart
+ * drawn from the same data/q/ file the explorer uses (part 1 = national,
+ * follow-up = the compiler's subgroup split), a segmented progress bar
+ * tracks ✓/✗, and every reveal + the finale recap deep-link into the survey
+ * explorer — Joe's ask: people should be able to exit the quiz at any point
+ * to dive into whatever piqued their interest. */
 components.wx_quiz = async function (page, container) {
   const quiz = page.questions || [];
   // Prompts number straight through 1..N (Matthew: "1 of 5" was confusing
@@ -1251,25 +1261,92 @@ components.wx_quiz = async function (page, container) {
   const promptsBefore = quiz.map((_, i) =>
     quiz.slice(0, i).reduce((t, q) => t + partsOf(q).length, 0));
   let idx = 0, score = 0, answered = 0;
+  const results = quiz.map(() => []);   // per-question ✓/✗, feeds progress + recap
   const card = el("div", { class: "card wx-quiz-card" });
   container.append(el("div", { class: "page wx-quiz-page" },
     el("div", { class: "content" }, card)));
 
+  // One segment per prompt; ✓/✗ glyphs carry the state (greyscale theme —
+  // never color alone), the outlined segment is where you are.
+  const progress = el("div", { class: "wx-quiz-progress" });
+  function drawProgress() {
+    progress.textContent = "";
+    progress.setAttribute("aria-label",
+      `${answered} of ${totalPrompts} answered, ${score} right`);
+    const flat = results.flat();
+    for (let i = 0; i < totalPrompts; i++) {
+      const seg = el("span", { class: "wx-quiz-seg" });
+      if (i < flat.length) {
+        seg.classList.add(flat[i] ? "correct" : "wrong");
+        seg.textContent = flat[i] ? "✓" : "✗";
+      } else if (i === flat.length) seg.classList.add("current");
+      progress.append(seg);
+    }
+  }
+
+  // Wrong-answer lead-ins rotate, never repeating back-to-back (Matthew: a
+  // flat "Not quite" on every miss reads robotic). Keep them friendly, in
+  // the "not quite" register — earlier blunter drafts read snarky — and
+  // free of factual claims ("so close!" could be false); the reveal
+  // sentence carries the data, these only soften the miss.
+  const WRONG_LEADS = ["Not quite — ", "Good guess, but not quite — ",
+    "Not exactly — ", "A tricky one — ", "This one surprises many people — "];
+  let lastLead = -1;
+  function wrongLead() {
+    let i;
+    do { i = Math.floor(Math.random() * WRONG_LEADS.length); }
+    while (i === lastLead);
+    lastLead = i;
+    return WRONG_LEADS[i];
+  }
+
+  // Explorer deep link. grouping=null keeps the compiler's split (the
+  // follow-up's subject); part 1 passes "All" for the national view.
+  function exploreLink(q, grouping, label) {
+    if (!q.explore) return null;
+    const params = Object.assign({}, q.explore.params,
+      grouping ? { grouping } : null);
+    return el("a", { class: "wx-quiz-explore", href: q.explore.href,
+      onclick: () => q.explore.params && setParams(params) },
+      label || q.explore.label || "See the data");
+  }
+
   function renderQ() {
     card.textContent = "";
+    card.append(progress);
+    drawProgress();
     if (idx >= quiz.length) {
       card.append(el("p", { class: "wx-eyebrow" }, "Done"));
-      card.append(el("h2", { class: "wx-quiz-q" }, `You got ${score} of ${answered} right.`));
+      card.append(el("h2", { class: "wx-quiz-q wx-quiz-score" },
+        `You got ${score} of ${answered} right.`));
       card.append(el("p", { class: "wx-note" },
         "Every answer lives in the dashboard — the interesting part is why. Keep exploring."));
+      // Recap: one row per question, marks + topic + its explorer deep link.
+      const topicOf = (q) => {
+        const s = q.part1.prompt;
+        return s.length > 76 ? s.slice(0, 76).replace(/\s+\S*$/, "") + "…" : s;
+      };
+      card.append(el("div", { class: "wx-quiz-recap" },
+        ...quiz.map((q, i) => el("div", { class: "wx-quiz-recap-row" },
+          el("span", { class: "wx-quiz-recap-marks" },
+            results[i].map(ok => ok ? "✓" : "✗").join(" ")),
+          el("span", { class: "wx-quiz-recap-topic" }, topicOf(q)),
+          exploreLink(q, null, "explore ↗")))));
       card.append(el("div", { class: "wx-quiz-nav" },
         el("a", { class: "wx-cta-button", href: "#survey" }, "Explore the survey questions"),
         el("button", { class: "wx-quiz-again", onclick: () => {
-          idx = 0; score = 0; answered = 0; renderQ();
+          idx = 0; score = 0; answered = 0;
+          results.forEach(r => { r.length = 0; });
+          renderQ();
         } }, "Start over")));
       return;
     }
     const q = quiz[idx];
+    // Prefetch the question's data file so the reveal chart is instant;
+    // null (missing id or fetch failure) just means no chart renders.
+    const dataPromise = (q.explore && q.explore.params && q.explore.params.q)
+      ? fetchJSON(`data/q/${q.explore.params.q}.json`).catch(() => null)
+      : Promise.resolve(null);
     if (idx === 0 && answered === 0 && page.intro)
       card.append(el("p", { class: "wx-note wx-quiz-intro" }, page.intro));
     const eyebrow = el("p", { class: "wx-eyebrow" });
@@ -1278,43 +1355,92 @@ components.wx_quiz = async function (page, container) {
     let part = 0;
     const zone = el("div");
     card.append(zone);
+
+    // The real data behind the prompt just answered: national split for
+    // part 1, the compiler's subgroup split for the follow-up — the same
+    // rows/orientation the explorer will show when they click through.
+    // Exception: a part carrying compiler-emitted `chart` rows (a prompt
+    // that compares several survey variables, so no single data/q file
+    // matches) charts those rows instead.
+    function revealChart(pp) {
+      const grouping = part === 0 ? "All"
+        : ((q.explore && q.explore.params && q.explore.params.grouping) || "All");
+      const grouped = !pp.chart && grouping !== "All";
+      const panel = el("div", { class: "wx-quiz-chart" });
+      panel.append(el("p", { class: "wx-eyebrow" }, "What the survey says"));
+      const wrap = el("div", {
+        class: "wx-quiz-chartwrap" + (grouped ? " grouped" : "") });
+      const canvas = el("canvas");
+      wrap.append(canvas);
+      const cap = el("p", { class: "wx-caption" });
+      panel.append(wrap, cap);
+      if (pp.chart) {
+        cap.append("Weighted survey estimates — ",
+          exploreLink(q, "All", "open in the survey explorer"), ".");
+        groupedBarChart(canvas, pp.chart.rows,
+          { yLabel: pp.chart.y_label, horizontal: true, legend: false });
+        return panel;
+      }
+      dataPromise.then(v => {
+        if (!v || !v.splits) { panel.remove(); return; }
+        const g = (v.splits[grouping] && v.splits[grouping].length) ? grouping : "All";
+        const labelFor = (resp) => {
+          const hit = (v.options || []).find(o => String(o.value) === String(resp));
+          return hit ? wrapTickLabel(hit.label) : String(resp);
+        };
+        const rows = (v.splits[g] || []).map(r => ({
+          group: r.group, category: labelFor(r.resp), value: r.p,
+          label: Math.round(r.p) + "%"
+        }));
+        if (!rows.length) { panel.remove(); return; }
+        const gLabel = (CONFIG.groupings.find(x => x.id === g) || {}).label;
+        cap.append(g === "All"
+          ? "Weighted national distribution — " : `Split by ${gLabel} — `,
+          exploreLink(q, g === "All" ? "All" : null, "open in the survey explorer"), ".");
+        groupedBarChart(canvas, rows, { yLabel: "Respondents (%)",
+          horizontal: true, legend: g !== "All" });
+      });
+      return panel;
+    }
+
     function renderPart() {
       eyebrow.textContent =
         `Question ${promptsBefore[idx] + part + 1} of ${totalPrompts}` +
         (part > 0 ? " — follow-up" : "");
       zone.textContent = "";
       const pp = parts[part];
-      zone.append(el("h3", { class: "wx-quiz-q" }, pp.prompt));
+      const step = el("div", { class: "wx-quiz-step" });
+      zone.append(step);
+      step.append(el("h3", { class: "wx-quiz-q" }, pp.prompt));
       const opts = el("div", { class: "wx-quiz-opts" });
       pp.options.forEach((o, i) => {
         opts.append(el("button", { class: "wx-quiz-opt", onclick: () => {
           answered++;
-          if (i === pp.answer) score++;
+          const right = i === pp.answer;
+          if (right) score++;
+          results[idx].push(right);
+          drawProgress();
           opts.querySelectorAll("button").forEach((bb, j) => {
             bb.disabled = true;
             if (j === pp.answer) { bb.classList.add("correct"); bb.prepend("✓ "); }
             else if (j === i) { bb.classList.add("wrong"); bb.prepend("✗ "); }
           });
-          const fb = el("div", { class: "wx-quiz-reveal" },
-            el("p", {}, (i === pp.answer ? "Right. " : "Not quite — ") + pp.reveal));
+          const fb = el("div", { class: "wx-quiz-reveal", role: "status" },
+            el("p", {}, (right ? "Right. " : wrongLead()) + pp.reveal));
           const nav = el("div", { class: "wx-quiz-nav" });
           if (part + 1 < parts.length) {
             nav.append(el("button", { class: "wx-cta-button", onclick: () => {
               part++; renderPart();
             } }, "Follow-up question"));
           } else {
-            if (q.explore) nav.append(el("a", { class: "wx-quiz-explore",
-              href: q.explore.href,
-              onclick: () => q.explore.params && setParams(q.explore.params)
-            }, q.explore.label || "See the data"));
             nav.append(el("button", { class: "wx-cta-button", onclick: () => {
               idx++; renderQ(); window.scrollTo({ top: 0, behavior: "smooth" });
             } }, idx + 1 < quiz.length ? "Next question" : "Finish"));
           }
-          zone.append(fb, nav);
+          step.append(fb, revealChart(pp), nav);
         } }, o));
       });
-      zone.append(opts);
+      step.append(opts);
     }
     renderPart();
   }

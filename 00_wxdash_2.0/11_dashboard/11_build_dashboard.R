@@ -347,6 +347,15 @@ pct_band <- function(share, options_pcts) {
 no_tie <- function(x, what) {
   check_prose(sum(x == max(x)) == 1, paste0(what, " has a tie for first"))
 }
+# Q2 and Q4 open by comparing four separate survey variables, so no single
+# data/q file matches the prompt; these rows ARE the comparison the prompt
+# makes, and the front end charts them instead of the explore target's file.
+cmp_chart <- function(values, y_label, fmt = function(v) v) list(
+  rows = unname(Map(
+    function(nm, v) list(group = "All", category = nm, value = v,
+                         label = fmt(v)),
+    names(values), values)),
+  y_label = y_label)
 
 quiz <- local({
   q1_all <- share_of("WX_alert_und", c(4, 5))[["All"]]
@@ -408,7 +417,8 @@ quiz <- local({
         prompt = "What source do people rely on most for weather information?",
         options = names(rely_vars), answer = which.max(rely_means) - 1L,
         reveal = paste0(names(rely_vars)[which.max(rely_means)], " — ",
-                        max(rely_means), " on the 1–5 reliance scale.")),
+                        max(rely_means), " on the 1–5 reliance scale."),
+        chart = cmp_chart(rely_means, "Mean reliance (1–5 scale)")),
       part2 = list(
         prompt = paste0("Which age group relies most on social media for ",
                         "weather information?"),
@@ -445,7 +455,9 @@ quiz <- local({
                         "or extreme risk where they live?"),
         options = names(risk_vars), answer = which.max(risk_shares) - 1L,
         reveal = paste0(names(risk_vars)[which.max(risk_shares)], " — ",
-                        max(risk_shares), "% rate it high or extreme.")),
+                        max(risk_shares), "% rate it high or extreme."),
+        chart = cmp_chart(risk_shares, "Rate it high or extreme (%)",
+                          function(v) paste0(v, "%"))),
       part2 = list(
         prompt = paste0("Which census region reports the highest perceived ",
                         "flood risk?"),

@@ -114,7 +114,13 @@ deploy.
   guards halt the build when the data stops supporting a hand-written claim
   (a share that left its answer band, a trend like "reliance falls with
   age" that flipped, a tie for a "which is highest" question) and name the
-  sentence to re-write.
+  sentence to re-write. On answer the front end also charts the real
+  distribution straight from the question's `data/q/` file (part 1 national,
+  follow-up split by the question's `explore.params.grouping`); parts whose
+  prompt compares several survey variables (the Q2/Q4 openers) instead carry
+  builder-emitted `chart` rows, since no single question file matches what
+  they ask. Every reveal plus the finale recap deep-links into the survey
+  explorer, so a reader can exit the quiz into the data at any point.
 - Simplified CWA geometry (the full-resolution polygons and per-measure
   properties in `10`'s geojson aren't needed — values ship separately).
 

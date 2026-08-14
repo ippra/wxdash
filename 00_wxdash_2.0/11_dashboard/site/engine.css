@@ -734,6 +734,51 @@ html #nav-pages .nav-menu a.active { background: var(--row-selected); color: var
 }
 .wx-quiz-again:hover { border-color: var(--accent); color: var(--accent); }
 
+/* Progress: one segment per prompt. State is carried by the ✓/✗ glyph, not
+   color alone (greyscale theme: correct=accent bg vs wrong=muted bg are both
+   near-black there — the glyphs do the work). */
+.wx-quiz-progress { display: flex; gap: 4px; margin: 0 0 16px; }
+.wx-quiz-seg {
+  flex: 1 1 0; height: 20px; border-radius: 5px;
+  border: 1px solid var(--control-border); background: var(--control-bg);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; line-height: 1; color: var(--accent-contrast);
+}
+.wx-quiz-seg.correct { background: var(--accent); border-color: var(--accent); }
+.wx-quiz-seg.wrong { background: var(--text-muted); border-color: var(--text-muted); }
+.wx-quiz-seg.current { border-color: var(--accent); border-width: 2px; }
+
+/* Reveal chart: the real distribution, rendered with the explorer's own
+   chart machinery. .grouped = follow-up subgroup split (more bars + legend). */
+.wx-quiz-chart { margin-top: 16px; border-top: 1px solid var(--panel-border); padding-top: 14px; }
+.wx-quiz-chart .wx-eyebrow { margin-bottom: 4px; }
+.wx-quiz-chartwrap { position: relative; height: 250px; }
+.wx-quiz-chartwrap.grouped { height: 360px; }
+.wx-quiz-chart .wx-caption a { color: var(--accent); }
+
+/* Finale recap: per-question marks + topic + explorer deep link. */
+.wx-quiz-score { font-size: 26px; }
+.wx-quiz-recap { display: flex; flex-direction: column; gap: 9px; margin-top: 18px; }
+.wx-quiz-recap-row {
+  display: flex; gap: 12px; align-items: baseline;
+  font-size: 14px; line-height: 1.4;
+}
+.wx-quiz-recap-marks { font-family: var(--mono, monospace); color: var(--text-muted); white-space: nowrap; }
+.wx-quiz-recap-topic { flex: 1 1 auto; }
+.wx-quiz-recap-row .wx-quiz-explore { white-space: nowrap; font-size: 13.5px; }
+
+/* Question/reveal entrances (charts animate via Chart.js on draw). */
+.wx-quiz-step, .wx-quiz-reveal, .wx-quiz-chart, .wx-quiz-nav, .wx-quiz-recap {
+  animation: wx-quiz-in 260ms ease-out both;
+}
+@keyframes wx-quiz-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wx-quiz-step, .wx-quiz-reveal, .wx-quiz-chart, .wx-quiz-nav, .wx-quiz-recap { animation: none; }
+}
+
 /* Rows-per-page control in table tools. */
 .table-tools .pagesize {
   display: flex; align-items: center; gap: 6px;
