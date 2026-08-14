@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="wxdash">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>
+// Some static handlers serve /wxdash without adding the trailing slash,
+// which breaks every relative URL in this page. Canonicalize first.
+(function(){var p=location.pathname;
+if(!/\/$/.test(p)&&!/\.html$/.test(p)){location.replace(p+"/"+location.search+location.hash);}})();
+</script>
+<title>WxDash — Extreme Weather and Society Dashboard</title>
+<link rel="stylesheet" href="./assets/vendor/leaflet.css?v=__BUILD__">
+<link rel="stylesheet" href="./engine.css?v=__BUILD__">
+<script>
+window.WX_BUILD="__BUILD__";
+// Watchdog + diagnostics: if the app never leaves the loading screen,
+// report exactly what failed (capture phase sees resource load errors).
+window.__wxFailed=[];
+window.addEventListener("error",function(e){
+  var t=e&&e.target;
+  if(t&&(t.src||t.href)){window.__wxFailed.push(t.src||t.href);}
+  else{window.__wxErr=(e&&e.message)||String(e);}
+},true);
+window.addEventListener("unhandledrejection",function(e){
+  window.__wxErr="async: "+((e.reason&&e.reason.message)||e.reason);
+});
+window.addEventListener("load",function(){setTimeout(function(){
+  var l=document.querySelector("#app .loading");
+  if(!l)return;
+  var d=["engine.js executed: "+(window.WX_ENGINE_LOADED?"yes":"NO"),
+         "Chart.js: "+(window.Chart?"yes":"NO"),
+         "Leaflet: "+(window.L?"yes":"NO")];
+  if(window.__wxFailed.length)d.push("failed to load: "+window.__wxFailed.join(", "));
+  if(window.__wxErr)d.push("error: "+window.__wxErr);
+  l.style.whiteSpace="pre-wrap";l.style.textAlign="left";
+  l.textContent="The dashboard failed to start.\n\nDiagnostics (please send this to the maintainers):\n"+
+    d.join("\n")+"\nbuild "+window.WX_BUILD+" — "+navigator.userAgent;
+  fetch("config.json?v="+window.WX_BUILD).then(function(r){
+    l.textContent+="\nconfig.json fetch: HTTP "+r.status;
+  },function(err){l.textContent+="\nconfig.json fetch FAILED: "+err;});
+},3000);});
+</script>
+<script src="./assets/vendor/chart.umd.min.js?v=__BUILD__"></script>
+<script src="./assets/vendor/chartjs-plugin-datalabels.min.js?v=__BUILD__"></script>
+<script src="./assets/vendor/leaflet.js?v=__BUILD__"></script>
+<script src="./assets/vendor/jspdf.umd.min.js?v=__BUILD__"></script>
+</head>
+<body>
+<header id="navbar">
+  <span id="nav-title"></span>
+  <nav id="nav-pages"></nav>
+</header>
+<main id="app"><div class="loading">Loading dashboard…</div></main>
+<script src="./engine.js?v=__BUILD__"></script>
+</body>
+</html>

@@ -65,3 +65,4 @@ vignettes/*.pdf
 # not output - it is the page itself, not a render of a .md beside it. Without
 # this negation the rule above would silently skip any page added there.
 !/00_wxdash_2.0/10_static_site/*.html
+!/00_wxdash_2.0/11_dashboard/site/*.html

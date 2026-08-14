@@ -7,10 +7,11 @@ social and hazard indicators, then uses multilevel regression and
 poststratification (MRP) to produce an estimate for every county in the
 contiguous United States and every NWS County Warning Area (CWA).
 
-The pipeline is ten numbered steps, run in order. Each output file is named for
-the script that wrote it, so `03_county_alert_counts.csv` came from `03`.
-Steps `01`-`07` build the estimates; `08` documents the survey instruments, and
-`09` and `10` are the two dashboards that present the results.
+The pipeline is eleven numbered steps, run in order. Each output file is named
+for the script that wrote it, so `03_county_alert_counts.csv` came from `03`.
+Steps `01`-`07` build the estimates; `08` documents the survey instruments;
+`09` and `10` are the Shiny and static dashboards, and `11` assembles the
+production site from `10`'s output.
 
 ---
 
@@ -345,6 +346,21 @@ A full build takes about fifteen minutes, almost all of it the questions.
 measure list and the HTML in about two seconds.
 
 **Writes** `outputs/10_site/`.
+
+### `11_dashboard/`
+
+The production site. `11_build_dashboard.R` computes no statistics: it takes
+`10`'s question files and map values verbatim and adds presentation — a richer
+front end (themes, a landing page, a knowledge quiz whose answer keys are
+derived from `10`'s own distributions, and an alert-history comparison on the
+map), precomputed place ranks and medians, and simplified geometry. Because
+the numbers are carried over rather than recomputed, the production site
+cannot disagree with `10`.
+
+Run it after `10`; it takes a few seconds. Preview with
+`python3 -m http.server --directory "$WXDASH_LOCAL/outputs/11_site"`.
+
+**Writes** `outputs/11_site/`.
 
 ---
 
