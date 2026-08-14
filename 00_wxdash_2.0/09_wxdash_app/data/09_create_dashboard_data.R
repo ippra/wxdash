@@ -239,11 +239,10 @@ responses <- responses |>
 app_dir <- here::here("00_wxdash_2.0", "09_wxdash_app")
 app_data <- file.path(app_dir, "data")
 
-# Checked rather than created blind. dir.create() would happily rebuild the
-# directory under a name the app no longer uses, and the app would go on
-# reading the copies it already has - the failure mode of the 10_wxdash_app to
-# 09_wxdash_app rename, where this script kept writing to the old path and
-# every rebuild silently changed nothing.
+# Checked rather than created blind. dir.create() would happily build the
+# directory at a path the app does not read, and the app would go on serving the
+# copies it already has: a rebuild that reports success and changes nothing.
+# Requiring app.R beside the target is what ties the two together.
 if (!file.exists(file.path(app_dir, "app.R"))) {
   stop("No app.R in ", app_dir, " - the app directory moved or was renamed. ",
        "Point app_dir at it before writing data it will not read.")

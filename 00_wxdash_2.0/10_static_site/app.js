@@ -778,10 +778,10 @@ async function start() {
   state.bounds = [[west, south], [east, north]];
 
   /*
-    Listeners are attached before anything that can fail. They used to be last,
-    after buildMap(), which meant a map that threw - MapLibre blocked, a
-    container with no size, anything - left the page rendered but inert: every
-    control dead, and nothing on screen saying why.
+    Listeners are attached before anything that can fail. If buildMap() throws -
+    MapLibre blocked, a container with no size, anything - the page is still
+    rendered, and controls attached after it would never be wired: every one
+    dead, with nothing on screen saying why.
   */
   document.querySelectorAll(".tab").forEach(t =>
     t.addEventListener("click", () => showTab(t.dataset.tab)));

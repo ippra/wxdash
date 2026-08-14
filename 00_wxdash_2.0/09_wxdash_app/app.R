@@ -57,12 +57,11 @@ measure_questions <- read_csv(needed[4], show_col_types = FALSE)
 # before 2017, and that is a fact about the archive, not a constant.
 alert_years <- read_csv(needed[5], show_col_types = FALSE)
 
-# The map is MapLibre on CARTO basemap tiles, which need no access token.
-# Mapbox was the other option and was dropped: at national zoom, under polygons
-# drawn at 75% opacity, none of what it does better is visible, and it would
-# have cost a token that has to be set on every deployment separately
-# (.Renviron is not part of the app bundle) plus a map-load quota that this tab
-# spends on every change of measure.
+# MapLibre, which needs no access token. Mapbox renders the same choropleth,
+# but nothing it does better is visible at national zoom under opaque polygons,
+# and it costs an access token that has to be set on every deployment
+# separately - .Renviron is not part of the app bundle - plus a map-load quota
+# that this tab spends on every change of measure.
 
 # Named once because the caption is written as plain prose and then linked by
 # substitution, so the page text and the downloaded image cannot drift apart.
@@ -165,9 +164,9 @@ palettes <- c(
 # be read - the reader has to consult the legend for every polygon.
 map_palettes <- palettes[palettes != "distinct"]
 
-# No basemap. CARTO positron was under this and its grey water and land read as
-# a second set of shapes competing with the estimates - the 116 areas already
-# tile the country, so its coastline is drawn by the data itself.
+# No basemap. The 116 areas already tile the country, so the coastline is drawn
+# by the data itself; a tiled basemap underneath adds grey water and land that
+# read as a second set of shapes competing with the estimates.
 #
 # A style with no sources rather than a hidden layer, so nothing is fetched at
 # all. sources must serialize as {} and not [], which is why it is built with
@@ -185,11 +184,9 @@ blank_basemap <- list(
   ))
 )
 
-# The measure menu, read rather than declared. measures.csv beside this file is
-# the one place it is written down; 09 validates it against what 07 actually
-# produces and copies it here, and the static site build reads the same file.
-# It used to be declared here and again in 10_build_static_site.R, character for
-# character, with nothing checking that the two agreed.
+# The measure menu. measures.csv beside this file is the one place it is written
+# down: 09 validates it against what 07 produces and copies it into data/, and
+# the static site build reads the same copy. Adding a measure is a row there.
 #
 # fct_inorder on the sorted order is what preserves the drop-down sequence:
 # split() would otherwise return the groups alphabetically.
@@ -361,10 +358,10 @@ strip_plot <- function(measure, values, this_value, middle) {
 # a sentence saying "national" would be claiming falsely. Rank and percentile
 # need no weights either, which is why they are what is reported.
 #
-# Naming the quantities also removed the comparative this used to carry.
-# "Agrees more strongly than most" is false at rank 58 and needed a whole set
-# of bands with a separate sentence for the middle; rank and percentile say
-# where an area sits without any of that.
+# The sentence names the quantity and reports rank and percentile rather than
+# comparing. A comparative would need bands and a separate form for the middle
+# of the distribution, because "agrees more strongly than most" is false at
+# rank 58; rank and percentile place an area at any position.
 # Alert counts are whole days and estimates are on a 1-5 scale, so they are
 # formatted apart rather than everything carrying two decimals.
 format_estimate <- function(measure, value) {
@@ -1193,9 +1190,9 @@ server <- function(input, output, session) {
         id = "cwa",
         source = d,
         fill_color = style$fill,
-        # Fully opaque now there is nothing underneath to show through. At 0.75
-        # every area was mixed with the white behind it, so the fills sat a
-        # shade lighter than the same colours in the legend beside them.
+        # Fully opaque: there is no basemap underneath to show through, and
+        # anything less mixes each area with the white behind it, leaving the
+        # fills a shade lighter than the same colours in the legend.
         fill_opacity = 1,
         # A boundary line, or 116 areas of similar colour read as one blob.
         fill_outline_color = "#FFFFFF",
@@ -1204,8 +1201,8 @@ server <- function(input, output, session) {
         # Wider than the default, which wraps the narrative into a column a few
         # words across.
         popup_style = popup_style(max_width = "320px"),
-        # Hover has to move opacity the other way now: raising it from 0.75 was
-        # the old highlight and there is no headroom above 1.
+        # Hover dims rather than brightens, because the fill is already at 1
+        # and there is no headroom above it.
         hover_options = list(fill_opacity = 0.7)
       ) |>
       add_continuous_legend(
@@ -1501,9 +1498,9 @@ server <- function(input, output, session) {
       estimates <- st_drop_geometry(cwa_estimates)
       display <- estimates$CWA_DISPLAY[estimates$CWA == cwa]
 
-      # Shorter than it was: the key at the top now explains the marks, so the
-      # footer only has to carry the caution about the scales and the
-      # provenance, in the same words the other two captions use.
+      # The key at the top of the sheet explains the marks, so the footer
+      # carries only the caution about the scales and the provenance, in the
+      # same words the other two captions use.
       caption <- paste0(
         "Each row is one measure. Every row is stretched to its own range, so ",
         "a point at the right of one row and a point at the right of another ",
@@ -1549,9 +1546,9 @@ server <- function(input, output, session) {
   # nothing in the wording of "I receive all tornado warnings that are issued
   # for my area" contains the word reception. Hiding them by target index means
   # they must stay last in the select() below.
-  # One column rather than two, to keep the table as narrow as it was. As a
-  # factor the four combinations filter from a drop-down, which is the useful
-  # move: "Standard" alone is the set that estimates the population.
+  # One column rather than two, which keeps the table narrow. As a factor the
+  # four combinations filter from a drop-down, which is the useful move:
+  # "Standard" alone is the set that estimates the population.
   output$questions <- renderDT({
     datatable(
       questions |>

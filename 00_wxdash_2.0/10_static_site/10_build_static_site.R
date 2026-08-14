@@ -70,8 +70,8 @@ responses <- read_rds(needed[2])
 cwa_estimates <- read_rds(needed[3])
 alert_years <- read_csv(needed[5], show_col_types = FALSE)
 
-# The same menu app.R reads, from the same file 09 wrote. It was declared in
-# both files until now, identically and with nothing checking that.
+# The same menu app.R reads, from the same file 09 wrote. Declared once in
+# 09_wxdash_app/measures.csv and validated there against what 07 produces.
 measure_menu <- read_csv(needed[6], show_col_types = FALSE) |>
   arrange(order) |>
   mutate(group = fct_inorder(group))

@@ -1,25 +1,19 @@
-# data/ is versioned, deliberately, and this file is the record of why.
+# Everything in data/ is tracked, and this file is the record of why.
 #
-# It was ignored until 2026-08-13, on the reasoning that the .rds files are
-# binaries that change completely on every rebuild and git would keep every
-# version forever. That reasoning is sound and was outweighed.
+# The six files there are what app.R reads, and they are the contract anyone
+# rebuilding this dashboard elsewhere consumes. What such a build needs from
+# them is provenance - which commit produced these numbers - and a commit
+# answers that directly, where a folder sent out of band cannot.
 #
-# What outweighed it: these six files are the contract other people build
-# against, and what they need from them is provenance - "which commit were
-# these generated from?" - which git answers natively and a synced folder
-# cannot. Shipping them out of band meant inventing a manifest to fake what a
-# commit SHA already is.
-#
-# The cost, measured rather than guessed: about 6 MB a refresh, roughly 26 MB a
-# year at four refreshes, against a .git already 93 MB. If the refresh cadence
-# ever becomes weekly rather than a few times a year, revisit this - the two
-# .rds files are binaries and store a full copy each time, while the four CSVs
-# delta well.
+# The cost is a copy of two binaries on every refresh, since .rds files store a
+# full new object rather than a delta: about 6 MB a refresh, roughly 26 MB a
+# year at four refreshes. The four CSVs delta well and cost almost nothing.
+# Revisit this if refreshes ever become weekly rather than a few times a year.
 #
 # Nothing here is confidential: the survey data is published on Dataverse and
-# the Shiny app is deployed publicly with these files bundled.
+# the app is deployed publicly with these files bundled.
 #
-# Nothing is ignored in this directory on purpose. A seventh output file added
-# later should be tracked without anyone remembering to allow it - which is the
-# failure that kept 09_create_dashboard_data.R out of git entirely. OS junk is
+# Nothing in this directory is ignored, deliberately. A seventh output file
+# should be tracked without anyone having to remember to allow it, and an
+# explicit list of six is a list that goes out of date silently. OS junk is
 # handled by the repository root .gitignore.
