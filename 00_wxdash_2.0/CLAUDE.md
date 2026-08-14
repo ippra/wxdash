@@ -170,6 +170,24 @@ the largest remaining maintenance cost in the repo; the fix is the one that
 worked for measures — declare them in a CSV the build script publishes and both
 front ends read.
 
-A session cannot verify either dashboard in a browser: there is no headless
-browser on the workstation. Checks are `testServer`, serving the site locally
-and reading the payloads. Ask before claiming anything about how it looks.
+A session can see either dashboard. Chrome is installed and runs headless:
+
+```sh
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+  --headless=new --enable-unsafe-swiftshader --window-size=1400,1100 \
+  --virtual-time-budget=40000 --screenshot=out.png http://127.0.0.1:8899/
+```
+
+Serve the built site over HTTP first - `fetch()` is blocked on `file://`, so
+every data file returns nothing. `--enable-unsafe-swiftshader` supplies software
+WebGL, which MapLibre needs; `--disable-gpu` removes WebGL entirely and the map
+comes back blank. `preserveDrawingBuffer: true` is already set in `app.js`, so
+the canvas survives being read back.
+
+Two traps when driving the map tab. Tabs switch on click, with no URL for the
+map, so reaching it means injecting a click - and `showTab()` resizes the map
+only if it already exists, so wait for `canvas.maplibregl-canvas` to appear
+before clicking or the map keeps MapLibre's 400x300 zero-container fallback and
+renders nothing. To tell a real blank from a capture artifact, draw the canvas
+into a 2D context and count non-white pixels rather than trusting the
+screenshot.
