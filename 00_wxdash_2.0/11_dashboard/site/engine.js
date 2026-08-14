@@ -139,24 +139,27 @@ function rampColor(stops, t) {
 }
 
 /* ---- user-facing data-color schemes (Joe's demo, Aug 2026) --------------
- * Viridis stays the default everywhere; "Blue (one hue)" and "Grey (print
- * safe)" are viewer choices offered on the survey explorer and map explorer
- * only — every other surface keeps the approved viridis look. The greyscale
- * accessibility theme still overrides ramps via dataStops(). */
+ * The two explorer tabs open in blue and offer viridis and print-safe grey
+ * as viewer choices; every other surface keeps the approved viridis look,
+ * which is why the default lives here rather than in the scheme list order.
+ * The greyscale accessibility theme still overrides ramps via dataStops(). */
 const BLUES_STOPS = [
   [239,243,255],[198,219,239],[158,202,225],[107,174,214],
   [66,146,198],[33,113,181],[8,69,148]
 ];
 const COLOR_SCHEMES = [
-  { id: "viridis", label: "Viridis", stops: VIRIDIS_STOPS },
+  { id: "viridis", label: "Viridis (multiple hues)", stops: VIRIDIS_STOPS },
   { id: "blue", label: "Blue (one hue)", stops: BLUES_STOPS },
   { id: "grey", label: "Grey (print safe)", stops: GREYS_STOPS }
 ];
+const DEFAULT_SCHEME = "blue";
 const urlScheme = () => {
   const s = getParam("scheme");
-  return COLOR_SCHEMES.some(x => x.id === s) ? s : "viridis";
+  return COLOR_SCHEMES.some(x => x.id === s) ? s : DEFAULT_SCHEME;
 };
-const schemeStops = (id) => (COLOR_SCHEMES.find(x => x.id === id) || COLOR_SCHEMES[0]).stops;
+const schemeStops = (id) =>
+  (COLOR_SCHEMES.find(x => x.id === id)
+   || COLOR_SCHEMES.find(x => x.id === DEFAULT_SCHEME)).stops;
 // Discrete series colors. Viridis keeps its ggplot sampling; the sequential
 // ramps sample dark→light so a single series is always the dark end.
 function schemeSeriesColors(id, n) {
@@ -258,8 +261,9 @@ let pageCharts = [];
 function trackChart(c) { pageCharts.push(c); return c; }
 
 // Error bars for Chart.js (CIs) — reads dataset.errorLow / dataset.errorHigh
-// arrays parallel to data. Draws along the value axis: vertical normally,
-// horizontal when the chart uses indexAxis "y" (flipped bars).
+// arrays parallel to data. Draws along the value axis with a cap at each end:
+// vertical normally, horizontal when the chart uses indexAxis "y" (flipped
+// bars), where the caps come out as short vertical ticks.
 const ErrorBarsPlugin = {
   id: "wxErrorBars",
   afterDatasetsDraw(chart) {
@@ -278,9 +282,23 @@ const ErrorBarsPlugin = {
         const scale = flipped ? chart.scales.x : chart.scales.y;
         const p1 = scale.getPixelForValue(lo);
         const p2 = scale.getPixelForValue(hi);
+        // Capped at both ends, across the bar rather than along it: on the
+        // horizontal explorer bars a bare line reads as part of the bar, and
+        // the caps are what make the interval's ends findable. Sized off the
+        // bar so they stay proportional as the canvas grows with the group
+        // count, and clamped so thin bars still get a visible tick.
+        const half = Math.max(3, Math.min(7,
+          (flipped ? pt.height : pt.width) * 0.35)) / 2;
         ctx.beginPath();
-        if (flipped) { ctx.moveTo(p1, pt.y); ctx.lineTo(p2, pt.y); }
-        else { ctx.moveTo(pt.x, p1); ctx.lineTo(pt.x, p2); }
+        if (flipped) {
+          ctx.moveTo(p1, pt.y); ctx.lineTo(p2, pt.y);
+          ctx.moveTo(p1, pt.y - half); ctx.lineTo(p1, pt.y + half);
+          ctx.moveTo(p2, pt.y - half); ctx.lineTo(p2, pt.y + half);
+        } else {
+          ctx.moveTo(pt.x, p1); ctx.lineTo(pt.x, p2);
+          ctx.moveTo(pt.x - half, p1); ctx.lineTo(pt.x + half, p1);
+          ctx.moveTo(pt.x - half, p2); ctx.lineTo(pt.x + half, p2);
+        }
         ctx.stroke();
       });
       ctx.restore();
@@ -672,7 +690,9 @@ components.explore = async function (page, container) {
   groupingSel = gWrap.querySelector("select");
   bar.append(gWrap);
   bar.append(schemeSelect(scheme, (sc) => {
-    scheme = sc; setParams({ scheme: sc === "viridis" ? null : sc }); draw();
+    scheme = sc;
+    setParams({ scheme: sc === DEFAULT_SCHEME ? null : sc });
+    draw();
   }));
   bar.append(el("label", { class: "wx-ci-label", for: "ci-toggle" },
     ciBox, " Show 95% confidence intervals"));
@@ -960,7 +980,9 @@ components.wx_map_explorer = async function (page, container) {
 
   bar.append(measureWrap, compareWrap);
   bar.append(schemeSelect(scheme, async (sc) => {
-    scheme = sc; setParams({ scheme: sc === "viridis" ? null : sc }); await redraw();
+    scheme = sc;
+    setParams({ scheme: sc === DEFAULT_SCHEME ? null : sc });
+    await redraw();
   }));
   bar.append(pdfButton("Download map (PDF)", () => {
     const cat = byCode.get(measure);
