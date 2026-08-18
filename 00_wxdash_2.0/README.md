@@ -351,11 +351,18 @@ measure list and the HTML in about two seconds.
 
 The production site. `11_build_dashboard.R` computes no statistics: it takes
 `10`'s question files and map values verbatim and adds presentation — a richer
-front end (themes, a landing page, a knowledge quiz whose answer keys are
-derived from `10`'s own distributions, and an alert-history comparison on the
-map), precomputed place ranks and medians, and simplified geometry. Because
-the numbers are carried over rather than recomputed, the production site
-cannot disagree with `10`.
+front end, precomputed place ranks and medians, and simplified geometry.
+Because the numbers are carried over rather than recomputed, the production
+site cannot disagree with `10`.
+
+What the front end adds: themes, a landing page, and a knowledge quiz whose
+answer keys are derived from `10`'s own distributions. On the map, choosing an
+alert history draws it as a second map beside the measure its model was fitted
+on, and clicking an area opens `09`'s overview sheet — every measure for that
+area, each row stretched to its own range — as a panel on the page. The map,
+chart downloads are standalone PDF documents — the plot, its legends, and the
+page's own notes, so a download carries what was asked, how it was scored and
+where it came from — and the sheet has a one-page printable form of its own.
 
 Run it after `10`; it takes a few seconds. Preview with
 `python3 -m http.server --directory "$WXDASH_LOCAL/outputs/11_site"`.

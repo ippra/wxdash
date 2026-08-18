@@ -183,6 +183,19 @@ output carried over verbatim, so the production site cannot disagree with the
 reference site. A calculation added to the builder gives that up, and the
 verification harness it replaced would have to come back.
 
+The map and chart PDFs are documents rather than screenshots: title, subtitle,
+plot, legends, then the page's own notes set in columns, with a footer. Their
+notes are lifted from the rendered DOM — `notesCard.innerHTML` for the map, the
+caption element for the chart — so an export cannot say something the page it
+came from does not. Three things make that layout hold: the note height is
+measured before the plot is placed, so the plot takes what is left rather than
+pushing prose onto a second page; the snapshot is cropped to what was actually
+drawn, since the map container is a fixed frame the CONUS floats inside; and
+legends are positioned from the image rather than the page margin, or the
+second one lands under the gap between two maps instead of under its own. The
+scan sheet's PDF is a different animal — rows, not a plot — and is built by
+`scanPDF` with its own geometry.
+
 `site/` is the hand-edited front end — `engine.js`, `engine.css`, `index.html`,
 vendored Leaflet, Chart.js and jsPDF. The builder copies it, fills the
 `__BUILD__` cache-busting stamp, drops anything hidden, and refuses to publish
@@ -199,10 +212,37 @@ one way. Shares are carried unrounded for exactly this reason — rounding first
 moves a group up to a point, which is enough to walk an answer past a margin it
 does not clear.
 
-The comparison pairings in `11` are transcribed from `06_fit_models.R`: the map
-crossfades a measure against the alert history its model was fitted on. Drought,
-hail and lightning are fitted on FEMA NRI frequencies rather than an NWS
-product, so they have no pairing and the page says so.
+The comparison pairings in `11` are transcribed from `06_fit_models.R`. Choosing
+an alert history draws it as a second map beside the measure its model was
+fitted on, so both quantities are on screen at once and the reader compares two
+pictures rather than holding one in memory. Both maps are the same size, the
+second takes a contrasting ramp, hovering either outlines the area on both,
+either tooltip carries both numbers, and each measure keeps its own note in the
+card below. Drought, hail and lightning are fitted on FEMA NRI frequencies
+rather than an NWS product, so they have no pairing and the page says so.
+
+The map surface carries no color of its own: the choropleth sits directly on
+the card. Two things follow from that and are easy to undo by accident. Polygon
+borders are a theme token (`--map-hairline`), because white borders against a
+white card lose the shape of the palest areas along with their fill. And the
+hover and selection outline is chosen against the fill's luma, because any
+single color fails at one end of a ramp — a grey outline is invisible on the
+dark end of the greys the comparison map draws in.
+
+Explore Communities carries `09`'s CWA overview sheet as the last panel on the
+page, below the map and the notes that explain it: click an area and every
+measure is drawn as a row stretched to its own range across the areas, with a
+one-page vector PDF beside it. The numbers are the ones already in
+`cwa_values.json`, so the sheet cannot disagree with the popup above it. What
+the builder authors is the caution that makes the rows readable, and the three
+widths it quotes are measured off the data rather than asserted. The sheet and
+its prose share one width (`--scan-width`), and the strips are drawn at the
+width the column actually got, measured after layout.
+
+Picking an area is undone from either end — `Clear` in the sheet's header or
+`Clear selection` in the toolbar — and clearing re-frames both maps. A popup
+auto-pans to stay in view, which shifts a frame that is otherwise fixed, and
+nothing else puts it back.
 
 A session can see any of the three dashboards. Chrome is installed and runs
 headless:
@@ -230,3 +270,16 @@ non-white pixels rather than trusting the screenshot.
 Neither trap applies to `11`, which routes on the hash - `#survey`, `#map`,
 `#quiz` go straight to a page - and draws with Leaflet on a 2D canvas, so it
 needs no WebGL and no swiftshader flag.
+
+Checking `11`'s PDFs headlessly needs the DevTools protocol rather than a
+screenshot, and three things get in the way. jsPDF copies its API onto each
+instance at construction, so patching `jsPDF.prototype.save` captures nothing —
+replace `window.jspdf.jsPDF` with a wrapper that overrides `save` on the
+instance it returns and read `doc.output("datauristring")` there. Chrome caches
+`index.html`, so after a rebuild the previous `engine.js?v=<build>` keeps
+loading and the old code is what runs — pass a cache-busting query parameter or
+`Network.setCacheDisabled`. And a Leaflet popup fades rather than closing at
+once, so a DOM check in the same tick as the click that closed it still finds
+the element; wait before asserting it is gone. There is no `node` and no
+`pdftoppm` on this machine: `qlmanage -t -s 1400 -o <dir> <file.pdf>` renders
+the first page to PNG.

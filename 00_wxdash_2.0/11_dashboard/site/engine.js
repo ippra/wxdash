@@ -192,6 +192,53 @@ function chartSnapshot(canvas) {
   ctx.drawImage(canvas, 0, 0);
   return out;
 }
+// Crop the flat backdrop off a snapshot, so what lands in a document is the
+// map rather than the map plus the empty frame around it. The frame is a
+// fixed-size container the CONUS floats in; left in, it shrinks the plot and
+// leaves a legend anchored to the image sitting well left of the coastline.
+function trimCanvas(src, bg) {
+  const W = src.width, H = src.height;
+  const data = src.getContext("2d").getImageData(0, 0, W, H).data;
+  const rgb = (String(bg).match(/\d+(\.\d+)?/g) || [255, 255, 255])
+    .slice(0, 3).map(Number);
+  const tol = 10;
+  let x0 = W, y0 = H, x1 = -1, y1 = -1;
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const i = (y * W + x) * 4;
+      if (data[i + 3] < 8) continue;
+      if (Math.abs(data[i] - rgb[0]) <= tol &&
+          Math.abs(data[i + 1] - rgb[1]) <= tol &&
+          Math.abs(data[i + 2] - rgb[2]) <= tol) continue;
+      if (x < x0) x0 = x;
+      if (x > x1) x1 = x;
+      if (y < y0) y0 = y;
+      if (y > y1) y1 = y;
+    }
+  }
+  if (x1 < 0) return src;                       // nothing drawn — leave it be
+  const pad = 8;
+  x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad);
+  x1 = Math.min(W - 1, x1 + pad); y1 = Math.min(H - 1, y1 + pad);
+  const out = document.createElement("canvas");
+  out.width = x1 - x0 + 1; out.height = y1 - y0 + 1;
+  const ctx = out.getContext("2d");
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, out.width, out.height);
+  ctx.drawImage(src, x0, y0, out.width, out.height, 0, 0, out.width, out.height);
+  return out;
+}
+
+// Nearest ancestor with a background that actually paints, white if none does.
+function opaqueBackdrop(node) {
+  for (let n = node; n && n !== document.documentElement; n = n.parentElement) {
+    const bg = getComputedStyle(n).backgroundColor;
+    if (bg && bg !== "transparent" && !/rgba\(\s*0,\s*0,\s*0,\s*0\s*\)/.test(bg))
+      return bg;
+  }
+  return "#ffffff";
+}
+
 // Composite every Leaflet canvas in the map element (basemap + choropleth
 // share the map-level canvas renderer; getBoundingClientRect resolves the
 // pane transforms). No tiles, no external images — canvas stays untainted.
@@ -200,12 +247,15 @@ function mapSnapshot(mapEl) {
   const out = document.createElement("canvas");
   out.width = Math.round(r.width * 2); out.height = Math.round(r.height * 2);
   const ctx = out.getContext("2d");
-  ctx.fillStyle = getComputedStyle(mapEl).backgroundColor || "#eef1f4";
+  // The map itself is transparent, so the paper color has to come from the
+  // first ancestor that paints one — filling with rgba(0,0,0,0) would leave
+  // the snapshot transparent and the PDF would render it black.
+  ctx.fillStyle = opaqueBackdrop(mapEl);
   ctx.fillRect(0, 0, out.width, out.height);
   mapEl.querySelectorAll("canvas").forEach(cv => {
     const cr = cv.getBoundingClientRect();
-    // The comparison crossfade is CSS opacity on a pane — drawImage ignores
-    // CSS, so carry the effective opacity into the composite.
+    // drawImage ignores CSS, so any opacity a pane carries has to be walked
+    // up and applied by hand or it is lost in the composite.
     let alpha = 1, node = cv;
     while (node && node !== mapEl) {
       alpha *= parseFloat(getComputedStyle(node).opacity) || 1;
@@ -215,42 +265,197 @@ function mapSnapshot(mapEl) {
     ctx.drawImage(cv, (cr.left - r.left) * 2, (cr.top - r.top) * 2, cr.width * 2, cr.height * 2);
     ctx.globalAlpha = 1;
   });
+  return trimCanvas(out, ctx.fillStyle);
+}
+// Two map snapshots on one canvas, in the order they sit on the page, so a
+// side-by-side comparison prints as the comparison it is.
+function mapPairSnapshot(elA, elB) {
+  const a = mapSnapshot(elA), b = mapSnapshot(elB);
+  const gap = 28;
+  const out = document.createElement("canvas");
+  out.width = a.width + gap + b.width;
+  out.height = Math.max(a.height, b.height);
+  const ctx = out.getContext("2d");
+  ctx.fillStyle = opaqueBackdrop(elA);
+  ctx.fillRect(0, 0, out.width, out.height);
+  // Trimmed snapshots can differ by a pixel or two in height; centring keeps
+  // the two coastlines on the same line.
+  ctx.drawImage(a, 0, (out.height - a.height) / 2);
+  ctx.drawImage(b, a.width + gap, (out.height - b.height) / 2);
   return out;
 }
-// One-page PDF: title, the snapshot, optional gradient legend underneath.
-function pdfDownload({ title, canvas, filename, legend }) {
+
+// Page prose as a flat block list the PDF flow can set: the lede becomes a
+// heading, list items keep their bullet, everything else is a paragraph.
+// Reading it off the rendered page rather than re-authoring it is what keeps
+// a downloaded sheet saying the same thing as the screen it came from.
+function htmlBlocks(html) {
+  const root = document.createElement("div");
+  root.innerHTML = String(html || "");
+  const txt = (n) => (n.textContent || "").replace(/\s+/g, " ").trim();
+  const out = [];
+  (function walk(node) {
+    for (const n of node.children) {
+      const tag = n.tagName.toLowerCase();
+      if (tag === "ul" || tag === "ol") {
+        for (const li of n.children) { const t = txt(li); if (t) out.push({ type: "li", text: t }); }
+      } else if (tag === "div" || tag === "section") {
+        walk(n);
+      } else if (tag === "hr") {
+        continue;
+      } else {
+        const t = txt(n);
+        if (!t) continue;
+        const head = /^h[1-6]$/.test(tag) || n.classList.contains("wx-lede");
+        out.push({ type: head ? "h" : "p", text: t });
+      }
+    }
+  })(root);
+  return out;
+}
+
+/* A standalone one-or-more page document: header, the plot, its legends, and
+ * the page's own notes set in columns underneath, with a footer on every
+ * page. The notes are the point — a map or a chart lifted out of the site
+ * with no statement of what was asked, how it was scored or where it came
+ * from is not something anyone can hand to a third party. */
+function pdfDocument({ title, subtitle, canvas, legends, notesHTML, filename }) {
   if (!window.jspdf) { alert("The PDF library did not load — try reloading the page."); return; }
+  const landscape = canvas.width >= canvas.height;
   const doc = new window.jspdf.jsPDF({
-    orientation: canvas.width >= canvas.height ? "l" : "p", unit: "pt", format: "letter" });
+    orientation: landscape ? "l" : "p", unit: "pt", format: "letter" });
   const pw = doc.internal.pageSize.getWidth(), ph = doc.internal.pageSize.getHeight();
-  const margin = 40;
-  doc.setFontSize(13);
-  const titleLines = doc.splitTextToSize(String(title || ""), pw - 2 * margin);
-  doc.text(titleLines, margin, margin);
-  const imgY = margin + 14 * titleLines.length + 10;
-  const maxW = pw - 2 * margin, maxH = ph - imgY - margin - (legend ? 46 : 0);
+  const M = 44;
+  const INK = [46, 42, 87], BODY = [35, 33, 48], GREY = [110, 115, 122],
+        RULE = [214, 214, 224];
+  const legendList = (legends == null ? [] : [].concat(legends)).filter(Boolean);
+  const project = (CONFIG.project && CONFIG.project.nav_subtitle) || "WxDash";
+  const stamp = new Date().toLocaleDateString(undefined,
+    { year: "numeric", month: "long", day: "numeric" });
+
+  const footer = () => {
+    const y = ph - 26;
+    doc.setDrawColor(...RULE); doc.setLineWidth(0.5);
+    doc.line(M, y - 10, pw - M, y - 10);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(...GREY);
+    doc.text(project, M, y);
+    doc.text(`Downloaded ${stamp}`, pw - M, y, { align: "right" });
+  };
+
+  // --- header
+  doc.setFont("helvetica", "bold"); doc.setFontSize(14); doc.setTextColor(...INK);
+  const titleLines = doc.splitTextToSize(String(title || ""), pw - 2 * M);
+  doc.text(titleLines, M, M + 10);
+  let y = M + 10 + titleLines.length * 17;
+  if (subtitle) {
+    doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(...GREY);
+    const subLines = doc.splitTextToSize(String(subtitle), pw - 2 * M);
+    doc.text(subLines, M, y);
+    y += subLines.length * 11;
+  }
+  y += 6;
+  doc.setDrawColor(...RULE); doc.setLineWidth(0.5);
+  doc.line(M, y, pw - M, y);
+  y += 16;
+
+  // --- how much room the notes need, before the plot claims the page.
+  // Measured with the same wrapping the flow will use, so the plot can be
+  // sized to leave exactly enough and the document comes out one page.
+  const blocks = htmlBlocks(notesHTML);
+  const gap = 30;
+  const contentW = pw - 2 * M;
+  // Two columns only when there is enough prose to fill them — a short
+  // caption set in two columns leaves one of them empty. A lone column runs
+  // the full width of the page rather than a reading measure: the notes are
+  // the foot of a one-page document, and a narrow block of text under a
+  // full-width plot reads as an unfinished page.
+  const long = blocks.reduce((n, b) => n + b.text.length, 0) > 700;
+  const cols = long ? 2 : 1;
+  const colW = long ? (contentW - gap) / 2 : contentW;
+  const style = {
+    h:  { size: 9.5, font: "bold",   color: INK,  before: 4, after: 4, lead: 12, indent: 0 },
+    p:  { size: 8.5, font: "normal", color: BODY, before: 0, after: 7, lead: 11, indent: 0 },
+    li: { size: 8.5, font: "normal", color: BODY, before: 0, after: 4, lead: 11, indent: 11 }
+  };
+  const measured = blocks.map(b => {
+    const st = style[b.type];
+    doc.setFont("helvetica", st.font); doc.setFontSize(st.size);
+    const lines = doc.splitTextToSize(b.text, colW - st.indent);
+    return { b, st, lines, height: st.before + lines.length * st.lead + st.after };
+  });
+  // Column breaks land on block boundaries, so the flow runs a little taller
+  // than an even split of the total.
+  const notesH = measured.length
+    ? measured.reduce((n, m) => n + m.height, 0) / cols * 1.12 : 0;
+
+  // --- plot, sized to what the page has left once the notes are allowed for
+  const bottom = ph - 46;
+  const maxW = contentW;
+  const legendH = legendList.length ? 36 : 0;
+  const room = bottom - y - legendH - notesH - 16;
+  const maxH = Math.max(ph * 0.26, Math.min(ph * 0.52, room));
   const scale = Math.min(maxW / canvas.width, maxH / canvas.height);
   const w = canvas.width * scale, h = canvas.height * scale;
-  doc.addImage(canvas.toDataURL("image/png"), "PNG", margin, imgY, w, h);
-  if (legend) {
-    const ly = imgY + h + 18, lw = 220, steps = 55;
-    doc.setFontSize(9);
-    doc.text(String(legend.title || ""), margin, ly - 4);
-    for (let i = 0; i < steps; i++) {
-      const c = rampColor(legend.stops, i / (steps - 1)).match(/\d+/g).map(Number);
+  const imgX = M + (maxW - w) / 2;
+  doc.addImage(canvas.toDataURL("image/png"), "PNG", imgX, y, w, h);
+  y += h + 16;
+
+  // --- legends, each under the map it describes. Anchored to the image
+  // rather than the page margin: the plot is centred and, when two maps are
+  // composited, a second legend measured from the margin lands under the gap
+  // between them instead of under its own map.
+  legendList.forEach((lg, i) => {
+    const slot = w / legendList.length;
+    const lx = imgX + i * slot;
+    const lw = Math.min(200, slot - 24), steps = 55;
+    doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(...BODY);
+    doc.text(String(lg.title || ""), lx, y);
+    for (let k = 0; k < steps; k++) {
+      const c = rampColor(lg.stops, k / (steps - 1)).match(/\d+/g).map(Number);
       doc.setFillColor(c[0], c[1], c[2]);
-      doc.rect(margin + (lw / steps) * i, ly, lw / steps + 0.5, 10, "F");
+      doc.rect(lx + (lw / steps) * k, y + 4, lw / steps + 0.5, 9, "F");
     }
-    // legend.fmt keeps 1-5 estimate ends readable ("1.5", not "2") while
+    // lg.fmt keeps 1-5 estimate ends readable ("1.5", not "2") while
     // alert-day counts stay whole numbers.
-    const lf = legend.fmt || ((v) => String(Math.round(v)));
-    doc.setTextColor(60);
-    doc.text(lf(legend.domain[0]), margin, ly + 20);
-    doc.text(lf((legend.domain[0] + legend.domain[1]) / 2), margin + lw / 2, ly + 20, { align: "center" });
-    doc.text(lf(legend.domain[1]), margin + lw, ly + 20, { align: "right" });
+    const lf = lg.fmt || ((v) => String(Math.round(v)));
+    doc.setFontSize(7.5); doc.setTextColor(...GREY);
+    doc.text(lf(lg.domain[0]), lx, y + 22);
+    doc.text(lf((lg.domain[0] + lg.domain[1]) / 2), lx + lw / 2, y + 22, { align: "center" });
+    doc.text(lf(lg.domain[1]), lx + lw, y + 22, { align: "right" });
+  });
+  if (legendList.length) y += 36;
+
+  // --- notes, flowed into the columns measured above
+  if (measured.length) {
+    let col = 0, top = y, cy = y;
+    const colX = () => M + col * (colW + gap);
+    const nextColumn = () => {
+      if (col === 0 && cols === 2) { col = 1; cy = top; return; }
+      footer(); doc.addPage(); col = 0; top = M; cy = M;
+    };
+    for (const { b, st, lines } of measured) {
+      doc.setFont("helvetica", st.font); doc.setFontSize(st.size);
+      // Never leave a heading stranded at the foot of a column.
+      const need = st.before + lines.length * st.lead +
+        (b.type === "h" ? style.p.lead : 0);
+      if (cy + need > bottom && !(cy === top)) nextColumn();
+      cy += st.before;
+      doc.setTextColor(...st.color);
+      for (const line of lines) {
+        if (cy + st.lead > bottom) { nextColumn(); doc.setFont("helvetica", st.font); doc.setFontSize(st.size); doc.setTextColor(...st.color); }
+        if (b.type === "li" && line === lines[0]) {
+          doc.text("•", colX(), cy + st.lead - 3);
+        }
+        doc.text(line, colX() + st.indent, cy + st.lead - 3);
+        cy += st.lead;
+      }
+      cy += st.after;
+    }
   }
+  footer();
   doc.save(filename || "wxdash.pdf");
 }
+
 function pdfButton(label, onClick) {
   return el("button", { class: "wx-pdf-btn", onclick: onClick }, label);
 }
@@ -573,6 +778,7 @@ components.explore = async function (page, container) {
   let showCI = getParam("ci") === "1";   // ?ci=1 deep-links the CI view
   let scheme = urlScheme();              // ?scheme= deep-links a color scheme
   let currentQuestionText = "";          // for the PDF title
+  let currentSurveyLabel = "";           // and its subtitle line
   // Question files are keyed by `id` — hazard code + variable, because two
   // surveys can share a variable name (alert_und is asked in all four).
   const keyOf = (r) => r.id;
@@ -635,6 +841,8 @@ components.explore = async function (page, container) {
       return hit ? hit.label : String(resp);
     };
     currentQuestionText = v.question || currentKey;
+    currentSurveyLabel = [v.hazard, v.variable && `Variable ${v.variable}`]
+      .filter(Boolean).join("  ·  ");
     qHead.textContent = v.question || currentKey;
     if (weightedTip) qHead.append(" ", infoTip(weightedTip));
     renderCaption2(v, g);
@@ -696,8 +904,20 @@ components.explore = async function (page, container) {
   }));
   bar.append(el("label", { class: "wx-ci-label", for: "ci-toggle" },
     ciBox, " Show 95% confidence intervals"));
-  bar.append(pdfButton("Download chart (PDF)", () => pdfDownload({
-    title: currentQuestionText, canvas: chartSnapshot(canvas),
+  // The caption below the chart is the document's notes: how many answered,
+  // that the percentages are weighted, which waves, the smallest group, and
+  // the provenance with the variable code. A chart without them cannot be
+  // handed to anyone.
+  bar.append(pdfButton("Download chart (PDF)", () => pdfDocument({
+    title: currentQuestionText,
+    subtitle: [
+      currentSurveyLabel,
+      grouping === "All" ? "All respondents"
+        : "Split by " + ((CONFIG.groupings.find(x => x.id === grouping) || {}).label || grouping),
+      showCI ? "95% confidence intervals shown" : null
+    ].filter(Boolean).join("  ·  "),
+    canvas: chartSnapshot(canvas),
+    notesHTML: caption.innerHTML,
     filename: `wxdash-${currentKey}.pdf`
   })));
   container.append(el("div", { class: "page wx-explore-page" },
@@ -803,13 +1023,45 @@ async function baseMap(mapEl, opts = {}) {
   return map;
 }
 
+// A theme token, read at build time. Safe to cache per call: switching themes
+// re-renders the page, so nothing drawn from these outlives its theme.
+function cssVar(name, fallback) {
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name);
+  return (v && v.trim()) || fallback;
+}
+
+// Ink that reads on a given fill (sRGB luma). A constant outline color cannot
+// serve both ends of a ramp: grey disappears into the dark end of the greys,
+// which is exactly where a comparison map draws the eye.
+function inkOn(fill) {
+  const t = String(fill);
+  let rgb;
+  if (t.startsWith("#")) {
+    const h = t.length === 4
+      ? t.slice(1).split("").map(c => c + c).join("") : t.slice(1);
+    rgb = [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16));
+  } else {
+    const n = t.match(/\d+(\.\d+)?/g);
+    if (!n || n.length < 3) return "#111827";
+    rgb = n.slice(0, 3).map(Number);
+  }
+  return (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) > 150
+    ? "#111827" : "#ffffff";
+}
+
 // One choropleth layer with popups + click selection.
-function choroLayer(geo, { idProp, valueOf, color, popupHTML, onSelect, tooltipHTML }) {
+function choroLayer(geo, { idProp, valueOf, color, popupHTML, onSelect, onHover,
+                           tooltipHTML }) {
   let selected = null;
+  const outline = (id) => ({ weight: 4, color: inkOn(color(valueOf(id))) });
+  // A neutral hairline rather than white: white borders vanish at the pale
+  // end of a ramp now that the map has no background of its own, taking the
+  // shape of the lightest areas with them.
+  const hairline = cssVar("--map-hairline", "rgba(35, 33, 48, 0.28)");
   const layer = L.geoJSON(geo, {
     style: (f) => ({
       fillColor: color(valueOf(f.properties[idProp])),
-      fillOpacity: 0.9, color: "white", weight: idProp === "FIPS" ? 0.5 : 1.5,
+      fillOpacity: 0.9, color: hairline, weight: idProp === "FIPS" ? 0.5 : 1,
       opacity: 1
     }),
     onEachFeature: (f, lyr) => {
@@ -818,8 +1070,15 @@ function choroLayer(geo, { idProp, valueOf, color, popupHTML, onSelect, tooltipH
       // Hover-to-read (Joe's map page): sticky tooltip with the value.
       if (tooltipHTML) lyr.bindTooltip(() => tooltipHTML(id, f.properties),
         { sticky: true, direction: "top", opacity: 0.96 });
-      lyr.on("mouseover", () => lyr.setStyle({ weight: 4, color: "grey" }));
-      lyr.on("mouseout", () => { if (selected !== lyr) layer.resetStyle(lyr); });
+      lyr.on("mouseover", () => {
+        lyr.setStyle(outline(id));
+        lyr.bringToFront();
+        onHover && onHover(id, true);
+      });
+      lyr.on("mouseout", () => {
+        if (selected !== lyr) layer.resetStyle(lyr);
+        onHover && onHover(id, false);
+      });
       lyr.on("click", () => {
         if (selected) layer.resetStyle(selected);
         selected = lyr;
@@ -828,16 +1087,33 @@ function choroLayer(geo, { idProp, valueOf, color, popupHTML, onSelect, tooltipH
     }
   });
   // fit=false: highlight + popup without moving the view (static maps).
-  layer.selectById = (id, map, fit = true) => {
+  layer.selectById = (id, map, fit = true, popup = true) => {
     layer.eachLayer(lyr => {
       if (String(lyr.feature.properties[idProp]) === String(id)) {
         if (selected) layer.resetStyle(selected);
         selected = lyr;
-        lyr.setStyle({ weight: 4, color: "grey" });
+        lyr.setStyle(outline(id));
+        lyr.bringToFront();
         if (map && fit) map.fitBounds(lyr.getBounds().pad(1.2));
-        if (map) lyr.openPopup();
+        if (map && popup) lyr.openPopup();
         onSelect && onSelect(id, lyr.feature.properties, lyr);
       }
+    });
+  };
+  // Drops the outline without touching the data: the scan panel's Clear has
+  // to leave the map looking like nothing was ever picked.
+  layer.clearSelection = () => {
+    if (selected) { layer.resetStyle(selected); selected = null; }
+  };
+  // Outline an area without selecting it. Side-by-side comparison uses this
+  // to make the twin map follow the area under the cursor on this one — the
+  // two pictures are of the same 116 places, and the eye cannot find the
+  // matching polygon on its own.
+  layer.peekById = (id, on) => {
+    layer.eachLayer(lyr => {
+      if (String(lyr.feature.properties[idProp]) !== String(id)) return;
+      if (on) { lyr.setStyle(outline(id)); lyr.bringToFront(); }
+      else if (selected !== lyr) layer.resetStyle(lyr);
     });
   };
   return layer;
@@ -893,12 +1169,152 @@ function stripPlotSVG(values, here, median, fmt) {
     `text-anchor="end">${fmt(hi)}</text></svg>`;
 }
 
+// One row of the scan sheet — the popup strip at a size that repeats down a
+// page: every area a tick, the median a triangle, this area a filled dot. The
+// range ends print in their own columns rather than inside the SVG, so they
+// line up down the sheet instead of drifting with each measure's width.
+function scanStripSVG(values, here, median, lo, hi, W = 210) {
+  const H = 16, pad = 6;
+  const at = (v) => hi === lo ? W / 2
+    : +(pad + (v - lo) / (hi - lo) * (W - 2 * pad)).toFixed(1);
+  const ticks = values.map(v => `M${at(v)} 4v8`).join("");
+  const mid = at(median);
+  return `<svg class="wx-scan-strip" width="${W}" height="${H}" ` +
+    `viewBox="0 0 ${W} ${H}" aria-hidden="true">` +
+    `<path d="${ticks}" stroke="var(--map-line, #b8bec5)" stroke-width="1"/>` +
+    `<path d="M${mid - 3.5} 15.5L${mid} 11L${mid + 3.5} 15.5Z" ` +
+    `fill="var(--text-muted, #6e737a)"/>` +
+    `<circle cx="${at(here)}" cy="8" r="4" fill="var(--accent, #443a83)" ` +
+    `stroke="var(--panel, #ffffff)" stroke-width="1.2"/></svg>`;
+}
+
+// Config prose arrives as HTML; the PDF takes text. Going through a detached
+// element decodes the entities too, so "measure&rsquo;s" does not reach the
+// sheet as markup.
+function plainText(html) {
+  const d = document.createElement("div");
+  // Block ends become spaces first: textContent runs two paragraphs together
+  // into one word where the markup was the only thing separating them.
+  d.innerHTML = String(html || "").replace(/<\/(p|div|li|h[1-6])>/gi, " ");
+  return (d.textContent || "").replace(/\s+/g, " ").trim();
+}
+
+/* The scan sheet as a vector PDF (Joe's 09 overview sheet): rows drawn with
+ * jsPDF primitives rather than snapshotted, so labels and numbers stay
+ * selectable and the marks stay sharp at any zoom. Paginates on row count —
+ * a longer catalog spills onto a second page rather than shrinking to fit,
+ * which is what keeps the sheet the same size whichever area it is for. */
+function scanPDF({ title, subtitle, sections, note, filename }) {
+  if (!window.jspdf) { alert("The PDF library did not load — try reloading the page."); return; }
+  const doc = new window.jspdf.jsPDF({ orientation: "p", unit: "pt", format: "letter" });
+  const pw = doc.internal.pageSize.getWidth(), ph = doc.internal.pageSize.getHeight();
+  const margin = 40;
+  // Fixed inks rather than the theme's: a sheet is printed, and the dark
+  // theme's paper colors would come out as ink on white.
+  const INK = [46, 42, 87], BODY = [35, 33, 48], GREY = [110, 115, 122],
+        TICK = [184, 190, 197], BAND = [244, 246, 248], DOT = [68, 58, 131];
+  const SW = 200;                                    // strip width
+  const X = { label: margin, lo: 200, strip: 205, hi: 412, value: 508, pct: pw - margin };
+  // Sized so the whole catalog and its footnote land on one letter page —
+  // a sheet that spills is a sheet nobody prints double-sided correctly.
+  const rowH = 14, sectionH = 16;
+  let y = margin;
+
+  const columnHeads = () => {
+    doc.setFont("helvetica", "bold"); doc.setFontSize(7.2); doc.setTextColor(...GREY);
+    doc.text("LOWEST AREA TO HIGHEST AREA", X.strip + SW / 2, y, { align: "center" });
+    doc.text("ESTIMATE", X.value, y, { align: "right" });
+    doc.text("PERCENTILE", X.pct, y, { align: "right" });
+    doc.setFont("helvetica", "normal");
+    y += 9;
+  };
+  const room = (need) => {
+    if (y + need <= ph - margin) return;
+    doc.addPage(); y = margin; columnHeads();
+  };
+
+  doc.setFont("helvetica", "bold"); doc.setFontSize(16); doc.setTextColor(...INK);
+  doc.text(String(title), margin, y + 6);
+  y += 22;
+  doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(...GREY);
+  doc.text(String(subtitle), margin, y);
+  y += 16;
+
+  // The key is drawn rather than spelled out: the marks are the only thing
+  // explaining what a row means, and a character key cannot show a triangle.
+  doc.setFontSize(8);
+  let kx = margin;
+  const keyMark = (draw, label) => {
+    draw(kx + 3);
+    doc.setTextColor(...GREY);
+    doc.text(label, kx + 10, y + 3);
+    kx += 10 + doc.getTextWidth(label) + 18;
+  };
+  keyMark((x) => { doc.setDrawColor(...TICK); doc.setLineWidth(0.8);
+                   doc.line(x, y - 3, x, y + 4); }, "each area");
+  keyMark((x) => { doc.setFillColor(...GREY);
+                   doc.triangle(x - 3, y + 4, x + 3, y + 4, x, y, "F"); }, "median");
+  keyMark((x) => { doc.setFillColor(...DOT); doc.circle(x, y, 2.6, "F"); }, "this area");
+  y += 14;
+  columnHeads();
+
+  for (const s of sections) {
+    room(sectionH + rowH);
+    doc.setFillColor(...INK);
+    doc.rect(margin, y, pw - 2 * margin, sectionH - 3, "F");
+    doc.setFont("helvetica", "bold"); doc.setFontSize(8);
+    doc.setTextColor(255, 255, 255);
+    doc.text(String(s.group).toUpperCase(), margin + 6, y + sectionH - 8);
+    if (s.unit) doc.text(String(s.unit).toUpperCase(), pw - margin - 6,
+                         y + sectionH - 8, { align: "right" });
+    y += sectionH;
+
+    s.rows.forEach((r, i) => {
+      room(rowH);
+      if (i % 2) { doc.setFillColor(...BAND); doc.rect(margin, y, pw - 2 * margin, rowH, "F"); }
+      const midY = y + rowH / 2;
+      doc.setFont("helvetica", "normal"); doc.setFontSize(8.4); doc.setTextColor(...BODY);
+      doc.text(doc.splitTextToSize(r.label, X.lo - X.label - 10)[0], X.label, midY + 3);
+      doc.setFontSize(7); doc.setTextColor(...GREY);
+      doc.text(r.loText, X.lo, midY + 3, { align: "right" });
+      doc.text(r.hiText, X.hi, midY + 3);
+
+      const span = r.hi - r.lo;
+      const at = (v) => span === 0 ? X.strip + SW / 2
+        : X.strip + 4 + (v - r.lo) / span * (SW - 8);
+      doc.setDrawColor(...TICK); doc.setLineWidth(0.5);
+      for (const v of r.values) doc.line(at(v), midY - 4, at(v), midY + 4);
+      const mid = at(r.median);
+      doc.setFillColor(...GREY);
+      doc.triangle(mid - 3, midY + 7, mid + 3, midY + 7, mid, midY + 3, "F");
+      doc.setFillColor(...DOT);
+      doc.circle(at(r.here), midY, 2.6, "F");
+
+      doc.setFont("helvetica", "bold"); doc.setFontSize(8.8); doc.setTextColor(...INK);
+      doc.text(r.valueText, X.value, midY + 3, { align: "right" });
+      doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(...GREY);
+      doc.text(r.pctText, X.pct, midY + 3, { align: "right" });
+      y += rowH;
+    });
+  }
+
+  if (note) {
+    doc.setFont("helvetica", "normal"); doc.setFontSize(7); doc.setTextColor(...GREY);
+    const lines = doc.splitTextToSize(String(note), pw - 2 * margin);
+    room(lines.length * 9 + 12);
+    y += 11;
+    doc.text(lines, margin, y, { lineHeightFactor: 1.3 });
+  }
+  doc.save(filename || "wxdash-overview.pdf");
+}
+
 /* Map Explorer — 2.0 (Joe's estimates + alert layers, our layout): top
  * toolbar, fixed-frame full-width CWA map, hover tooltips, click popup with
  * the full place story (value, rank, percentile, median, strip plot — Joe's
  * popup-only pattern, user ruling 2026-08-13), per-measure notes below.
- * Comparison = ONE thing, the NWS alert-day history, crossfaded over the
- * estimate (replaces the 1.0 SVI comparison, user ruling 2026-08-13). */
+ * Comparison = ONE thing, the NWS alert-day history, drawn as a second map
+ * beside the first (replaces the 1.0 SVI comparison, user ruling 2026-08-13;
+ * side by side rather than crossfaded, user ruling 2026-08-18). */
 components.wx_map_explorer = async function (page, container) {
   const cats = CONFIG.catalog;
   const byCode = catalogByCode();
@@ -918,11 +1334,13 @@ components.wx_map_explorer = async function (page, container) {
   const fmtRange = (code) => (v) => isAlert(code)
     ? Math.round(v).toLocaleString() : Number(v).toFixed(1);
 
-  // Comparison state: one alert layer, crossfaded. ?compare=&mix= deep-link.
+  // Comparison state: one alert layer, drawn as a second map beside the
+  // first (Joe's ruling, Aug 2026 — a crossfade shows one picture at a time
+  // and asks the reader to hold the other in memory). ?compare= deep-links it.
   const alertCats = cats.filter(c => c.kind === "alert");
   let compare = alertCats.some(c => c.code === getParam("compare"))
     ? getParam("compare") : "";
-  let mix = Math.max(0, Math.min(100, parseInt(getParam("mix"), 10) || 50));
+  setParams({ mix: null });   // retires the crossfade's parameter on old links
 
   // --- top control bar (controls across the top, full-width map below)
   const lead = el("p", { class: "wx-explore-intro" }, page.sidebar_lead || "");
@@ -956,7 +1374,7 @@ components.wx_map_explorer = async function (page, container) {
   const compareWrap = el("div");
   const compareSel = el("select", { class: "grouping", id: "compare-sel", onchange: async () => {
     compare = compareSel.value;
-    setParams({ compare: compare || null, mix: compare ? String(mix) : null });
+    setParams({ compare: compare || null });
     await redraw();
   } });
   compareWrap.append(el("label", { class: "field-label", for: "compare-sel" },
@@ -984,82 +1402,293 @@ components.wx_map_explorer = async function (page, container) {
     setParams({ scheme: sc === DEFAULT_SCHEME ? null : sc });
     await redraw();
   }));
+  // The notes card below the maps is the document's notes: what was asked,
+  // how it was scored, how the colors are stretched, where it came from —
+  // and, while comparing, the same for the alert history beside it.
   bar.append(pdfButton("Download map (PDF)", () => {
     const cat = byCode.get(measure);
-    pdfDownload({
-      title: (cat ? cat.label : measure) + " — NWS County Warning Area " +
-        (isAlert(measure) ? "alert days" : "estimates"),
-      canvas: mapSnapshot(mapEl),
-      filename: `wxdash-map-${measure}.pdf`,
-      legend: lastLegend
+    const cmp = compare ? byCode.get(compare) : null;
+    pdfDocument({
+      title: (cat ? cat.label : measure) +
+        (cmp ? " and " + cmp.label : ""),
+      subtitle: `NWS County Warning Area ` +
+        (isAlert(measure) ? "alert days" : "estimates") +
+        `  ·  ${N} areas of the contiguous United States`,
+      canvas: cmp ? mapPairSnapshot(mapEl, mapElB) : mapSnapshot(mapEl),
+      notesHTML: notesCard.innerHTML,
+      filename: `wxdash-map-${measure}${cmp ? "-vs-" + compare : ""}.pdf`,
+      legends: cmp ? [lastLegend, lastLegendB] : lastLegend
     });
   }));
+  const clearBtn = el("button", { class: "wx-clear-btn wx-toolbar-clear",
+    type: "button", onclick: () => clearPlace() }, "Clear selection");
+  clearBtn.style.display = "none";
+  bar.append(clearBtn);
 
   // --- full-width map card + per-measure notes card below
+  // One pane normally; two side by side while comparing. Each pane carries
+  // its own heading and legend, so neither map has to borrow the other's.
   const card = el("div", { class: "card wx-map-card wx-map-fullwidth" });
-  const legendHolder = el("div", { class: "wx-legend-row" });
-  const mapEl = el("div", { class: "wx-map" });
-  // Crossfade control: measure label — slider — alert label. Lives on the
-  // map card so the mix and the map read as one instrument.
-  const fadeLeft = el("span", { class: "wx-fade-label" });
-  const fadeRight = el("span", { class: "wx-fade-label" });
-  const fadeInput = el("input", { class: "wx-fade-input", type: "range",
-    min: "0", max: "100", step: "1", "aria-label": "Blend between the two maps" });
-  const fadeBar = el("div", { class: "wx-fade-bar" }, fadeLeft, fadeInput, fadeRight);
-  card.append(fadeBar, mapEl, legendHolder);
+  const pane = (cls) => {
+    const title = el("p", { class: "wx-map-pane-title" });
+    const mapEl = el("div", { class: "wx-map" });
+    const legend = el("div", { class: "wx-legend-row" });
+    return { el: el("div", { class: "wx-map-pane " + cls }, title, mapEl, legend),
+             title, mapEl, legend };
+  };
+  const paneA = pane("wx-pane-a"), paneB = pane("wx-pane-b");
+  const mapEl = paneA.mapEl, mapElB = paneB.mapEl;
+  const legendHolder = paneA.legend, legendHolderB = paneB.legend;
+  const pairEl = el("div", { class: "wx-map-pair" }, paneA.el, paneB.el);
+  card.append(pairEl);
   const notesCard = el("div", { class: "card wx-map-notes" });
+  const scanCard = el("div", { class: "card wx-scan-card" });
+  // Notes first, then the scan sheet: what the map is showing has to be read
+  // before one area's standing on it means anything.
   container.append(el("div", { class: "page wx-explore-page wx-map-page" },
-    el("div", { class: "content" }, lead, bar, card, notesCard)));
+    el("div", { class: "content" }, lead, bar, card, notesCard, scanCard)));
 
   // Fixed-frame map (Joe's design): the page scrolls normally over it — no
   // scroll-wheel zoom trap, no drag, no zoom buttons. CONUS fills the frame.
-  const map = await baseMap(mapEl, {
+  const CONUS = [[24.5, -125], [49.5, -66.9]];
+  const FIXED_FRAME = {
     zoomControl: false, dragging: false, scrollWheelZoom: false,
     doubleClickZoom: false, boxZoom: false, keyboard: false, touchZoom: false,
     // Fractional zoom so fitBounds can truly fill the frame at any width —
     // integer snapping leaves the CONUS floating small between zoom levels.
     // Safe here: the map is static, nobody zooms by hand.
     zoomSnap: 0.1
-  });
-  // The frame is fluid (full-bleed page, vh-based height): re-render and
-  // re-frame CONUS whenever the container changes size, so the map scales
-  // with the window instead of cropping.
+  };
+  const refit = (m) => { if (m) { m.invalidateSize(); m.fitBounds(CONUS); } };
+  const map = await baseMap(mapEl, FIXED_FRAME);
+
+  // The second map is built the first time a comparison is asked for, and
+  // kept afterwards. Built only while its pane is visible: Leaflet reads the
+  // container size at construction, and a hidden container gives it the
+  // 400x300 fallback that renders nothing.
+  let mapB = null;
+  async function ensureMapB() {
+    if (!mapB) mapB = await baseMap(mapElB, FIXED_FRAME);
+    return mapB;
+  }
+
+  // The frames are fluid (full-bleed page, and each halves when the second
+  // map appears): re-render and re-frame CONUS whenever a container changes
+  // size, so the maps scale with the window instead of cropping.
   let refitTimer = null;
   new ResizeObserver(() => {
     clearTimeout(refitTimer);
-    refitTimer = setTimeout(() => {
-      map.invalidateSize();
-      map.fitBounds([[24.5, -125], [49.5, -66.9]]);
-    }, 120);
-  }).observe(mapEl);
-
-  // Overlay pane for the comparison layer: above the base choropleth, mouse-
-  // transparent (hover/click always reach the base layer), and crossfaded by
-  // a single CSS opacity on the pane.
-  const comparePane = map.createPane("wx-compare");
-  comparePane.style.zIndex = 450;
-  comparePane.style.pointerEvents = "none";
-  const applyMix = () => { comparePane.style.opacity = compare ? String(mix / 100) : "0"; };
-  fadeInput.value = String(mix);
-  fadeInput.addEventListener("input", () => { mix = Number(fadeInput.value); applyMix(); });
-  fadeInput.addEventListener("change", () => setParams({ mix: compare ? String(mix) : null }));
+    refitTimer = setTimeout(() => { refit(map); refit(mapB); }, 120);
+  }).observe(pairEl);
 
   let activeLayer = null;
-  let lastLegend = null;   // domain/stops/title of the current view, for the PDF
   let compareLayer = null;
+  let lastLegend = null;    // domain/stops/title of each view, for the PDF
+  let lastLegendB = null;
+
+  // --- scan sheet: every measure for one area, under the map (Joe's 09 CWA
+  // overview sheet, on the page). It computes nothing — values, medians and
+  // percentiles are the ones cwa_values.json already carries, so a row and
+  // the popup above it cannot disagree.
+  const scanCfg = (CONFIG.map && CONFIG.map.scan) || {};
+  let place = (getParam("place") || "").toUpperCase();
+  if (place && !cwaValues.places[place]) place = "";
+
+  function clearPlace() {
+    place = "";
+    setParams({ place: null });
+    if (activeLayer) activeLayer.clearSelection();
+    if (compareLayer) compareLayer.clearSelection();
+    map.closePopup();
+    if (mapB) mapB.closePopup();
+    // A popup auto-pans to stay in view, which shifts a frame that is
+    // otherwise fixed. Clearing puts CONUS back where it started.
+    refit(map);
+    refit(mapB);
+    renderScan();
+  }
+
+  function scanRow(cat) {
+    const m = M(cat.code);
+    return {
+      cat,
+      values: Object.values(m.values).filter(v => v != null).map(Number),
+      here: Number(m.values[place]),
+      median: Number(m.median),
+      lo: Number(m.domain[0]), hi: Number(m.domain[1]),
+      pct: m.pct[place]
+    };
+  }
+
+  // The sheet in the order the measure menu lists it, so the row someone is
+  // hunting for sits where the dropdown taught them to look.
+  function scanSections() {
+    return groupsSeen.map(g => {
+      const rows = cats.filter(c => c.group === g);
+      return {
+        group: g,
+        // A whole group of alert layers is counted days rather than a 1-5
+        // estimate, and the Estimate column heading would otherwise read as
+        // a claim about the counts.
+        unit: rows.every(c => c.kind === "alert") ? "days" : "",
+        rows
+      };
+    });
+  }
+
+  function downloadScan() {
+    const label = (cwaValues.places[place] || {}).label || place;
+    scanPDF({
+      title: label,
+      subtitle: `County Warning Area overview · ${place} · ` +
+        `${CONFIG.project.nav_subtitle || CONFIG.project.nav_title || ""}`,
+      sections: scanSections().map(s => ({
+        group: s.group, unit: s.unit,
+        rows: s.rows.map(cat => {
+          const r = scanRow(cat);
+          return {
+            label: cat.label, values: r.values, here: r.here,
+            median: r.median, lo: r.lo, hi: r.hi,
+            loText: fmtRange(cat.code)(r.lo), hiText: fmtRange(cat.code)(r.hi),
+            valueText: fmtVal(cat.code)(r.here), pctText: ordinal(r.pct)
+          };
+        })
+      })),
+      note: [scanCfg.lede, scanCfg.note].filter(Boolean).map(plainText).join(" "),
+      filename: `wxdash-overview-${place.toLowerCase()}.pdf`
+    });
+  }
+
+  const KEY_MARKS = [
+    ['<svg width="9" height="12"><path d="M4.5 1v10" stroke="var(--map-line,#b8bec5)"/></svg>',
+     `each of the ${N} areas`],
+    ['<svg width="9" height="12"><path d="M1 9L4.5 4L8 9Z" fill="var(--text-muted,#6e737a)"/></svg>',
+     "median"],
+    ['<svg width="9" height="12"><circle cx="4.5" cy="6" r="4" fill="var(--accent,#443a83)"/></svg>',
+     "this area"]
+  ];
+
+  function renderScan() {
+    scanCard.textContent = "";
+    clearBtn.style.display = place ? "" : "none";
+    if (!place) { scanCard.style.display = "none"; return; }
+    scanCard.style.display = "";
+    const label = (cwaValues.places[place] || {}).label || place;
+
+    scanCard.append(el("div", { class: "wx-scan-head" },
+      el("div", {},
+        el("h3", { class: "wx-scan-title" }, label),
+        el("p", { class: "wx-scan-sub" },
+          `County Warning Area overview · ${place} · ${cats.length} measures`)),
+      el("div", { class: "wx-scan-actions" },
+        pdfButton("Download overview (PDF)", downloadScan),
+        el("button", { class: "wx-clear-btn", type: "button",
+          onclick: () => clearPlace() }, "Clear"))));
+
+    if (scanCfg.lede) scanCard.append(el("div", { class: "wx-scan-lede", html: scanCfg.lede }));
+    scanCard.append(el("p", { class: "wx-scan-key", html: KEY_MARKS
+      .map(([mark, text]) => `<span>${mark} ${esc(text)}</span>`).join("") +
+      `<span class="wx-scan-hint">Select a row to map it.</span>` }));
+
+    const table = el("div", { class: "wx-scan-table" });
+    table.append(el("div", { class: "wx-scan-cols" },
+      el("span", {}), el("span", {}),
+      el("span", { class: "wx-scan-colhead wx-scan-center" },
+        "Lowest area to highest area"),
+      el("span", {}),
+      el("span", { class: "wx-scan-colhead wx-scan-right" }, "Estimate"),
+      el("span", { class: "wx-scan-colhead wx-scan-right" }, "Percentile")));
+
+    for (const s of scanSections()) {
+      table.append(el("div", { class: "wx-scan-group" },
+        el("span", {}, s.group),
+        s.unit ? el("span", { class: "wx-scan-unit" }, s.unit) : null));
+      s.rows.forEach((cat, i) => {
+        const r = scanRow(cat);
+        // The whole row is the control: a reader scanning 33 measures for the
+        // one worth a map should not have to find a separate link for it.
+        table.append(el("button", {
+          type: "button",
+          class: "wx-scan-row" + (i % 2 ? " is-band" : "") +
+            (cat.code === measure ? " is-current" : ""),
+          title: `Map ${cat.label}`,
+          onclick: () => {
+            measure = cat.code;
+            measureSel.value = cat.code;
+            setParams({ measure });
+            if (compare) {
+              compare = byCode.get(measure).compare_default || "";
+              syncCompare();
+            }
+            redraw();
+          }
+        },
+          el("span", { class: "wx-scan-label" }, cat.label),
+          el("span", { class: "wx-scan-lo" }, fmtRange(cat.code)(r.lo)),
+          el("span", { class: "wx-scan-plot",
+            html: scanStripSVG(r.values, r.here, r.median, r.lo, r.hi, stripWidth) }),
+          el("span", { class: "wx-scan-hi" }, fmtRange(cat.code)(r.hi)),
+          el("span", { class: "wx-scan-value" }, fmtVal(cat.code)(r.here)),
+          el("span", { class: "wx-scan-pct" }, ordinal(r.pct))));
+      });
+    }
+    scanCard.append(table);
+    if (scanCfg.note) scanCard.append(el("div", { class: "wx-scan-note", html: scanCfg.note }));
+    fitStrips();
+  }
+
+  // The strip column is elastic — the sheet runs the width of the page — so
+  // the marks are drawn at the width the column actually got rather than a
+  // fixed 210px, which would leave them bunched at one end of a wide cell.
+  // Measured after layout, because a grid track has no width until then.
+  let stripWidth = 210;
+  function fitStrips() {
+    const cells = scanCard.querySelectorAll(".wx-scan-plot");
+    if (!cells.length) return;
+    const w = Math.round(cells[0].getBoundingClientRect().width);
+    if (!w || Math.abs(w - stripWidth) < 2) return;
+    stripWidth = w;
+    let i = 0;
+    for (const s of scanSections()) {
+      for (const cat of s.rows) {
+        const r = scanRow(cat);
+        cells[i++].innerHTML =
+          scanStripSVG(r.values, r.here, r.median, r.lo, r.hi, stripWidth);
+      }
+    }
+  }
+  let stripTimer = null;
+  new ResizeObserver(() => {
+    clearTimeout(stripTimer);
+    stripTimer = setTimeout(fitStrips, 120);
+  }).observe(scanCard);
+
+  // The popup's link into the sheet. Delegated on the container because
+  // Leaflet rebuilds the popup element on every open.
+  container.addEventListener("click", (e) => {
+    const link = e.target.closest(".wx-scan-link");
+    if (!link) return;
+    e.preventDefault();
+    place = String(link.dataset.place || "").toUpperCase();
+    setParams({ place });
+    // Through the layers rather than straight to renderScan, so the area is
+    // outlined on the maps as well as filled in below them.
+    selectPlace(place);
+    scanCard.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
 
   // The popup's one-paragraph place story (Joe's narrative(), templates from
   // config.map.popup). rank/pct/median are compiler-precomputed — the engine
   // only assembles the sentence.
-  function popupStory(id) {
-    const cat = byCode.get(measure);
-    const m = M(measure);
+  function popupStory(id, code) {
+    const cat = byCode.get(code);
+    const m = M(code);
     const here = m.values[id];
     if (here == null) return "No data for this area.";
     const rank = m.rank[id], pct = m.pct[id];
-    const alert = isAlert(measure);
+    const alert = isAlert(code);
     const noun = alert ? "count" : "estimate";
-    const quantity = fillTpl(CONFIG.map.quantities[constructOf(measure)],
+    const quantity = fillTpl(CONFIG.map.quantities[constructOf(code)],
       { hazard: hazardOfLabel(cat.label) });
     // Naming the quantity lets the sentence work at any rank — a comparative
     // would be false in the middle of the distribution (Joe's design note).
@@ -1069,95 +1698,135 @@ components.wx_map_explorer = async function (page, container) {
     else if (rank <= N / 2) standing = `ranks ${ordinal(rank)} highest of the ${N}`;
     else standing = `ranks ${ordinal(rank)} of the ${N}`;
     return fillTpl(alert ? CONFIG.map.popup.alert : CONFIG.map.popup.estimate, {
-      value: fmtVal(measure)(here), quantity, n: N,
-      median: fmtVal(measure)(m.median), standing,
+      value: fmtVal(code)(here), quantity, n: N,
+      median: fmtVal(code)(m.median), standing,
       percentile: ordinal(pct), span: m.span || ""
     });
   }
 
-  async function redraw() {
-    const cat = byCode.get(measure);
-    const m = M(measure);
-    // Colors stretch over the measure's own observed range (Joe's 2.0
-    // design): on a shared 1-5 scale the warning measures would all come out
-    // one flat mid tone.
-    const domain = m.domain;
-    const stops = dataStops(schemeStops(scheme));
+  // One picked area, both maps. selectById calls back into here, so the
+  // guard is what stops the two layers handing the selection to each other.
+  let syncing = false;
+  function selectPlace(id) {
+    place = String(id);
+    setParams({ place });
+    renderScan();
+    if (syncing) return;
+    syncing = true;
+    if (activeLayer) activeLayer.selectById(place, null, false, false);
+    if (compareLayer) compareLayer.selectById(place, null, false, false);
+    syncing = false;
+  }
+
+  // One choropleth, built the same way for either pane. Colors stretch over
+  // the measure's own observed range (Joe's 2.0 design): on a shared 1-5
+  // scale the warning measures would all come out one flat mid tone.
+  function buildChoro(code, targetMap, stops, twin) {
+    const cat = byCode.get(code);
+    const m = M(code);
+    const d = m.domain;
     const color = (v) => v == null ? "#d0d0d0"
-      : rampColor(stops, (v - domain[0]) / (domain[1] - domain[0]));
-
-    const compareCat = compare ? byCode.get(compare) : null;
-    const compareM = compare ? M(compare) : null;
-    // Contrasting ramp so the two signals stay tellable apart mid-fade:
-    // grey normally, blue when the main scheme is already grey.
-    const compareStops = dataStops(scheme === "grey" ? BLUES_STOPS : GREYS_STOPS);
-
-    if (activeLayer) map.removeLayer(activeLayer);
-    activeLayer = choroLayer(geo, {
+      : rampColor(stops, (v - d[0]) / (d[1] - d[0]));
+    const values = Object.values(m.values).filter(v => v != null).map(Number);
+    return choroLayer(geo, {
       idProp: "CWA",
       valueOf: (id) => m.values[id],
       color,
+      onSelect: (id) => selectPlace(id),
+      onHover: (id, on) => { const t = twin(); if (t) t.peekById(id, on); },
+      // Both numbers ride in either map's tooltip while comparing: the point
+      // of the pairing is the two read together, and moving the cursor to
+      // the other map to get the second one loses the first.
       tooltipHTML: (id, props) => {
-        const v = m.values[id];
-        let core = `<span class="wx-tt-val">${isAlert(measure) ? "Alert days" : "Estimate"} ` +
-          `${v == null ? "no data" : fmtVal(measure)(v)}</span>`;
-        if (compareM) {
-          const cv = compareM.values[id];
-          core += `<br><span class="wx-tt-val">${esc(compareCat.label)} ` +
-            `${cv == null ? "no data" : fmtVal(compare)(cv)}</span>`;
-        }
-        return `<strong>${esc(props.CWA_DISPLAY || id)}</strong><br>` + core +
+        const other = compare ? (code === measure ? compare : measure) : null;
+        const line = (c) => {
+          const v = M(c).values[id];
+          return `<span class="wx-tt-val">${esc(byCode.get(c).label)} ` +
+            `${v == null ? "no data" : fmtVal(c)(v)}</span>`;
+        };
+        return `<strong>${esc(props.CWA_DISPLAY || id)}</strong><br>` + line(code) +
+          (other ? "<br>" + line(other) : "") +
           `<br><span class="wx-tip-hint">Click for the full story</span>`;
       },
-      popupHTML: (id, props) => {
-        const values = Object.values(m.values).filter(v => v != null).map(Number);
-        return `<strong>${esc(props.CWA_DISPLAY || id)} (${esc(String(id))})</strong>` +
-          `<br><br>` + esc(popupStory(id)) +
-          stripPlotSVG(values, Number(m.values[id]), Number(m.median),
-                       fmtRange(measure));
-      },
-    }).addTo(map);
+      popupHTML: (id, props) =>
+        `<strong>${esc(props.CWA_DISPLAY || id)} (${esc(String(id))})</strong>` +
+        `<br><br>` + esc(popupStory(id, code)) +
+        stripPlotSVG(values, Number(m.values[id]), Number(m.median),
+                     fmtRange(code)) +
+        `<a class="wx-scan-link" href="#" data-place="${esc(String(id))}">` +
+        `See every measure for this area &darr;</a>`
+    }).addTo(targetMap);
+  }
 
-    // Rebuild the comparison overlay (mouse-transparent, own pane).
-    if (compareLayer) { map.removeLayer(compareLayer); compareLayer = null; }
-    if (compare) {
-      const cd = compareM.domain;
-      const cColor = (v) => v == null ? "#d0d0d0"
-        : rampColor(compareStops, (v - cd[0]) / (cd[1] - cd[0]));
-      compareLayer = L.geoJSON(geo, {
-        // Own renderer in the compare pane — the map-level canvas renderer
-        // would otherwise paint this into the SAME canvas as the base layer,
-        // and the pane's crossfade opacity would take both maps with it.
-        renderer: L.canvas({ pane: "wx-compare" }),
-        pane: "wx-compare", interactive: false,
-        style: (f) => ({
-          fillColor: cColor(compareM.values[f.properties.CWA]),
-          fillOpacity: 0.95, color: "rgba(255,255,255,0.6)", weight: 1
-        })
-      }).addTo(map);
-    }
-    fadeBar.style.display = compare ? "" : "none";
-    fadeLeft.textContent = cat.label;
-    fadeRight.textContent = compareCat ? compareCat.label : "";
-    applyMix();
+  // Paired, the pane heading already names the measure, so the legend says
+  // only what the numbers are; alone, it has to carry the label itself.
+  function drawLegend(holder, code, stops, withLabel) {
+    holder.textContent = "";
+    const kind = isAlert(code) ? "Alert days" : "Estimate (1\u20135 scale)";
+    const m = M(code);
+    holder.append(gradientLegend(
+      withLabel ? kind + " \u2014 " + esc(byCode.get(code).label) : kind,
+      m.domain, stops, fmtRange(code)));
+    return { title: kind + " \u2014 " + byCode.get(code).label,
+             domain: m.domain, stops, fmt: fmtRange(code) };
+  }
 
-    legendHolder.textContent = "";
-    const legendTitle = (isAlert(measure) ? "Alert days — " : "Estimate (1–5 scale) — ") + esc(cat.label);
-    legendHolder.append(gradientLegend(legendTitle, domain, stops, fmtRange(measure)));
-    lastLegend = { title: isAlert(measure) ? "Alert days" : "Estimate (1–5 scale)",
-                   domain, stops, fmt: fmtRange(measure) };
-    if (compare) legendHolder.append(
-      gradientLegend("Alert days — " + esc(compareCat.label), compareM.domain,
-                     compareStops, fmtRange(compare)));
+  async function redraw() {
+    const cat = byCode.get(measure);
+    const compareCat = compare ? byCode.get(compare) : null;
+    const stops = dataStops(schemeStops(scheme));
+    // Contrasting ramp so the two maps stay tellable apart at a glance:
+    // grey normally, blue when the main scheme is already grey.
+    const compareStops = dataStops(scheme === "grey" ? BLUES_STOPS : GREYS_STOPS);
 
-    notesCard.innerHTML = (CONFIG.map.notes || {})[measure] || "";
+    // The pane has to be laid out before Leaflet measures it, and both
+    // frames change width the moment the second one appears.
+    pairEl.classList.toggle("is-paired", !!compare);
+    paneB.el.style.display = compare ? "" : "none";
+    if (compare) await ensureMapB();
+    refit(map);
+    refit(mapB);
+
+    paneA.title.textContent = cat.label;
+    paneB.title.textContent = compareCat ? compareCat.label : "";
+
+    if (activeLayer) map.removeLayer(activeLayer);
+    activeLayer = buildChoro(measure, map, stops, () => compareLayer);
+
+    if (compareLayer) { mapB.removeLayer(compareLayer); compareLayer = null; }
+    if (compare) compareLayer = buildChoro(compare, mapB, compareStops,
+                                           () => activeLayer);
+
+    lastLegend = drawLegend(legendHolder, measure, stops, !compare);
+    lastLegendB = compare
+      ? drawLegend(legendHolderB, compare, compareStops, false) : null;
+    if (!compare) legendHolderB.textContent = "";
+
+    // Both explanations live here, in two columns under the two maps they
+    // describe. An alert history picked for comparison is a second quantity
+    // on the page, and the reader has the same questions about it as about
+    // the measure: what it counts, where it came from, how it was used.
+    const notes = CONFIG.map.notes || {};
+    const mine = notes[measure] || "";
+    const theirs = compare ? (notes[compare] || "") : "";
+    notesCard.innerHTML = theirs
+      ? `<div class="wx-notes-pair"><div class="wx-note-half">${mine}</div>` +
+        `<div class="wx-note-half">${theirs}</div></div>`
+      : mine;
     notesCard.style.display = notesCard.innerHTML ? "" : "none";
 
-    // ?place=OUN deep-links an area: highlight + popup without moving the
-    // fixed frame.
-    const preselect = getParam("place");
-    if (preselect) activeLayer.selectById(preselect, map, false);
+    // ?place=OUN deep-links an area, and a click keeps it selected across
+    // measure changes: highlight without moving the fixed frame. The popup
+    // opens on the first draw only — reopening it on every measure change
+    // would fight the reader who just closed it.
+    if (place) {
+      activeLayer.selectById(place, map, false, firstDraw);
+      firstDraw = false;
+    } else {
+      renderScan();
+    }
   }
+  let firstDraw = true;
   await redraw();
 };
 

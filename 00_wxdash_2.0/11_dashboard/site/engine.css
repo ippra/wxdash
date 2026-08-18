@@ -17,6 +17,7 @@
   --control-border: #cfc9c0;
   --row-hover: #f5f2ec;
   --row-selected: #fdeef2;
+  --map-hairline: rgba(38, 34, 30, 0.28);
   --shadow: 0 1px 3px rgba(40, 30, 20, 0.08);
   --radius: 10px;
   --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -45,6 +46,7 @@ html[data-theme="greyscale"] {
   --control-border: #444444;
   --row-hover: #eeeeee;
   --row-selected: #dddddd;
+  --map-hairline: rgba(0, 0, 0, 0.55);
   --shadow: none;
   --font-display: var(--font);
 }
@@ -198,6 +200,7 @@ html[data-theme="wxdash"] {
   --row-selected: #e9e6f5;
   --map-bg: #eef1f4;
   --map-line: #b8b8c0;
+  --map-hairline: rgba(35, 33, 48, 0.28);
   --shadow: 0 1px 3px rgba(40, 30, 90, 0.10);
   --font-display: var(--font);
   --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
@@ -224,6 +227,7 @@ html[data-theme="wxops"] {
   --row-selected: #1b2c4a;
   --map-bg: #101a2e;
   --map-line: #2c3b57;
+  --map-hairline: rgba(226, 232, 240, 0.32);
   --shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
   --font-display: var(--font);
   --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
@@ -243,7 +247,10 @@ html[data-theme="wxops"] #navbar { position: sticky; border-bottom: none; }
 
 /* ---------- maps ---------- */
 .wx-map-card { padding: 0; overflow: hidden; }
-.wx-map { height: 620px; background: var(--map-bg, #eef1f4); }
+/* Compound selector on purpose: Leaflet puts .leaflet-container on this same
+   element, and its default #ddd would show through as the grey slab this is
+   removing. */
+.wx-map, .wx-map.leaflet-container { height: 620px; background: transparent; }
 .wx-map-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
 @media (max-width: 1100px) { .wx-map-row { grid-template-columns: 1fr; } }
 .leaflet-container { font-family: var(--font); }
@@ -411,20 +418,22 @@ html[data-theme="wxops"] #navbar { position: sticky; border-bottom: none; }
 
 /* Per-measure notes under the map (Joe's caption block), set like it was
    typeset: a lede line, the survey items in the left reading column, the
-   methodology and provenance in the right. */
+   methodology and provenance in the right. The prose runs the full width of
+   its column rather than to a reading measure — Joe's call, so the block
+   fills the page it is given. */
 .wx-map-notes { padding: 24px 28px 26px; line-height: 1.6; font-size: 14px; }
 .wx-map-notes .wx-lede {
   font-family: var(--font-display);
   font-size: 19px; font-weight: 650; letter-spacing: -0.01em; line-height: 1.35;
   color: var(--display-ink, var(--text));
-  max-width: 62ch; margin: 0 0 6px;
+  margin: 0 0 6px;
 }
 .wx-note-cols {
   display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
   column-gap: 56px; margin-top: 12px;
 }
 @media (max-width: 1000px) { .wx-note-cols { grid-template-columns: 1fr; } }
-.wx-map-notes .wx-asked { margin: 0 0 8px; max-width: 70ch; }
+.wx-map-notes .wx-asked { margin: 0 0 8px; }
 .wx-map-notes .wx-asked strong {
   display: block;
   font-family: var(--mono, monospace);
@@ -433,35 +442,189 @@ html[data-theme="wxops"] #navbar { position: sticky; border-bottom: none; }
   color: var(--text-muted);
   margin-bottom: 6px;
 }
-.wx-map-notes ul { margin: 0; padding-left: 20px; max-width: 70ch; }
+.wx-map-notes ul { margin: 0; padding-left: 20px; }
 .wx-map-notes li { margin: 5px 0; line-height: 1.5; color: var(--text); }
 .wx-map-notes li::marker { color: var(--control-border); }
 .wx-note-cols > div:last-child p, .wx-map-notes .wx-note-single {
-  font-size: 13.5px; color: var(--text-muted); max-width: 62ch; margin: 0 0 12px;
+  font-size: 13.5px; color: var(--text-muted); margin: 0 0 12px;
 }
 .wx-note-cols > div:last-child p:last-child { margin-bottom: 0; }
 .wx-map-notes .wx-note-single { font-size: 14px; margin-top: 12px; }
 .wx-map-notes strong { color: var(--text); }
+/* Comparing: one note per map, in the same two columns and with the same
+   divider the maps above use. Each note's own two-column layout runs as one
+   column here — four columns across the card is not a reading width. */
+.wx-notes-pair { display: grid; grid-template-columns: 1fr 1fr; }
+.wx-note-half { min-width: 0; padding-right: 34px; }
+.wx-note-half + .wx-note-half {
+  padding-right: 0; padding-left: 34px;
+  border-left: 1px solid var(--panel-border);
+}
+.wx-notes-pair .wx-note-cols { display: block; }
+.wx-notes-pair .wx-note-cols > div + div { margin-top: 14px; }
+@media (max-width: 900px) {
+  .wx-notes-pair { grid-template-columns: 1fr; }
+  .wx-note-half { padding-right: 0; }
+  .wx-note-half + .wx-note-half {
+    padding-left: 0; border-left: none;
+    border-top: 1px solid var(--panel-border);
+    margin-top: 22px; padding-top: 22px;
+  }
+}
 .wx-map-notes a { color: var(--accent); text-underline-offset: 2px; }
 
-/* Comparison crossfade (composite ⇄ SVI): labeled ends, one range input.
-   Sits on the map card so slider and map read as one instrument. */
-.wx-fade-bar {
-  display: flex; align-items: center; gap: 16px;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--panel-border);
+/* Scan sheet — every measure for one area, under the map. Six columns held in
+   one grid so the dots line up down the page: that column IS the instrument,
+   and a per-row layout would let each strip drift by the width of its label. */
+.wx-scan-card { padding: 22px 26px 24px; margin-top: 20px; --scan-width: 820px; }
+.wx-scan-head {
+  display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap;
+  padding-bottom: 14px; border-bottom: 1px solid var(--panel-border);
 }
-.wx-fade-label {
+.wx-scan-title {
+  font-family: var(--font-display); font-size: 20px; font-weight: 650;
+  letter-spacing: -0.01em; color: var(--display-ink, var(--text)); margin: 0;
+}
+.wx-scan-sub {
+  font-family: var(--mono, monospace); font-size: 10.5px; font-weight: 600;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--text-muted); margin: 5px 0 0;
+}
+.wx-scan-actions { margin-left: auto; display: flex; gap: 14px; align-items: center; }
+.wx-scan-actions .wx-pdf-btn { margin-left: 0; align-self: center; }
+.wx-clear-btn {
+  border: none; background: none; color: var(--text-muted);
+  font: inherit; font-size: 13px; cursor: pointer; text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.wx-clear-btn:hover { color: var(--accent); }
+.wx-clear-btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+/* In the toolbar it sits on the same baseline as the PDF button beside it,
+   which is nudged off the bottom edge to line up with the labelled selects. */
+.wx-toolbar-clear { align-self: flex-end; margin-bottom: 10px; }
+.wx-scan-lede p {
+  font-size: 13.5px; color: var(--text-muted); max-width: var(--scan-width);
+  margin: 14px 0 0; line-height: 1.55;
+}
+.wx-scan-key {
+  display: flex; gap: 22px; flex-wrap: wrap; align-items: center;
+  font-size: 12px; color: var(--text-muted); margin: 12px 0 4px;
+  max-width: var(--scan-width);
+}
+.wx-scan-key span { display: inline-flex; align-items: center; gap: 5px; }
+.wx-scan-hint { margin-left: auto; font-style: italic; }
+
+/* Held to --scan-width rather than the page: a row whose label sits a third
+   of a screen from its marks cannot be read across. The prose above and below
+   takes the same width, so the sheet reads as one block.
+
+   The label track is a fixed width rather than max-content because every row
+   is its own grid — a content-sized track resolves per row, and the columns
+   come out ragged down the sheet. 260px holds the longest label on one line;
+   the strip takes whatever is left. */
+.wx-scan-table { margin-top: 4px; max-width: var(--scan-width); }
+.wx-scan-cols, .wx-scan-row {
+  display: grid;
+  grid-template-columns: 260px 46px 1fr 46px 58px 54px;
+  align-items: center; column-gap: 10px;
+}
+.wx-scan-plot { min-width: 0; }
+.wx-scan-strip { max-width: 100%; }
+.wx-scan-cols { padding: 0 8px 6px; }
+.wx-scan-colhead {
+  font-family: var(--mono, monospace); font-size: 9.5px; font-weight: 600;
+  letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted);
+}
+.wx-scan-center { text-align: center; }
+.wx-scan-right { text-align: right; }
+
+.wx-scan-group {
+  display: flex; justify-content: space-between; align-items: center;
+  font-family: var(--mono, monospace); font-size: 10px; font-weight: 600;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--accent-contrast); background: var(--display-ink, var(--text));
+  padding: 5px 8px; margin: 12px 0 0; border-radius: 3px;
+}
+.wx-scan-unit { opacity: 0.75; letter-spacing: 0.1em; }
+
+.wx-scan-row {
+  width: 100%; text-align: left; font: inherit; color: var(--text);
+  border: none; border-bottom: 1px solid var(--panel-border);
+  background: none; padding: 2px 8px; cursor: pointer;
+}
+.wx-scan-row.is-band { background: var(--row-hover); }
+.wx-scan-row:hover { background: var(--row-selected); }
+.wx-scan-row:focus-visible { outline: 3px solid var(--accent); outline-offset: -3px; }
+/* The mapped measure keeps a marker in the margin, so the sheet says which
+   row the map above it is showing. */
+.wx-scan-row.is-current { box-shadow: inset 3px 0 0 var(--accent); }
+.wx-scan-row.is-current .wx-scan-label { font-weight: 650; }
+.wx-scan-label { font-size: 13.5px; line-height: 1.3; }
+.wx-scan-lo, .wx-scan-hi {
+  font-family: var(--mono, monospace); font-size: 10.5px; color: var(--text-muted);
+}
+.wx-scan-lo { text-align: right; }
+.wx-scan-plot { display: block; line-height: 0; }
+.wx-scan-value {
+  font-family: var(--mono, monospace); font-size: 13px; font-weight: 700;
+  text-align: right; color: var(--display-ink, var(--text));
+}
+.wx-scan-pct {
+  font-family: var(--mono, monospace); font-size: 11.5px;
+  text-align: right; color: var(--text-muted);
+}
+.wx-scan-note p {
+  font-size: 12.5px; color: var(--text-muted); max-width: var(--scan-width);
+  margin: 14px 0 0; line-height: 1.55;
+}
+.wx-scan-note a { color: var(--accent); }
+.wx-scan-link { display: inline-block; margin-top: 6px; font-size: 12.5px; }
+
+/* Narrow screens: the strip drops onto its own line under the label rather
+   than out of the sheet — it is the reason the sheet exists. */
+@media (max-width: 860px) {
+  .wx-scan-cols { display: none; }
+  .wx-scan-card { padding: 18px 14px 20px; }
+  .wx-scan-row {
+    grid-template-columns: 1fr 58px 54px; row-gap: 2px; padding: 6px 8px;
+  }
+  .wx-scan-lo, .wx-scan-hi { display: none; }
+  .wx-scan-plot { grid-column: 1 / -1; }
+  .wx-scan-actions { margin-left: 0; }
+}
+
+/* Comparison as two maps rather than a crossfade (Joe's ruling, Aug 2026):
+   one measure, one alert history, drawn at the same size on the same page.
+   A fade shows one picture at a time and asks the reader to remember the
+   other; two maps let the eye travel between them. */
+.wx-map-pair { display: grid; grid-template-columns: 1fr; }
+.wx-map-pair.is-paired { grid-template-columns: 1fr 1fr; }
+/* min-width:0 or the grid tracks refuse to shrink below the maps' content
+   width and the card overflows the page. */
+.wx-map-pane { min-width: 0; }
+.wx-map-pair.is-paired .wx-map-pane + .wx-map-pane {
+  border-left: 1px solid var(--panel-border);
+}
+/* Half the width means half the map: aspect-ratio keeps CONUS filling its
+   frame instead of floating in a letterbox the fixed height would leave. */
+.wx-map-pair.is-paired .wx-map { height: auto; aspect-ratio: 1.8; }
+.wx-map-pane-title {
   font-family: var(--mono, monospace);
   font-size: 10.5px; font-weight: 600;
-  letter-spacing: 0.1em; text-transform: uppercase;
-  color: var(--text); max-width: 30ch; line-height: 1.35;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--text); margin: 0;
+  padding: 12px 16px 10px;
+  border-bottom: 1px solid var(--panel-border);
 }
-.wx-fade-label:last-child { text-align: right; }
-.wx-fade-input { flex: 1 1 auto; accent-color: var(--accent); height: 22px; }
-.wx-fade-input:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+/* One map names itself in its legend; the heading would only repeat it. */
+.wx-map-pair:not(.is-paired) .wx-map-pane-title { display: none; }
+@media (max-width: 900px) {
+  .wx-map-pair.is-paired { grid-template-columns: 1fr; }
+  .wx-map-pair.is-paired .wx-map-pane + .wx-map-pane {
+    border-left: none; border-top: 1px solid var(--panel-border);
+  }
+}
 
-/* Both legends side by side while comparing. */
 .wx-legend-row { display: flex; flex-wrap: wrap; column-gap: 40px; }
 .wx-legend-row .wx-legend { flex: 1 1 320px; max-width: 560px; }
 
@@ -655,6 +818,7 @@ html[data-theme="wxops"] #theme-btn:hover { background: rgba(255, 255, 255, 0.08
 .tip-wrap.open .tip-panel { display: block; }
 .tip-panel p { margin: 0 0 8px; }
 .tip-panel p:last-child { margin-bottom: 0; }
+
 .wx-whatis { margin: 10px 0 0; font-size: 12.5px; }
 
 

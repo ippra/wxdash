@@ -184,9 +184,12 @@ scale_anchors <- function(options) {
          parts[nrow(parts), 2], " (",
          str_to_lower(parts[nrow(parts), 3]), ")")
 }
+# The space belongs inside the group: with it outside, the two alternatives
+# that carry their own leading space needed two, so "Tornado alert days" kept
+# its suffix and the note read "one VTEC-enabled tornado alert days watch".
 hazard_of_label <- function(label) {
   str_to_lower(str_remove(label, paste0(
-    " (warning (reception|comprehension|response)",
+    "( warning (reception|comprehension|response)",
     "| risk perceptions| alert days)$")))
 }
 
@@ -273,8 +276,71 @@ for (m in menu) {
     "</div></div>")
 }
 
+# The Scan Sheet ---------------------------------------------------------------
+# One area against all the others on every measure at once, under the map. The
+# panel computes nothing: it draws the values, medians and percentiles already
+# in cwa_values.json. What is authored here is the caution that makes the rows
+# readable - each row is stretched to its own range, so equal positions mean
+# equal standing and not equal differences. The three widths are measured off
+# the data rather than asserted, because that claim is what the stretch trades
+# on and it moves with every refresh.
+measure_span <- function(code) {
+  d <- measure_values[[code]]$domain
+  d[[2]] - d[[1]]
+}
+is_alert_measure <- vapply(menu, function(m) isTRUE(m$alert), logical(1))
+alert_codes <- offered[is_alert_measure]
+risk_codes <- offered[!is_alert_measure & startsWith(offered, "RISK_")]
+warning_codes <- setdiff(offered[!is_alert_measure], risk_codes)
+
+widest_warning <- sprintf("%.2f", max(vapply(warning_codes, measure_span, 0)))
+widest_risk <- sprintf("%.1f", max(vapply(risk_codes, measure_span, 0)))
+widest_alert <- format(round(max(vapply(alert_codes, measure_span, 0))),
+                       big.mark = ",")
+
+# The alert spans as one sentence, because the sheet lists every category at
+# once and cannot carry the per-measure clause the notes below the map use.
+# Written from the menu so a category whose coverage changes moves itself into
+# or out of the exception rather than needing this prose re-edited.
+alert_menu <- menu[is_alert_measure]
+alert_spans <- vapply(alert_menu, function(m) m$span, character(1))
+common_span <- names(sort(table(alert_spans), decreasing = TRUE))[1]
+odd_alerts <- alert_menu[alert_spans != common_span]
+as_range <- function(s) str_replace(s, " and ", " to ")
+
+alert_span_sentence <- if (length(odd_alerts) == 0) {
+  paste0("All cover ", as_range(common_span), ".")
+} else {
+  odd_labels <- vapply(odd_alerts, function(m) {
+    str_to_lower(str_remove(m$label, " alert days$"))
+  }, character(1))
+  paste0(
+    "All cover ", as_range(common_span), " except ",
+    paste(odd_labels, collapse = ", "), ", which covers ",
+    as_range(odd_alerts[[1]]$span),
+    " because the product did not exist before then."
+  )
+}
+
+scan_lede <- paste0(
+  "<p>Each row is one measure. Every row is stretched to its own range across ",
+  "the ", measures_meta$areas, " areas, so a dot at the right of one row and ",
+  "a dot at the right of another mean the same standing, not the same size of ",
+  "difference &mdash; the widest warning scale spans ", widest_warning,
+  " of a point, the widest risk item ", widest_risk, ", and the widest alert ",
+  "count ", widest_alert, " days. The numbers at the ends of a row are that ",
+  "measure&rsquo;s own lowest and highest value across the areas.</p>")
+
+scan_note <- paste0(
+  provenance_note,
+  "<p>The alert counts are not estimates. They are days on which the National ",
+  "Weather Service issued at least one VTEC-enabled watch, warning, or ",
+  "advisory event of that kind, taken from the ", MESONET_LINK, " archive, ",
+  "and they are the exposure measures the models are fitted on. ",
+  alert_span_sentence, "</p>")
+
 # Comparison Pairing -----------------------------------------------------------
-# The map can crossfade a measure against ONE thing: the alert-day history its
+# The map can pair a measure with ONE thing: the alert-day history its
 # model is fitted on (06_fit_models.R). WW pairs to SNOW by default with ICE
 # offered in the dropdown. Drought, hail and lightning have no NWS alert
 # product — 06 fits them on FEMA NRI frequencies — so their pairing is NA and
@@ -301,7 +367,7 @@ if (length(unpaired) > 0) {
 }
 
 # The other direction: a pairing naming an alert layer the menu no longer
-# offers leaves the crossfade with nothing to fade to, and the front end has
+# offers leaves the second map with nothing to draw, and the front end has
 # no values for it either — cwa_values.json is keyed by the menu.
 dangling <- setdiff(compare_pairing[!is.na(compare_pairing)], offered)
 if (length(dangling) > 0) {
@@ -653,6 +719,7 @@ config <- list(
   catalog = catalog,
   map = list(
     notes = map_notes,
+    scan = list(lede = scan_lede, note = scan_note),
     popup = list(
       estimate = paste0("The estimate for this area is {value} out of 5 for ",
                         "{quantity}. The median estimate across the {n} ",
@@ -718,7 +785,8 @@ config <- list(
                                "responses — every area gets a value, ",
                                "including places where few people were ",
                                "surveyed. Hover an area to read its value; ",
-                               "click it for the full story."),
+                               "click it for the full story, and for a scan ",
+                               "of every measure estimated there."),
          blurb = paste0("Compare estimates across National Weather Service ",
                         "forecast offices, beside the alert history that ",
                         "helps explain them.")),

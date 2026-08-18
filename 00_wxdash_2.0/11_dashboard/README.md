@@ -103,11 +103,19 @@ deploy.
   from `10`'s own values with the same formulas `10`'s app.js derives in the
   browser (rank = 1 + count strictly greater; percentile = share strictly
   below).
-- **Alert-history comparison**: the map crossfades a measure against the
-  alert-day layer its model is fitted on (`compare_pairing` in the builder,
-  transcribed from `06_fit_models.R`). Drought, hail and lightning have no
-  NWS alert product — `06` fits them on FEMA NRI frequencies — so their
-  pairing is deliberately absent and the page says so.
+- **The alert-history pairing** — which alert layer each measure is offered
+  against, in `compare_pairing`, transcribed from `06_fit_models.R`. Drought,
+  hail and lightning have no NWS alert product — `06` fits them on FEMA NRI
+  frequencies — so their pairing is deliberately absent and the page says so.
+  Guards halt the build on a measure with no pairing decided, and on a pairing
+  naming an alert layer the menu no longer offers.
+- **The scan sheet's prose** (`config.map.scan`) — the caution that makes its
+  rows readable: each row is stretched to its own range, so equal positions
+  mean equal standing and not equal differences. The three widths it quotes
+  (widest warning scale, widest risk item, widest alert count) are measured
+  off `10`'s values at build time rather than asserted, and the sentence about
+  which years the alert counts cover is written from the menu, so a category
+  whose coverage changes moves itself into or out of the exception.
 - **Test Your Knowledge quiz**: five two-part questions. Prompts are fixed;
   answer keys and reveal numbers are derived from `10`'s distributions at
   build time, so they always agree with what the explorer shows. Prose
@@ -129,6 +137,53 @@ deploy.
   explorer, so a reader can exit the quiz into the data at any point.
 - Simplified CWA geometry (the full-resolution polygons and per-measure
   properties in `10`'s geojson aren't needed — values ship separately).
+
+## What the front end does with it
+
+- **Explore Communities is one page in four parts**: the toolbar, the map (or
+  two), the notes that explain what is mapped, and the scan sheet for whichever
+  area was clicked. The notes come before the sheet because one area's standing
+  means nothing until the reader knows what is being measured.
+- **Comparison is two maps.** Choosing an alert layer draws it beside the
+  measure at the same size in a contrasting ramp; hovering either map outlines
+  the area on both, either tooltip carries both numbers, and the notes below
+  split into two columns to match, one explanation per map. Both quantities
+  stay on screen together, so the reader compares two pictures rather than
+  holding one of them in memory.
+- **The scan sheet** — every measure for one County Warning Area, drawn as a
+  row stretched to its own range across the 116 areas: a tick per area, the
+  median, this area's dot, the range ends, the value and the percentile.
+  Selecting a row maps that measure. Values are the ones the popup reads, so
+  the two cannot disagree. Clicking an area fills it; `Clear` in its header or
+  `Clear selection` in the toolbar empties it, and clearing re-frames the maps
+  (a popup auto-pans to stay in view, which shifts an otherwise fixed frame).
+  `?place=OUN` deep-links an area. The sheet and its prose share one width, and
+  the strips are drawn at the width their column actually got, measured after
+  layout.
+- **The map surface carries no color of its own** — the choropleth sits
+  directly on the card. Polygon borders are therefore a theme token
+  (`--map-hairline`): white borders against a white card would lose the shape
+  of the palest areas along with their fill. The hover and selection outline is
+  chosen against the fill's luma for the same reason, since any single color
+  fails at one end of a ramp — grey is invisible on the dark end of the greys
+  the comparison map uses.
+- **PDF downloads as standalone documents.** The map export and the chart
+  export are not screenshots: each is a titled document carrying a subtitle
+  (measure and area count, or survey, variable, split and whether intervals are
+  shown), the plot, its legends, and the page's own notes underneath — what was
+  asked, how it was scored, how the colors are stretched, who ran the survey,
+  where the data lives. The notes are read off the rendered page rather than
+  re-authored, so a download cannot say something the screen does not. Three
+  details keep the layout honest: the notes are measured before the plot is
+  placed, so the plot takes what is left rather than pushing prose onto a
+  second page; the snapshot is cropped to what was drawn, since the map
+  container is a fixed frame the CONUS floats inside; and each legend is
+  positioned from the image, so with two maps the second sits under its own map
+  rather than under the gap. Short notes run one full-width column, long ones
+  two. The scan sheet's own PDF is built separately (`scanPDF`), since it is
+  rows rather than a plot: drawn with jsPDF primitives so the type stays
+  selectable, and sized so the whole catalog and its footnote land on one page
+  (it paginates rather than shrinking if the catalog outgrows that).
 
 ## Working in this directory (Matthew, Joe, and our Claudes)
 
