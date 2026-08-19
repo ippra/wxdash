@@ -94,6 +94,17 @@ site itself — DNS, a server block, and a certificate. Every asset URL
 carries a `?v=<build>` stamp, so long-lived host caches roll over on each
 deploy.
 
+One hosting requirement makes that stamping work: `index.html` itself must
+be served with `Cache-Control: no-cache` (cache but revalidate — the server
+answers 304 via Last-Modified when unchanged). The HTML is the one file that
+cannot version-stamp itself; if the host serves it with a long max-age,
+browsers keep the old HTML — and therefore the old `?v=` references — and
+new deploys are invisible until a hard refresh. Everything else can and
+should be cached as long as the host likes. Learned in production 2026-08-18:
+the current host's backend sent max-age=1yr on everything, and its nginx now
+overrides just the three HTML entry URLs (`/wxdash`, `/wxdash/`,
+`/wxdash/index.html`) to no-cache. Any future host needs the equivalent.
+
 ## What the builder adds on top of 10's data
 
 - `config.json` — pages, themes (wxdash light / wxops dark / greyscale
