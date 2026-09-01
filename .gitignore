@@ -61,8 +61,8 @@ vignettes/*.pdf
 *.html
 *_files/
 
-# The dashboard front end is the exception: under 11_dashboard/site/ the HTML
+# The dashboard front end is the exception: under 09_dashboard/site/ the HTML
 # is source, not output - it is the page itself, not a render of a .md beside
 # it. Without this negation the rule above would silently skip any page added
 # there.
-!/00_wxdash_2.0/11_dashboard/site/*.html
+!/00_wxdash_2.0/09_dashboard/site/*.html

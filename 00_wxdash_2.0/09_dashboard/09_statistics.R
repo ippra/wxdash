@@ -4,15 +4,15 @@ library(sf)
 library(jsonlite)
 
 source(here::here("00_wxdash_2.0", "00_paths.R"))
-source(here::here("00_wxdash_2.0", "11_dashboard", "11_rcode.R"))
+source(here::here("00_wxdash_2.0", "09_dashboard", "09_rcode.R"))
 
 # Statistics -------------------------------------------------------------------
 # Every number the dashboard shows is computed here, and nowhere else. Sourced
-# by 11_build_dashboard.R under --data; it is not run on its own.
+# by 09_build_dashboard.R under --data; it is not run on its own.
 #
 # It reads the variable reference from 08, the pooled survey data from 05, the
 # model estimates from 07 and the alert spans from 02, and writes
-# outputs/11_data/ - the question files, the R that rebuilds each of their
+# outputs/09_data/ - the question files, the R that rebuilds each of their
 # charts, the measure menu and the map. The assembly half then reads that
 # directory and nothing else.
 #
@@ -309,7 +309,7 @@ alert_columns <- grep("^ALERT_", names(cwa_estimates), value = TRUE)
 # It sits beside the build scripts rather than in outputs/, because it is
 # source, not output.
 measure_menu <- read_csv(
-  here::here("00_wxdash_2.0", "11_dashboard", "measures.csv"),
+  here::here("00_wxdash_2.0", "09_dashboard", "measures.csv"),
   col_types = cols(order = col_integer(), .default = col_character())
 ) |>
   arrange(order)

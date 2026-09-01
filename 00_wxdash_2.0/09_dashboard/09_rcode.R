@@ -1,7 +1,7 @@
 # Reproduction Scripts ---------------------------------------------------------
 # Every chart on the explore page carries the R that rebuilds it. This file
 # holds the generator and the check that a generated script actually produces
-# the numbers being published beside it. Sourced by 11_statistics.R, which is
+# the numbers being published beside it. Sourced by 09_statistics.R, which is
 # the file that computes those numbers - the code that reproduces an estimate
 # is written by the code that made it, so the two cannot drift.
 #
@@ -62,7 +62,7 @@ r_title <- function(title) {
 # Splits -----------------------------------------------------------------------
 # The five derived groupings, written out where they are used. A reader holding
 # the script and the wave files has everything; a reader sent to look up
-# 11_statistics.R does not. The labels and the cuts are that file's - the
+# 09_statistics.R does not. The labels and the cuts are that file's - the
 # prefixes it uses to order the groups are dropped here, and the order comes
 # back as factor levels below.
 r_derive <- list(

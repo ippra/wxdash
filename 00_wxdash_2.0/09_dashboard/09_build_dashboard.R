@@ -8,12 +8,12 @@ source(here::here("00_wxdash_2.0", "00_paths.R"))
 # The whole dashboard, from 08 to the deployable site. Two halves that change
 # on different cadences and cost three orders of magnitude apart:
 #
-#   Rscript 00_wxdash_2.0/11_dashboard/11_build_dashboard.R --data
+#   Rscript 00_wxdash_2.0/09_dashboard/09_build_dashboard.R --data
 #
-# computes every statistic — 11_statistics.R, about fifteen minutes — and
-# writes outputs/11_data/. Without the flag,
+# computes every statistic — 09_statistics.R, about fifteen minutes — and
+# writes outputs/09_data/. Without the flag,
 #
-#   Rscript 00_wxdash_2.0/11_dashboard/11_build_dashboard.R
+#   Rscript 00_wxdash_2.0/09_dashboard/09_build_dashboard.R
 #
 # assembles the site from that directory plus the hand-edited source in site/,
 # in seconds. Front-end work is the common case and should not cost a coffee
@@ -22,7 +22,7 @@ source(here::here("00_wxdash_2.0", "00_paths.R"))
 # anything else.
 #
 # Assembly calculates NO statistics. Every percentage, confidence interval and
-# estimate is read from outputs/11_data/ verbatim, so the two halves cannot
+# estimate is read from outputs/09_data/ verbatim, so the two halves cannot
 # disagree — a property that is true by construction rather than enforced by a
 # harness. A calculation moved into this half gives that up.
 #
@@ -32,16 +32,16 @@ source(here::here("00_wxdash_2.0", "00_paths.R"))
 # simplified geometry, and a quiz whose answer keys are derived from the
 # distributions at build time.
 #
-# Writes outputs/11_site/ — plain static files; upload the directory to any
+# Writes outputs/09_site/ — plain static files; upload the directory to any
 # web host. Preview with:
-#   python3 -m http.server --directory "$WXDASH_LOCAL/outputs/11_site"
+#   python3 -m http.server --directory "$WXDASH_LOCAL/outputs/09_site"
 
-data_dir <- paste0(outputs, "11_data/")
-out <- paste0(outputs, "11_site/")
-site_src <- here::here("00_wxdash_2.0", "11_dashboard", "site")
+data_dir <- paste0(outputs, "09_data/")
+out <- paste0(outputs, "09_site/")
+site_src <- here::here("00_wxdash_2.0", "09_dashboard", "site")
 
 if ("--data" %in% commandArgs(trailingOnly = TRUE)) {
-  source(here::here("00_wxdash_2.0", "11_dashboard", "11_statistics.R"))
+  source(here::here("00_wxdash_2.0", "09_dashboard", "09_statistics.R"))
 }
 
 # Checked rather than assumed: without --data this half reads a directory it
@@ -455,7 +455,7 @@ shown_pct <- function(x) round(x)
 shown_mean <- function(x) round(x, 1)
 check_prose <- function(ok, what) {
   if (!ok) stop("Quiz prose drifted: ", what, " — re-word that question in ",
-                "11_build_dashboard.R before shipping.")
+                "09_build_dashboard.R before shipping.")
 }
 # The nearest offered band, guarded so that "nearest" means something: the
 # tolerance is half the narrowest gap between bands, so a share sitting
@@ -895,7 +895,7 @@ conflicted <- list.files(out, pattern = "conflicted copy", recursive = TRUE)
 if (length(conflicted) > 0) {
   print(head(conflicted, 20))
   stop(length(conflicted), " conflicted copies reached the built site - ",
-       "Dropbox resolved a sync against the build. Delete outputs/11_site, ",
+       "Dropbox resolved a sync against the build. Delete outputs/09_site, ",
        "let it settle, then run again.")
 }
 

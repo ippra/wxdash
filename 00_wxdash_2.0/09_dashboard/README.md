@@ -1,4 +1,4 @@
-# 11_dashboard — the production WxDash site
+# 09_dashboard — the production WxDash site
 
 The deployed dashboard, and the last step of the pipeline. Maintained by
 Matthew Henderson on top of Joe Ripberger's estimation pipeline (`01`–`08`);
@@ -7,15 +7,15 @@ verified (its history lives there, commits `933d668`–`2bdff4e`).
 
 ## Three sides, kept separate
 
-**The statistics** — `11_statistics.R`, with the script generator in
-`11_rcode.R`. Sourced by the builder under `--data`, not run on its own.
-Computes every number the dashboard shows and writes `outputs/11_data/`. It
+**The statistics** — `09_statistics.R`, with the script generator in
+`09_rcode.R`. Sourced by the builder under `--data`, not run on its own.
+Computes every number the dashboard shows and writes `outputs/09_data/`. It
 reads the codebook from `08`, the pooled survey data from `05`, the model
 estimates from `07` and the alert spans from `02`. Roughly fifteen minutes,
 almost all of it the 915 questions.
 
-**The builder** — `11_build_dashboard.R`. Assembles the deployable site from
-`outputs/11_data/` plus `site/`. It computes **no statistics**: every
+**The builder** — `09_build_dashboard.R`. Assembles the deployable site from
+`outputs/09_data/` plus `site/`. It computes **no statistics**: every
 percentage, confidence interval and estimate is carried over verbatim, so the
 site cannot disagree with what was computed. If the builder ever grows a
 calculation, that property is gone and a verification harness has to replace
@@ -27,7 +27,7 @@ it.
 `site/assets/geo/`. Iterating on how the dashboard looks or behaves means
 editing here and re-running the builder, which takes seconds.
 
-**The output** — `outputs/11_site/` (outside the repo, like every pipeline
+**The output** — `outputs/09_site/` (outside the repo, like every pipeline
 output). Plain static files, fully self-contained: no server code, no
 third-party requests, every library vendored. Upload the directory to any
 web host. Currently deployed at http://c.itation.net/wxdash.
@@ -38,18 +38,18 @@ web host. Currently deployed at http://c.itation.net/wxdash.
 08 codebook · 05 survey data · 07 estimates · 02 alert spans
         │
         ▼
-11_statistics.R                 all statistics (srvyr), ~15 min
-   (11_build_dashboard.R --data)
+09_statistics.R                 all statistics (srvyr), ~15 min
+   (09_build_dashboard.R --data)
         │
         ▼
-outputs/11_data/                915 question files and the R that rebuilds
+outputs/09_data/                915 question files and the R that rebuilds
                                 each of their charts, measures, CWA map values
         │
         ▼                       ┌── site/ (front end source)
-11_build_dashboard.R  ◄─────────┘   seconds; no statistics
+09_build_dashboard.R  ◄─────────┘   seconds; no statistics
         │
         ▼
-outputs/11_site/                the deployable site
+outputs/09_site/                the deployable site
 ```
 
 One entry point, two costs. The data directory is the boundary, so iterating
@@ -76,15 +76,15 @@ R packages beyond the repo's usual set: `tidyverse`, `sf`, `jsonlite`,
 ## Building and previewing
 
 ```
-Rscript 00_wxdash_2.0/11_dashboard/11_build_dashboard.R --data  # if survey data,
+Rscript 00_wxdash_2.0/09_dashboard/09_build_dashboard.R --data  # if survey data,
                                                                 # models or the
                                                                 # menu changed
                                                                 # (~15 min)
-Rscript 00_wxdash_2.0/11_dashboard/11_build_dashboard.R         # always (seconds)
-python3 -m http.server --directory "$WXDASH_LOCAL/outputs/11_site"
+Rscript 00_wxdash_2.0/09_dashboard/09_build_dashboard.R         # always (seconds)
+python3 -m http.server --directory "$WXDASH_LOCAL/outputs/09_site"
 ```
 
-Without `--data` the builder reads `outputs/11_data/` and refuses to start if
+Without `--data` the builder reads `outputs/09_data/` and refuses to start if
 it is not there, rather than assembling a site around an empty question table.
 
 The builder halts loudly rather than producing a quietly wrong site: menu
@@ -94,10 +94,10 @@ below), and R sources leaking into the output all stop the build.
 
 ## Deploying
 
-`outputs/11_site/` is the rsync unit. Current home:
+`outputs/09_site/` is the rsync unit. Current home:
 
 ```
-rsync -av --delete "$WXDASH_LOCAL/outputs/11_site/" <host>:<docroot>/wxdash/
+rsync -av --delete "$WXDASH_LOCAL/outputs/09_site/" <host>:<docroot>/wxdash/
 ```
 
 Because the site is static and self-contained with relative URLs and hash
@@ -228,13 +228,13 @@ overrides just the three HTML entry URLs (`/wxdash`, `/wxdash/`,
   expect the directory to have moved since you last saw it — read the diff,
   not your memory of it.
 - **Statistics belong in the data half.** A change to what is computed goes in
-  `01`–`08` or `11_statistics.R` (Joe's side); a change to what is shown goes
-  in `site/` and the builder. If the shape of `outputs/11_data/` changes, the
+  `01`–`08` or `09_statistics.R` (Joe's side); a change to what is shown goes
+  in `site/` and the builder. If the shape of `outputs/09_data/` changes, the
   builder's guards fail loudly — update the reader code and this README in the
   same commit.
 - R code here follows the repo's style guide (`00_wxdash_2.0/CLAUDE.md`).
 - The split roster and caption phrases in the builder mirror the one in
-  `11_statistics.R`; if a split is added there, add it here too. That pair is
+  `09_statistics.R`; if a split is added there, add it here too. That pair is
   the only duplication left in the roster, and it crosses the R/JavaScript
   boundary, so nothing catches a missed edit.
 

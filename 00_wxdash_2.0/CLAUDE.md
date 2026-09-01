@@ -23,16 +23,12 @@ so provenance reads off the filename. All of them `source(here::here(
 | `06` | multilevel models; fixed effects are the five poststrat cells |
 | `07` | CWA and county estimates, as CSV and as simplified `sf` for mapping |
 | `08` | `variable_reference.csv` — the codebook, read off instruments |
-| `11_dashboard/` | the dashboard: every statistic, and the site that shows it |
-
-The numbering skips `09` and `10`, and the gap stays. Closing it would rename
-`outputs/11_site/`, which is the rsync target, and renaming a deploy path to
-tidy a sequence is how a deploy breaks.
+| `09_dashboard/` | the dashboard: every statistic, and the site that shows it |
 
 Adding a survey wave is one line of code: the `waves` vector at the top of
 `05`. Everything else is data — a new instrument in `08`, a new `_all` alert
 year in `downloads/` — then rerun `02` and `03` (only if the alert year is
-new), `05`, `06`, `07`, and `11 --data`. Two rough edges on that path: `07`
+new), `05`, `06`, `07`, and `09 --data`. Two rough edges on that path: `07`
 names `04_county_poststrat_2024.csv` explicitly, so a new poststrat vintage
 means editing `07`; and `06` expects a human to read 24 model summaries, which
 is deliberate and means the chain is not push-button.
@@ -44,11 +40,11 @@ own name and files the new one as a conflicted copy, publishing stale
 JavaScript beside fresh data — a site that loads, draws, and is wrong. It
 happened three times in one session and produced over a thousand conflicted
 copies. The attribute is per machine and does not travel with the repo, so set
-it on any machine that runs `10` or `11`; everything under `outputs/` is
-regenerable from `01`–`11`, which is the same argument that keeps it out of
-git. `10` and `11` both scan the built site for conflicted copies and stop, but
-that only catches what a previous run left behind — nothing can catch Dropbox
-reverting a build after it finishes.
+it on any machine that runs `09`; everything under `outputs/` is regenerable
+from `01`–`09`, which is the same argument that keeps it out of git. The
+builder scans the built site for conflicted copies and stops, but that only
+catches what a previous run left behind — nothing can catch Dropbox reverting
+a build after it finishes.
 
 The five poststratification cells — `AGE_GROUP`, `GENDER_GROUP`, `RACE_GROUP`,
 `EDUC_GROUP`, `INCOME_GROUP` — are built in `04` and fit in `06`. Anything
@@ -112,15 +108,15 @@ skill but not the sources.
 
 ## The statistics
 
-`11_dashboard/11_statistics.R` computes every number the dashboard shows, and
-nothing else does. It is sourced by `11_build_dashboard.R` under `--data`, not
-run on its own, and it writes `outputs/11_data/`: the 915 question files, the R
+`09_dashboard/09_statistics.R` computes every number the dashboard shows, and
+nothing else does. It is sourced by `09_build_dashboard.R` under `--data`, not
+run on its own, and it writes `outputs/09_data/`: the 915 question files, the R
 that rebuilds each of their charts, the measure menu and the map.
 
-**The two halves of `11` are split on cost, not on subject.** This one reads a
+**The two halves of `09` are split on cost, not on subject.** This one reads a
 400 MB file and makes about 24,000 `srvyr` calls, and takes roughly fifteen
 minutes; assembly reads what it wrote and takes two seconds. Front-end work is
-the common case, so `outputs/11_data/` is the boundary between them and the
+the common case, so `outputs/09_data/` is the boundary between them and the
 default run does not touch it. Run `--data` when the survey data, the models or
 the measure menu change; without it for anything else. Assembly refuses to
 start if that directory is not there.
@@ -134,9 +130,9 @@ differ by at most 2.9e-09, so only the first is computed and it is used for
 both. The second call was most of the build: with both, a full run took over an
 hour.
 
-**Every chart carries the R that rebuilds it.** `11_rcode.R` holds the
+**Every chart carries the R that rebuilds it.** `09_rcode.R` holds the
 generator, and the question loop runs it: one concrete script per (question,
-split), written into `11_data/rcode/<id>.json` and fetched by the front end on
+split), written into `09_data/rcode/<id>.json` and fetched by the front end on
 the first click. The code that computed the numbers writes the code that
 reproduces them, so the two cannot drift.
 
@@ -175,14 +171,14 @@ item of its own — 148 of the 915 — the stem *is* the question, so it moves i
 PDF title, the table's search and sort, and the title of the R script that
 rebuilds the chart.
 
-**The measure menu is declared once**, in `11_dashboard/measures.csv`: one row
+**The measure menu is declared once**, in `09_dashboard/measures.csv`: one row
 per mapped measure, giving its order, its group and its label. It is validated
 against what `07` actually produces — in both directions, plus duplicates — so
 adding a measure is a row in that CSV, and a measure that no longer exists
 upstream stops the build rather than vanishing from a menu.
 
-**Splits are declared twice** — in `11_statistics.R` and in
-`11_dashboard/site/engine.js`, across two languages. Thirteen splits with a
+**Splits are declared twice** — in `09_statistics.R` and in
+`09_dashboard/site/engine.js`, across two languages. Thirteen splits with a
 caption phrase each, and nothing catches a missed edit, though the five derived
 ones are also written out as generated R where `verify_r_code()` would fail on
 a drift. This was five declarations before `09` and `10` were retired, and
@@ -191,11 +187,11 @@ boundary, which is the smallest it goes without a CSV both sides read.
 
 ## The production site
 
-`11_dashboard/` is the deployed dashboard, maintained by Matthew Henderson on
+`09_dashboard/` is the deployed dashboard, maintained by Matthew Henderson on
 top of `01`–`08`. It has its own `README.md`, which is the fuller account; what
 matters from here is the property the arrangement buys. **Assembly computes no
 statistics**: every percentage, interval and estimate is read from
-`outputs/11_data/` verbatim, so the site cannot disagree with what was
+`outputs/09_data/` verbatim, so the site cannot disagree with what was
 computed. A calculation moved into the assembly half gives that up, and a
 verification harness would have to come back to replace it.
 
@@ -225,7 +221,7 @@ editor, not in a scrolling box.
 `site/` is the hand-edited front end — `engine.js`, `engine.css`, `index.html`,
 vendored Leaflet, Chart.js and jsPDF. The builder copies it, fills the
 `__BUILD__` cache-busting stamp, drops anything hidden, and refuses to publish
-a built site containing `.R` files. It writes `outputs/11_site/`, which is the
+a built site containing `.R` files. It writes `outputs/09_site/`, which is the
 rsync unit; a run takes seconds, so iterating on the front end is cheap.
 
 The quiz is the one place the builder authors claims about the data. Prompts
@@ -238,7 +234,7 @@ one way. Shares are carried unrounded for exactly this reason — rounding first
 moves a group up to a point, which is enough to walk an answer past a margin it
 does not clear.
 
-The comparison pairings in `11` are transcribed from `06_fit_models.R`. Choosing
+The comparison pairings in `09` are transcribed from `06_fit_models.R`. Choosing
 an alert history draws it as a second map beside the measure its model was
 fitted on, so both quantities are on screen at once and the reader compares two
 pictures rather than holding one in memory. Both maps are the same size, the
@@ -293,11 +289,11 @@ MapLibre's 400x300 zero-container fallback and renders nothing. To tell a real
 blank from a capture artifact, draw the canvas into a 2D context and count
 non-white pixels rather than trusting the screenshot.
 
-Neither trap applies to `11`, which routes on the hash - `#survey`, `#map`,
+Neither trap applies to `09`, which routes on the hash - `#survey`, `#map`,
 `#quiz` go straight to a page - and draws with Leaflet on a 2D canvas, so it
 needs no WebGL and no swiftshader flag.
 
-Checking `11`'s PDFs headlessly needs the DevTools protocol rather than a
+Checking `09`'s PDFs headlessly needs the DevTools protocol rather than a
 screenshot, and three things get in the way. jsPDF copies its API onto each
 instance at construction, so patching `jsPDF.prototype.save` captures nothing —
 replace `window.jspdf.jsPDF` with a wrapper that overrides `save` on the

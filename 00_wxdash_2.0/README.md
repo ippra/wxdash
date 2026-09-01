@@ -10,9 +10,8 @@ contiguous United States and every NWS County Warning Area (CWA).
 The pipeline is nine numbered steps, run in order. Each output file is named
 for the script that wrote it, so `03_county_alert_counts.csv` came from `03`.
 Steps `01`-`07` build the estimates; `08` documents the survey instruments; and
-`11` computes every statistic the dashboard shows and assembles the site that
-shows them. The numbering skips `09` and `10`, and the gap stays: closing it
-would rename `outputs/11_site/`, which is the rsync target.
+`09` computes every statistic the dashboard shows and assembles the site that
+shows them.
 
 ---
 
@@ -313,17 +312,17 @@ documents say.
 **Writes** `variable_reference.csv`. The `.docx` instruments are gitignored, so
 a fresh clone has the sheet but not the sources.
 
-### `11_dashboard/`
+### `09_dashboard/`
 
 The dashboard, in two halves behind one entry point.
 
-`11_build_dashboard.R --data` sources `11_statistics.R`, which computes every
+`09_build_dashboard.R --data` sources `09_statistics.R`, which computes every
 number the dashboard shows — weighted response distributions for 915 questions
 across thirteen splits, the map values, and one R script per (question, split)
 that rebuilds its chart from the released wave files. About fifteen minutes.
 Percentages are weighted with `srvyr` on `PERSON_WEIGHT`, which comes from
 raking against six ACS margins in the `wxsurveys` repository. **Writes**
-`outputs/11_data/`.
+`outputs/09_data/`.
 
 Without the flag it assembles the site from that directory and computes no
 statistics: every percentage, interval and estimate is carried over verbatim,
@@ -341,9 +340,9 @@ page's own notes, so a download says what was asked, how it was scored and
 where it came from; the sheet has a one-page printable form of its own.
 
 Preview with
-`python3 -m http.server --directory "$WXDASH_LOCAL/outputs/11_site"`.
+`python3 -m http.server --directory "$WXDASH_LOCAL/outputs/09_site"`.
 
-**Writes** `outputs/11_site/`.
+**Writes** `outputs/09_site/`.
 
 ---
 
@@ -391,12 +390,12 @@ source("07_predict_estimates.R")
 then, from a shell rather than from R, because it takes a flag:
 
 ```sh
-Rscript 00_wxdash_2.0/11_dashboard/11_build_dashboard.R --data
+Rscript 00_wxdash_2.0/09_dashboard/09_build_dashboard.R --data
 ```
 
 `01` through `03` depend only on downloaded data and can run in any order. `04`
 needs `01`. `05` needs `01` through `04`. `06` needs `05`. `07` needs `02`,
-`03`, `04` and `06`. `11 --data` needs `05`, `07` and `08`.
+`03`, `04` and `06`. `09 --data` needs `05`, `07` and `08`.
 
 Re-running only the tail is common and safe: if the survey data has not changed,
 `06` and `07` can be run on their own.
@@ -411,7 +410,7 @@ data — the new instrument added to `08` following the procedure there, and a
 new `_all` alert year in `downloads/` if the archive has moved.
 
 Then rerun `02` and `03` (only if the alert year is new), `05`, `06`, `07`, and
-`11 --data`. Two rough edges: `07` names `04_county_poststrat_2024.csv`
+`09 --data`. Two rough edges: `07` names `04_county_poststrat_2024.csv`
 explicitly, so a new poststratification vintage means editing `07`; and the
 alert archive spans differ by hazard, which `02` records rather than anything
 assuming.
