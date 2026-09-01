@@ -18,7 +18,16 @@ Flooding (FL),three_days,rand_timeline
 Flooding (FL),two_days,rand_timeline
 Flooding (FL),zero_day,rand_timeline
 Severe Weather (WX),exf_ex_monitor,exf_ex_loc
+Severe Weather (WX),rec_aft,rand_aft
+Severe Weather (WX),resp_aft,rand_aft
+Severe Weather (WX),und_aft,rand_aft
 Severe Weather (WX),cond_risk_trust,rand_clim_format
+Severe Weather (WX),rec_eve,rand_eve
+Severe Weather (WX),resp_eve,rand_eve
+Severe Weather (WX),und_eve,rand_eve
+Severe Weather (WX),rec_morn,rand_morn
+Severe Weather (WX),resp_morn,rand_morn
+Severe Weather (WX),und_morn,rand_morn
 Severe Weather (WX),rand_otlk_drive_plan,rand_otlk_loc
 Severe Weather (WX),rand_otlk_drive_risk,rand_otlk_loc
 Severe Weather (WX),rand_otlk_point_plan,rand_otlk_loc

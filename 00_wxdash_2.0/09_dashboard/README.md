@@ -168,6 +168,12 @@ overrides just the three HTML entry URLs (`/wxdash`, `/wxdash/`,
   question table. The data half supplies `question_intro` and `question_text`
   beside the joined `question`, which is still what search, sort and the PDF
   title use.
+- **Questions can be hidden by listing them.** `hidden_questions.csv` drops the
+  ones marked `hide`; `needs-context` and `experiments-page` are recorded
+  without dropping, so triage and the work it implies stay in one file. Fill it
+  from the browser: `?flag=1` adds a flag beside each question heading and a
+  panel that exports the file. The flag is gated on that parameter — it is
+  scaffolding, and a reader never sees it.
 - **Split-sample questions carry a version menu.** Where the wording varied by
   a randomization variable, the chart shows one version at a time and the menu
   sits under the question heading. No pooled option: pooling averages across

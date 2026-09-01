@@ -97,10 +97,17 @@ questions <- questions |>
 # Read here rather than beside the loop that uses them, because a randomizer is
 # not a charted question and would not otherwise survive the column selection
 # below.
+# `script_value` is the same version as the wave file spells it, for the rare
+# column where that differs from the pooled table: the hour randomizers are
+# "10:00:00" here and "10:00" there, because 05 parsed them as times on the way
+# through. Left empty everywhere else, and nothing checks it directly - the
+# generated script is run against the wave file and compared with the chart it
+# claims to rebuild, so a wrong spelling fails as a script that matches no rows.
 arms_roster <- read_csv(
   here::here("00_wxdash_2.0", "09_dashboard", "arms.csv"),
   col_types = cols(arm_order = col_integer(), .default = col_character())
 ) |>
+  mutate(script_value = coalesce(script_value, value)) |>
   arrange(arm_variable, arm_order)
 
 question_arms <- read_csv(
@@ -222,10 +229,19 @@ keep_columns <- c(
   split_items, arm_columns, unique(questions$variable)
 )
 
+# Randomization columns are read as text rather than guessed. `rand_aft` holds
+# "10:00" in the wave file, which 05's guessing read parses as a time and
+# writes back as "10:00:00"; guessing again here turns it into an hms whose
+# distinct values come out as seconds since midnight. A version menu built on
+# that would be labelled 36000.
+arm_types <- set_names(rep(list(col_character()), length(arm_columns)),
+                       arm_columns)
+
 responses <- read_csv(
   paste0(outputs, "05_survey_responses.csv"),
   col_select = any_of(keep_columns),
-  col_types = cols(p_id = col_character(), .default = col_guess()),
+  col_types = do.call(cols, c(list(p_id = col_character()), arm_types,
+                              list(.default = col_guess()))),
   guess_max = Inf
 ) # guess_max because a question asked in one wave is empty in the other 21
 
@@ -714,6 +730,48 @@ if (length(absent_columns) > 0) {
 wx17_columns <- if ("WX17" %in% wave_codes) wave_headers[["WX17"]] else
   character(0)
 
+# Hidden Questions -------------------------------------------------------------
+# Questions the dashboard should not list. Flagged in the browser with `?flag=1`
+# and exported from there, so triage happens where the problem is visible rather
+# than against a list of variable names.
+#
+# Only `hide` drops a question. The other dispositions are notes kept beside it
+# - a question that needs context it does not have, or one that belongs on a
+# page built for experiments - so one pass through the site does not have to be
+# made twice.
+hidden <- read_csv(
+  here::here("00_wxdash_2.0", "09_dashboard", "hidden_questions.csv"),
+  col_types = cols(.default = col_character())
+)
+
+dispositions <- c("hide", "needs-context", "experiments-page")
+question_ids <- question_id(questions$variable, questions$hazard)
+
+# A stale entry is worse than no entry: it looks like the question is hidden
+# while the question is on the page.
+unknown_hidden <- setdiff(hidden$id, question_ids)
+
+if (length(unknown_hidden) > 0) {
+  print(unknown_hidden)
+  stop("Ids above are listed in hidden_questions.csv but are not questions.")
+}
+
+bad_disposition <- setdiff(hidden$disposition, dispositions)
+
+if (length(bad_disposition) > 0) {
+  print(bad_disposition)
+  stop("Dispositions above are not one of: ", paste(dispositions,
+                                                    collapse = ", "))
+}
+
+drop_ids <- hidden$id[hidden$disposition == "hide"]
+questions <- questions[!question_ids %in% drop_ids, ]
+
+if (nrow(hidden) > 0) {
+  message("Hidden questions: ", length(drop_ids), " dropped, ",
+          nrow(hidden) - length(drop_ids), " flagged without dropping")
+}
+
 rcode <- new_rcode_tally()
 
 # Which scripts get run. Every hazard by every split is checked once - each
@@ -821,7 +879,7 @@ for (i in seq_len(nrow(questions))) {
         level_values = resp_levels$value, level_labels = resp_levels$label,
         group_order = group_levels, wx17_note = wx17_note,
         arm_column = if (armed) arms$variable else NULL,
-        arm_value = if (armed) ak else NULL,
+        arm_value = if (armed) arm_row$script_value else NULL,
         arm_label = if (armed) arm_row$label else NULL
       )
       checks[[paste(ak, g)]] <- list(arm = ak, split = g)

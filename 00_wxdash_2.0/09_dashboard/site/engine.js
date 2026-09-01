@@ -67,6 +67,40 @@ function el(tag, attrs = {}, ...children) {
 // Display token for missing groups/categories — mirrors R's rendering of NA.
 const naLabel = (v) => (v == null ? "NA" : v);
 
+/* Flagging ------------------------------------------------------------------
+ * A triage tool, not a reader feature: ?flag=1 puts a flag beside the question
+ * heading and a panel at the foot of the explorer. What it collects is the
+ * input to hidden_questions.csv, which the build reads to drop a question, so
+ * the judgement is made where the problem is visible rather than against a
+ * list of variable names.
+ *
+ * Kept in localStorage because the site is plain files on a host with nothing
+ * to POST to. That makes the list per-browser and per-origin: flags made
+ * against a local preview do not follow you to the deployed site, so export
+ * before switching. Every access is guarded — a browser set to block site data
+ * throws on the accessor itself rather than returning empty. */
+const FLAGS_KEY = "wxdash-flags";
+const DISPOSITIONS = ["hide", "needs-context", "experiments-page"];
+const flaggingOn = () => new URLSearchParams(location.search).get("flag") === "1";
+
+function readFlags() {
+  try {
+    return JSON.parse(localStorage.getItem(FLAGS_KEY) || "{}");
+  } catch { return {}; }
+}
+
+function writeFlags(f) {
+  try { localStorage.setItem(FLAGS_KEY, JSON.stringify(f)); } catch { /* no store */ }
+}
+
+// Same columns the build reads, so an export can be dropped straight in.
+function flagsToCSV(flags) {
+  const q = (v) => `"${String(v == null ? "" : v).replace(/"/g, '""')}"`;
+  const rows = Object.entries(flags).map(([id, f]) =>
+    [id, f.disposition || "hide", f.note || "", f.question || ""].map(q).join(","));
+  return ["id,disposition,note,question", ...rows].join("\n") + "\n";
+}
+
 /* A split-sample question nests its splits and summaries one level deeper,
  * under the version the respondent read; every other question does not.
  * `arms` being present is the signal, and this is the one place that knows it,
@@ -585,12 +619,14 @@ function dataTable({ columns, rows, pageSize = 25, pageSizeOptions = null, colum
   const headRow = el("tr");
   for (const c of columns) {
     const th = el("th", c.width ? { style: `width:${c.width}` } : {});
-    const name = el("span", { class: "col-name", onclick: () => {
-      if (sortCol === c.id) sortDir = -sortDir; else { sortCol = c.id; sortDir = 1; }
-      refresh();
-    } }, c.label, " ", el("span", { class: "arrow" }, ""));
+    const name = c.plain
+      ? el("span", { class: "col-name" }, c.label)
+      : el("span", { class: "col-name", onclick: () => {
+          if (sortCol === c.id) sortDir = -sortDir; else { sortCol = c.id; sortDir = 1; }
+          refresh();
+        } }, c.label, " ", el("span", { class: "arrow" }, ""));
     th.append(name);
-    if (columnFilters) {
+    if (columnFilters && !c.plain) {
       const inp = el("input", { type: "text", placeholder: "Filter…",
         oninput: () => { colQ[c.id] = inp.value.toLowerCase(); page = 0; refresh(); } });
       th.append(inp);
@@ -665,6 +701,8 @@ function dataTable({ columns, rows, pageSize = 25, pageSizeOptions = null, colum
     if (i >= 0) { selectedRow = rows[i]; page = Math.floor(i / pageSize); refresh(); }
   };
   root.selectFirst = () => root.selectRow(() => true);
+  // Redraw the rows in place, for a cell whose state lives outside the row.
+  root.rerender = refresh;
   return root;
 }
 
@@ -826,11 +864,107 @@ components.explore = async function (page, container) {
   // it belongs to this question, not to the page, and it disappears with the
   // question. Only split-sample items have one.
   const armBox = el("div", { class: "wx-arm-pick" });
+  const flagBtn = flaggingOn()
+    ? el("button", { class: "wx-flag-btn", type: "button" }, "\u2691 Flag")
+    : null;
+  const flagPanel = flaggingOn() ? el("div", { class: "card wx-flag-panel" }) : null;
+
+  function renderFlagPanel() {
+    if (!flagPanel) return;
+    const flags = readFlags();
+    const ids = Object.keys(flags).sort();
+    flagPanel.textContent = "";
+    flagPanel.append(el("h3", {}, `Flagged questions (${ids.length})`));
+    if (ids.length === 0) {
+      flagPanel.append(el("p", { class: "wx-flag-empty" },
+        "Nothing flagged yet. Open a question and use the flag beside its heading."));
+      return;
+    }
+    for (const id of ids) {
+      const f = flags[id];
+      const row = el("div", { class: "wx-flag-row" });
+      const sel = el("select", { onchange: () => {
+        const all = readFlags();
+        if (all[id]) { all[id].disposition = sel.value; writeFlags(all); }
+      } });
+      for (const d of DISPOSITIONS) sel.append(el("option", { value: d }, d));
+      sel.value = f.disposition || "hide";
+      const note = el("input", { type: "text", placeholder: "why?",
+        value: f.note || "", oninput: () => {
+          const all = readFlags();
+          if (all[id]) { all[id].note = note.value; writeFlags(all); }
+        } });
+      row.append(
+        el("button", { class: "wx-flag-drop", type: "button", onclick: () => {
+          const all = readFlags(); delete all[id]; writeFlags(all);
+          renderFlagPanel();
+          syncFlagBtn();
+          if (qTable && qTable.rerender) qTable.rerender();
+        } }, "\u00d7"),
+        el("code", { class: "wx-flag-id" }, id), sel, note);
+      flagPanel.append(row);
+    }
+    const csv = () => flagsToCSV(readFlags());
+    flagPanel.append(el("div", { class: "wx-flag-actions" },
+      pdfButton("Download hidden_questions.csv", () => {
+        const url = URL.createObjectURL(new Blob([csv()], { type: "text/csv" }));
+        const a = el("a", { href: url, download: "hidden_questions.csv" });
+        document.body.append(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }),
+      pdfButton("Copy to clipboard", () => {
+        navigator.clipboard && navigator.clipboard.writeText(csv());
+      })));
+  }
+
+  // One toggle behind both affordances, so the flag beside the heading and the
+  // one in the table row cannot disagree about what is flagged.
+  function toggleFlag(id, question) {
+    const all = readFlags();
+    if (all[id]) delete all[id];
+    else all[id] = { disposition: "hide", note: "", question: question || "" };
+    writeFlags(all);
+    renderFlagPanel();
+    syncFlagBtn();
+  }
+
+  function flagCell(r) {
+    const on = Object.prototype.hasOwnProperty.call(readFlags(), r.id);
+    const b = el("button", {
+      class: "wx-flag-cell" + (on ? " is-on" : ""), type: "button",
+      title: on ? "Flagged" : "Flag this question",
+      // The row itself loads the question; flagging is not that, so the click
+      // stops here rather than opening what you were only triaging.
+      onclick: (e) => {
+        e.stopPropagation();
+        toggleFlag(r.id, r.question_text || r.question);
+        b.classList.toggle("is-on");
+        b.textContent = b.classList.contains("is-on") ? "\u2691" : "\u2690";
+      }
+    }, on ? "\u2691" : "\u2690");
+    return b;
+  }
+
+  function syncFlagBtn() {
+    if (!flagBtn) return;
+    const on = Object.prototype.hasOwnProperty.call(readFlags(), currentKey);
+    flagBtn.textContent = on ? "\u2691 Flagged" : "\u2691 Flag";
+    flagBtn.classList.toggle("is-on", on);
+  }
+
+  if (flagBtn) {
+    flagBtn.onclick = () => {
+      toggleFlag(currentKey, currentQuestionText);
+      if (qTable && qTable.rerender) qTable.rerender();
+    };
+  }
   const caption = el("div", { class: "wx-caption wx-explore-caption" });
   const ciBox = el("input", { type: "checkbox", id: "ci-toggle" });
   ciBox.checked = showCI;
   ciBox.onchange = () => { showCI = ciBox.checked; setParams({ ci: showCI ? "1" : null }); draw(); };
-  chartCard.append(qIntro, qHead, armBox, wrap, caption);
+  const headRow = el("div", { class: "wx-question-headrow" }, qHead);
+  if (flagBtn) headRow.append(flagBtn);
+  chartCard.append(qIntro, headRow, armBox, wrap, caption);
 
   function renderArmPicker(v, armKey) {
     armBox.textContent = "";
@@ -878,7 +1012,11 @@ components.explore = async function (page, container) {
   }
 
   function downloadRCode(text, id, g, armKey) {
-    const name = armKey ? `wxdash-${id}-${armKey}-${g}.R`
+    // A version id can be an instrument's own spelling — "10:00:00", "1/4 inch
+    // of freezing rain or ice" — and neither belongs in a filename.
+    const safe = (v) => String(v).replace(/[^A-Za-z0-9]+/g, "-")
+                                 .replace(/^-|-$/g, "");
+    const name = armKey ? `wxdash-${id}-${safe(armKey)}-${g}.R`
                         : `wxdash-${id}-${g}.R`;
     const url = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
     const a = el("a", { href: url, download: name });
@@ -938,6 +1076,7 @@ components.explore = async function (page, container) {
     qHead.textContent = v.question_text || v.question || currentKey;
     if (weightedTip) qHead.append(" ", infoTip(weightedTip));
     renderCaption2(v, g, summaries);
+    syncFlagBtn();
     lastCodeArgs = [currentKey, g, armKey];
     if (rcodeBtn) rcodeBtn.style.display = v.has_r_code ? "" : "none";
     const rows = (splits[g] || []).map(r => ({
@@ -975,7 +1114,11 @@ components.explore = async function (page, container) {
                           r.question_text || r.question));
           return cell;
         } },
-      { id: "kind", label: "Type" }
+      { id: "kind", label: "Type" },
+      ...(flaggingOn()
+        ? [{ id: "flag", label: "Flag", width: "5%", plain: true,
+             render: flagCell }]
+        : [])
     ],
     rows: questions, pageSize: 10, clickable: true,
     // Search also matches the variable name, scale id and content keywords
@@ -1045,7 +1188,9 @@ components.explore = async function (page, container) {
   rcodeBtn.style.display = "none";
   actions.append(rcodeBtn);
   container.append(el("div", { class: "page wx-explore-page" },
-    el("div", { class: "content" }, intro, bar, chartCard, tableCard)));
+    el("div", { class: "content" }, intro, bar, chartCard, tableCard,
+       ...(flagPanel ? [flagPanel] : []))));
+  renderFlagPanel();
   await draw();
 };
 

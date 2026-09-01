@@ -384,6 +384,58 @@ html[data-theme="wxops"] #navbar { position: sticky; border-bottom: none; }
 }
 .wx-row-question { font-weight: 600; }
 
+/* Flagging: a triage tool behind ?flag=1, so nothing here is ever seen by a
+   reader. Deliberately plain — it is scaffolding, not part of the dashboard. */
+.wx-question-headrow {
+  display: flex; align-items: flex-start; gap: 12px;
+  justify-content: space-between;
+}
+.wx-question-headrow .wx-question-head { flex: 1; }
+.wx-flag-btn {
+  flex: none; align-self: flex-start;
+  border: 1px solid var(--control-border); border-radius: 6px;
+  background: var(--control-bg); color: var(--text-muted);
+  padding: 5px 11px; font-size: 13px; font-family: inherit; cursor: pointer;
+}
+.wx-flag-btn:hover { border-color: var(--accent); color: var(--accent); }
+.wx-flag-btn.is-on {
+  border-color: var(--accent); background: var(--accent); color: #fff;
+}
+.wx-flag-btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+/* The same flag in a table row: a glyph rather than a labelled button, since
+   it repeats down the page and the column header already names it. */
+.wx-flag-cell {
+  border: 1px solid transparent; border-radius: 6px;
+  background: none; color: var(--text-muted);
+  padding: 2px 7px; font-size: 15px; line-height: 1.2; cursor: pointer;
+}
+.wx-flag-cell:hover { border-color: var(--accent); color: var(--accent); }
+.wx-flag-cell.is-on { color: var(--accent); }
+.wx-flag-cell:focus-visible { outline: 3px solid var(--accent); outline-offset: 1px; }
+
+.wx-flag-panel { margin-top: 18px; }
+.wx-flag-empty { color: var(--text-muted); font-size: 13.5px; }
+.wx-flag-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 0; font-size: 13px;
+}
+.wx-flag-id { flex: 0 0 260px; font-size: 12px; color: var(--text-muted); }
+.wx-flag-row select { flex: 0 0 150px; }
+.wx-flag-row input { flex: 1; }
+.wx-flag-row select, .wx-flag-row input {
+  border: 1px solid var(--control-border); border-radius: 6px;
+  background: var(--control-bg); color: var(--text);
+  padding: 4px 8px; font-size: 13px; font-family: inherit;
+}
+.wx-flag-drop {
+  flex: none; width: 24px; height: 24px; line-height: 1;
+  border: 1px solid var(--control-border); border-radius: 6px;
+  background: var(--control-bg); color: var(--text-muted); cursor: pointer;
+}
+.wx-flag-actions { display: flex; gap: 10px; margin-top: 14px; }
+.wx-flag-actions .wx-pdf-btn { margin-left: 0; }
+
 /* The split-sample version menu, under the question it belongs to. Sits with
    the heading rather than in the page toolbar: it is a property of this
    question and it disappears with it. */

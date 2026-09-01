@@ -208,20 +208,43 @@ from reading the instrument with the skill's extraction script, not from the
 code: `rand_wind` 1-4 are how the chance was worded, and `rand_ai_2` reverses
 `rand_ai_1`'s ordering, which copying the one to the other would get backwards.
 
-**`rand_morn`, `rand_aft` and `rand_eve` are excluded, and must stay excluded.**
-Those column names are reused across waves for different questions, so in `05`'s
-pooled table `rand_aft` holds fifteen thousand rows of the codes 0-5 beside a
-hundred rows of `HH:MM:SS`, and `rand_morn` holds "No" and "none". Splitting on
-one pools two unrelated items under a single label. The value check catches it -
-it is what the check is for - and there is a second trap underneath: the pooled
-CSV parses a clean time column as seconds since midnight while the wave files
-hold `10:00`, so a generated script would filter on a value the file never
-contains and draw an empty chart.
+**Randomization columns are read as text, never guessed.** `rand_aft` holds
+`10:00` in the wave file; `05` reads that with type guessing, parses it as a
+time, and writes it back as `10:00:00`; guessing again turns it into an `hms`
+whose distinct values are seconds since midnight. A version menu built on that
+is labelled `36000`. Forcing those columns to `col_character()` in the read is
+what stops it, and it costs nothing for the columns that were already text.
+
+That leaves the two files spelling the same version differently — `10:00:00`
+pooled against `10:00` in the wave — which matters because the split reads one
+and the generated script reads the other. `arms.csv` carries a `script_value`
+for exactly that case, empty everywhere the two agree. Nothing checks it
+directly: the generated script is run against the wave file and compared with
+the chart it claims to rebuild, so a wrong spelling shows up as a script
+matching no rows rather than as a quiet mislabel.
 
 Not every experiment fits this. Where the randomizer decided *which column* a
 respondent answered — `rand_evnt_cncrn_ice` against `_snow`, `exf_exp_d3/d5/d7`
 — the arms are separate variables, and they stay separate questions in the
 table. A menu cannot split what was never one column.
+
+**Questions are hidden from a list, not from the code.**
+`09_dashboard/hidden_questions.csv` carries one row per flagged question —
+`id`, `disposition`, `note`, `question` — and the build drops the ones marked
+`hide`. The other dispositions, `needs-context` and `experiments-page`, are
+recorded without dropping anything, so a single pass through the site does not
+have to be made twice when the triage turns into work. A stale id stops the
+build: an entry that no longer matches a question looks like the question is
+hidden while the question is on the page.
+
+The list is filled in the browser. `?flag=1` puts a flag beside the question
+heading and a panel at the foot of the explorer that exports exactly those four
+columns, so the judgement is made where the problem is visible rather than
+against a roster of variable names. It is gated on the parameter because it is
+scaffolding, not a reader feature, and it keeps its list in `localStorage`
+because the site is plain files with nothing to POST to — which makes the list
+per-browser and per-origin, so flags made against a local preview do not follow
+you to the deployed site. Export before switching.
 
 **The measure menu is declared once**, in `09_dashboard/measures.csv`: one row
 per mapped measure, giving its order, its group and its label. It is validated

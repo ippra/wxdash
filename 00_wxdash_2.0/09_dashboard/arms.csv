@@ -1,63 +1,87 @@
-arm_variable,prompt,value,label,arm_order
-exf_ex_loc,Forecast location shown,Location A,Location A,1
-exf_ex_loc,Forecast location shown,Location B,Location B,2
-exf_ex_loc,Forecast location shown,Location C,Location C,3
-spc_level_rand,Risk level shown,1,Level 1,1
-spc_level_rand,Risk level shown,2,Level 2,2
-spc_level_rand,Risk level shown,3,Level 3,3
-spc_level_rand,Risk level shown,4,Level 4,4
-spc_level_rand,Risk level shown,5,Level 5,5
-rand_otlks_loc,Outlook pair shown,spc_high_ero_slight,Severe high / flood slight,1
-rand_otlks_loc,Outlook pair shown,spc_enh_ero_enh,Severe enhanced / flood enhanced,2
-rand_otlks_loc,Outlook pair shown,spc_slight_ero_high,Severe slight / flood high,3
-rand_prog,Program described,small grants,Small grants,1
-rand_prog,Program described,low-interest loans,Low-interest loans,2
-rand_haz,Risk described,flood risk,Flood risk only,1
-rand_haz,Risk described,flood and heat risk,Flood and heat risk,2
-rand_dev,Term used,green infrastructure,Green infrastructure,1
-rand_dev,Term used,low impact developments,Low impact developments,2
-rand_timeline,Event described,flooding event,Flooding event,1
-rand_timeline,Event described,flash flooding event,Flash flooding event,2
-rand_loc,Location on the graphic,A,Location A,1
-rand_loc,Location on the graphic,B,Location B,2
-rand_svr,Warning issued,severe,Severe thunderstorm warning,1
-rand_svr,Warning issued,wind,Thunderstorm wind warning,2
-rand_svr,Warning issued,hail,Hail warning,3
-rand_svr,Warning issued,wind_hail,Wind and hail warnings,4
-rand_otlk_loc,Outlook shown,st_louis,St. Louis,1
-rand_otlk_loc,Outlook shown,memphis,Memphis,2
-rand_otlk_loc,Outlook shown,indy_to_okc,Indianapolis to Oklahoma City,3
-rand_otlk_loc,Outlook shown,little_to_nash,Little Rock to Nashville,4
-rand_evnt_ice,Amount forecast,1/10 inch of freezing rain or ice,1/10 inch of ice,1
-rand_evnt_ice,Amount forecast,1/4 inch of freezing rain or ice,1/4 inch of ice,2
-rand_evnt_snow,Amount forecast,1 inch of snow,1 inch of snow,1
-rand_evnt_snow,Amount forecast,6 inches of snow,6 inches of snow,2
-rand_evnt_snow,Amount forecast,12 inches of snow,12 inches of snow,3
-rand_ai_1,Who expected a tornado,1,Experts and models agreed,1
-rand_ai_1,Who expected a tornado,2,Models more concerned,2
-rand_ai_1,Who expected a tornado,3,Experts more concerned,3
-rand_ai_2,Who expected a tornado,1,Experts and models agreed,1
-rand_ai_2,Who expected a tornado,2,Experts more concerned,2
-rand_ai_2,Who expected a tornado,3,Models more concerned,3
-rand_wind,How the chance was worded,1,Words only,1
-rand_wind,How the chance was worded,2,Point probability,2
-rand_wind,How the chance was worded,3,Words with a point probability,3
-rand_wind,How the chance was worded,4,Words with a probability range,4
-rand_surge,How the chance was worded,1,Words only,1
-rand_surge,How the chance was worded,2,Point probability,2
-rand_surge,How the chance was worded,3,Words with a point probability,3
-rand_surge,How the chance was worded,4,Words with a probability range,4
-rand_flood,How the chance was worded,1,Words only,1
-rand_flood,How the chance was worded,2,Point probability,2
-rand_flood,How the chance was worded,3,Words with a point probability,3
-rand_flood,How the chance was worded,4,Words with a probability range,4
-rand_clim_format,How the risk was framed,1,20x more likely then 15% chance,1
-rand_clim_format,How the risk was framed,2,15% chance then 20x more likely,2
-rand_clim_format,How the risk was framed,3,50x more likely then 15% chance,3
-rand_clim_format,How the risk was framed,4,15% chance then 50x more likely,4
-rand_clim_format,How the risk was framed,5,100x more likely then 15% chance,5
-rand_clim_format,How the risk was framed,6,15% chance then 100x more likely,6
-rand_clim_format,How the risk was framed,7,200x more likely then 15% chance,7
-rand_clim_format,How the risk was framed,8,15% chance then 200x more likely,8
-rand_clim_format,How the risk was framed,9,500x more likely then 15% chance,9
-rand_clim_format,How the risk was framed,10,15% chance then 500x more likely,10
+arm_variable,prompt,value,label,arm_order,script_value
+exf_ex_loc,Forecast location shown,Location A,Location A,1,
+exf_ex_loc,Forecast location shown,Location B,Location B,2,
+exf_ex_loc,Forecast location shown,Location C,Location C,3,
+spc_level_rand,Risk level shown,1,Level 1,1,
+spc_level_rand,Risk level shown,2,Level 2,2,
+spc_level_rand,Risk level shown,3,Level 3,3,
+spc_level_rand,Risk level shown,4,Level 4,4,
+spc_level_rand,Risk level shown,5,Level 5,5,
+rand_otlks_loc,Outlook pair shown,spc_high_ero_slight,Severe high / flood slight,1,
+rand_otlks_loc,Outlook pair shown,spc_enh_ero_enh,Severe enhanced / flood enhanced,2,
+rand_otlks_loc,Outlook pair shown,spc_slight_ero_high,Severe slight / flood high,3,
+rand_prog,Program described,small grants,Small grants,1,
+rand_prog,Program described,low-interest loans,Low-interest loans,2,
+rand_haz,Risk described,flood risk,Flood risk only,1,
+rand_haz,Risk described,flood and heat risk,Flood and heat risk,2,
+rand_dev,Term used,green infrastructure,Green infrastructure,1,
+rand_dev,Term used,low impact developments,Low impact developments,2,
+rand_timeline,Event described,flooding event,Flooding event,1,
+rand_timeline,Event described,flash flooding event,Flash flooding event,2,
+rand_loc,Location on the graphic,A,Location A,1,
+rand_loc,Location on the graphic,B,Location B,2,
+rand_svr,Warning issued,severe,Severe thunderstorm warning,1,
+rand_svr,Warning issued,wind,Thunderstorm wind warning,2,
+rand_svr,Warning issued,hail,Hail warning,3,
+rand_svr,Warning issued,wind_hail,Wind and hail warnings,4,
+rand_otlk_loc,Outlook shown,st_louis,St. Louis,1,
+rand_otlk_loc,Outlook shown,memphis,Memphis,2,
+rand_otlk_loc,Outlook shown,indy_to_okc,Indianapolis to Oklahoma City,3,
+rand_otlk_loc,Outlook shown,little_to_nash,Little Rock to Nashville,4,
+rand_evnt_ice,Amount forecast,1/10 inch of freezing rain or ice,1/10 inch of ice,1,
+rand_evnt_ice,Amount forecast,1/4 inch of freezing rain or ice,1/4 inch of ice,2,
+rand_evnt_snow,Amount forecast,1 inch of snow,1 inch of snow,1,
+rand_evnt_snow,Amount forecast,6 inches of snow,6 inches of snow,2,
+rand_evnt_snow,Amount forecast,12 inches of snow,12 inches of snow,3,
+rand_ai_1,Who expected a tornado,1,Experts and models agreed,1,
+rand_ai_1,Who expected a tornado,2,Models more concerned,2,
+rand_ai_1,Who expected a tornado,3,Experts more concerned,3,
+rand_ai_2,Who expected a tornado,1,Experts and models agreed,1,
+rand_ai_2,Who expected a tornado,2,Experts more concerned,2,
+rand_ai_2,Who expected a tornado,3,Models more concerned,3,
+rand_wind,How the chance was worded,1,Words only,1,
+rand_wind,How the chance was worded,2,Point probability,2,
+rand_wind,How the chance was worded,3,Words with a point probability,3,
+rand_wind,How the chance was worded,4,Words with a probability range,4,
+rand_surge,How the chance was worded,1,Words only,1,
+rand_surge,How the chance was worded,2,Point probability,2,
+rand_surge,How the chance was worded,3,Words with a point probability,3,
+rand_surge,How the chance was worded,4,Words with a probability range,4,
+rand_flood,How the chance was worded,1,Words only,1,
+rand_flood,How the chance was worded,2,Point probability,2,
+rand_flood,How the chance was worded,3,Words with a point probability,3,
+rand_flood,How the chance was worded,4,Words with a probability range,4,
+rand_clim_format,How the risk was framed,1,20x more likely then 15% chance,1,
+rand_clim_format,How the risk was framed,2,15% chance then 20x more likely,2,
+rand_clim_format,How the risk was framed,3,50x more likely then 15% chance,3,
+rand_clim_format,How the risk was framed,4,15% chance then 50x more likely,4,
+rand_clim_format,How the risk was framed,5,100x more likely then 15% chance,5,
+rand_clim_format,How the risk was framed,6,15% chance then 100x more likely,6,
+rand_clim_format,How the risk was framed,7,200x more likely then 15% chance,7,
+rand_clim_format,How the risk was framed,8,15% chance then 200x more likely,8,
+rand_clim_format,How the risk was framed,9,500x more likely then 15% chance,9,
+rand_clim_format,How the risk was framed,10,15% chance then 500x more likely,10,
+rand_morn,Hour in the forecast,01:00:00,1:00 AM,1,1:00
+rand_morn,Hour in the forecast,02:00:00,2:00 AM,2,2:00
+rand_morn,Hour in the forecast,03:00:00,3:00 AM,3,3:00
+rand_morn,Hour in the forecast,04:00:00,4:00 AM,4,4:00
+rand_morn,Hour in the forecast,05:00:00,5:00 AM,5,5:00
+rand_morn,Hour in the forecast,06:00:00,6:00 AM,6,6:00
+rand_morn,Hour in the forecast,07:00:00,7:00 AM,7,7:00
+rand_morn,Hour in the forecast,08:00:00,8:00 AM,8,8:00
+rand_morn,Hour in the forecast,09:00:00,9:00 AM,9,9:00
+rand_aft,Hour in the forecast,10:00:00,10:00 AM,1,10:00
+rand_aft,Hour in the forecast,11:00:00,11:00 AM,2,11:00
+rand_aft,Hour in the forecast,12:00:00,12:00 PM (noon),3,12:00
+rand_aft,Hour in the forecast,13:00:00,1:00 PM,4,13:00
+rand_aft,Hour in the forecast,14:00:00,2:00 PM,5,14:00
+rand_aft,Hour in the forecast,15:00:00,3:00 PM,6,15:00
+rand_aft,Hour in the forecast,16:00:00,4:00 PM,7,16:00
+rand_aft,Hour in the forecast,17:00:00,5:00 PM,8,17:00
+rand_eve,Hour in the forecast,18:00:00,6:00 PM,1,18:00
+rand_eve,Hour in the forecast,19:00:00,7:00 PM,2,19:00
+rand_eve,Hour in the forecast,20:00:00,8:00 PM,3,20:00
+rand_eve,Hour in the forecast,21:00:00,9:00 PM,4,21:00
+rand_eve,Hour in the forecast,22:00:00,10:00 PM,5,22:00
+rand_eve,Hour in the forecast,23:00:00,11:00 PM,6,23:00
+rand_eve,Hour in the forecast,00:00:00,12:00 AM (midnight),7,0:00
