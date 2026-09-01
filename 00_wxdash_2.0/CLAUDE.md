@@ -198,6 +198,26 @@ components that chart a question go through it. The quiz refuses an armed
 question outright: an answer drawn from one arm is a claim about the people who
 saw that version, and the prompt does not say so.
 
+**The pairing is verified, not asserted.** `08`'s `experimental_review.csv`
+carries a `depends_on` column naming what varied; that supplies the candidates,
+and each is then checked against the survey data — the randomizer and the
+question co-occur in a wave, at least two versions were answered, and the
+smallest carries enough respondents to draw. 86 questions across 18
+randomizers pass. Where a randomizer's values are bare codes, the labels come
+from reading the instrument with the skill's extraction script, not from the
+code: `rand_wind` 1-4 are how the chance was worded, and `rand_ai_2` reverses
+`rand_ai_1`'s ordering, which copying the one to the other would get backwards.
+
+**`rand_morn`, `rand_aft` and `rand_eve` are excluded, and must stay excluded.**
+Those column names are reused across waves for different questions, so in `05`'s
+pooled table `rand_aft` holds fifteen thousand rows of the codes 0-5 beside a
+hundred rows of `HH:MM:SS`, and `rand_morn` holds "No" and "none". Splitting on
+one pools two unrelated items under a single label. The value check catches it -
+it is what the check is for - and there is a second trap underneath: the pooled
+CSV parses a clean time column as seconds since midnight while the wave files
+hold `10:00`, so a generated script would filter on a value the file never
+contains and draw an empty chart.
+
 Not every experiment fits this. Where the randomizer decided *which column* a
 respondent answered — `rand_evnt_cncrn_ice` against `_snow`, `exf_exp_d3/d5/d7`
 — the arms are separate variables, and they stay separate questions in the

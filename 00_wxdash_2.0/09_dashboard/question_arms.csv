@@ -1,6 +1,87 @@
 hazard,variable,arm_variable
-Severe Weather (WX),exf_ex_monitor,exf_ex_loc
-Severe Weather (WX),spc_word_def,spc_level_rand
-Flooding (FL),otlks_cat_recall_spc,rand_otlks_loc
+Flooding (FL),aware_prog,rand_dev
+Flooding (FL),eftv_biosw,rand_haz
+Flooding (FL),eftv_depav,rand_haz
+Flooding (FL),eftv_down_disc,rand_haz
+Flooding (FL),eftv_ext_tree,rand_haz
+Flooding (FL),eftv_gr_roof,rand_haz
+Flooding (FL),eftv_perm_pav,rand_haz
+Flooding (FL),eftv_rain_garden,rand_haz
+Flooding (FL),eftv_storm_pond,rand_haz
+Flooding (FL),eftv_zero_scap,rand_haz
 Flooding (FL),otlks_cat_recall_ero,rand_otlks_loc
+Flooding (FL),otlks_cat_recall_spc,rand_otlks_loc
 Flooding (FL),adopt_indiv_gr_roof,rand_prog
+Flooding (FL),five_days,rand_timeline
+Flooding (FL),one_day,rand_timeline
+Flooding (FL),three_days,rand_timeline
+Flooding (FL),two_days,rand_timeline
+Flooding (FL),zero_day,rand_timeline
+Severe Weather (WX),exf_ex_monitor,exf_ex_loc
+Severe Weather (WX),cond_risk_trust,rand_clim_format
+Severe Weather (WX),rand_otlk_drive_plan,rand_otlk_loc
+Severe Weather (WX),rand_otlk_drive_risk,rand_otlk_loc
+Severe Weather (WX),rand_otlk_point_plan,rand_otlk_loc
+Severe Weather (WX),rand_otlk_point_risk,rand_otlk_loc
+Severe Weather (WX),rand_svr_con,rand_svr
+Severe Weather (WX),rand_svr_resp,rand_svr
+Severe Weather (WX),spc_word_def,spc_level_rand
+Tropical Cyclone (TC),ai_1_acc,rand_ai_1
+Tropical Cyclone (TC),ai_2_acc,rand_ai_2
+Tropical Cyclone (TC),flood_reliable,rand_flood
+Tropical Cyclone (TC),student_concern,rand_loc
+Tropical Cyclone (TC),student_evac,rand_loc
+Tropical Cyclone (TC),surge_reliable,rand_surge
+Tropical Cyclone (TC),wind_reliable,rand_wind
+Winter Weather (WW),rand_evnt_car_ice,rand_evnt_ice
+Winter Weather (WW),rand_evnt_cncrn_ice,rand_evnt_ice
+Winter Weather (WW),rand_evnt_exc_ice,rand_evnt_ice
+Winter Weather (WW),rand_evnt_food_ice,rand_evnt_ice
+Winter Weather (WW),rand_evnt_imp_dmg_ice,rand_evnt_ice
+Winter Weather (WW),rand_evnt_imp_harm_othr_ice,rand_evnt_ice
+Winter Weather (WW),rand_evnt_imp_harm_you_ice,rand_evnt_ice
+Winter Weather (WW),rand_evnt_imp_pwr_ice,rand_evnt_ice
+Winter Weather (WW),rand_evnt_imp_road_ice,rand_evnt_ice
+Winter Weather (WW),rand_evnt_imp_sch_ice,rand_evnt_ice
+Winter Weather (WW),rand_evnt_imp_vis_ice,rand_evnt_ice
+Winter Weather (WW),rand_evnt_imp_wrk_ice,rand_evnt_ice
+Winter Weather (WW),rand_evnt_imp_wtr_ice,rand_evnt_ice
+Winter Weather (WW),rand_evnt_noth_ice,rand_evnt_ice
+Winter Weather (WW),rand_evnt_othr_ice,rand_evnt_ice
+Winter Weather (WW),rand_evnt_supp_ice,rand_evnt_ice
+Winter Weather (WW),rand_evnt_svr_dmg_ice,rand_evnt_ice
+Winter Weather (WW),rand_evnt_svr_harm_othr_ice,rand_evnt_ice
+Winter Weather (WW),rand_evnt_svr_harm_you_ice,rand_evnt_ice
+Winter Weather (WW),rand_evnt_svr_pwr_ice,rand_evnt_ice
+Winter Weather (WW),rand_evnt_svr_road_ice,rand_evnt_ice
+Winter Weather (WW),rand_evnt_svr_sch_ice,rand_evnt_ice
+Winter Weather (WW),rand_evnt_svr_vis_ice,rand_evnt_ice
+Winter Weather (WW),rand_evnt_svr_wrk_ice,rand_evnt_ice
+Winter Weather (WW),rand_evnt_svr_wtr_ice,rand_evnt_ice
+Winter Weather (WW),rand_evnt_trav_ice,rand_evnt_ice
+Winter Weather (WW),rand_evnt_car_snow,rand_evnt_snow
+Winter Weather (WW),rand_evnt_cncrn_snow,rand_evnt_snow
+Winter Weather (WW),rand_evnt_exc_snow,rand_evnt_snow
+Winter Weather (WW),rand_evnt_food_snow,rand_evnt_snow
+Winter Weather (WW),rand_evnt_imp_dmg_snow,rand_evnt_snow
+Winter Weather (WW),rand_evnt_imp_harm_othr_snow,rand_evnt_snow
+Winter Weather (WW),rand_evnt_imp_harm_you_snow,rand_evnt_snow
+Winter Weather (WW),rand_evnt_imp_pwr_snow,rand_evnt_snow
+Winter Weather (WW),rand_evnt_imp_road_snow,rand_evnt_snow
+Winter Weather (WW),rand_evnt_imp_sch_snow,rand_evnt_snow
+Winter Weather (WW),rand_evnt_imp_vis_snow,rand_evnt_snow
+Winter Weather (WW),rand_evnt_imp_wrk_snow,rand_evnt_snow
+Winter Weather (WW),rand_evnt_imp_wtr_snow,rand_evnt_snow
+Winter Weather (WW),rand_evnt_noth_snow,rand_evnt_snow
+Winter Weather (WW),rand_evnt_othr_snow,rand_evnt_snow
+Winter Weather (WW),rand_evnt_supp_snow,rand_evnt_snow
+Winter Weather (WW),rand_evnt_svr_dmg_snow,rand_evnt_snow
+Winter Weather (WW),rand_evnt_svr_harm_othr_snow,rand_evnt_snow
+Winter Weather (WW),rand_evnt_svr_harm_you_snow,rand_evnt_snow
+Winter Weather (WW),rand_evnt_svr_pwr_snow,rand_evnt_snow
+Winter Weather (WW),rand_evnt_svr_road_snow,rand_evnt_snow
+Winter Weather (WW),rand_evnt_svr_sch_snow,rand_evnt_snow
+Winter Weather (WW),rand_evnt_svr_vis_snow,rand_evnt_snow
+Winter Weather (WW),rand_evnt_svr_wrk_snow,rand_evnt_snow
+Winter Weather (WW),rand_evnt_svr_wtr_snow,rand_evnt_snow
+Winter Weather (WW),rand_evnt_trav_snow,rand_evnt_snow
