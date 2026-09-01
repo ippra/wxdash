@@ -168,6 +168,12 @@ overrides just the three HTML entry URLs (`/wxdash`, `/wxdash/`,
   question table. The data half supplies `question_intro` and `question_text`
   beside the joined `question`, which is still what search, sort and the PDF
   title use.
+- **Split-sample questions carry a version menu.** Where the wording varied by
+  a randomization variable, the chart shows one version at a time and the menu
+  sits under the question heading. No pooled option: pooling averages across
+  the difference being tested. `question_arms.csv` pairs a question with its
+  randomizer and `arms.csv` labels the values; both live beside the builder,
+  and both are read off the instruments rather than derived.
 - **Every chart carries the R that rebuilds it.** *Download R code* sits beside
   *Download chart (PDF)* on Explore Survey Questions and saves a script that
   rebuilds that question under that split, from the released wave files and

@@ -1,0 +1,6 @@
+hazard,variable,arm_variable
+Severe Weather (WX),exf_ex_monitor,exf_ex_loc
+Severe Weather (WX),spc_word_def,spc_level_rand
+Flooding (FL),otlks_cat_recall_spc,rand_otlks_loc
+Flooding (FL),otlks_cat_recall_ero,rand_otlks_loc
+Flooding (FL),adopt_indiv_gr_roof,rand_prog

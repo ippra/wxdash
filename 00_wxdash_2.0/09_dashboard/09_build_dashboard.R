@@ -420,6 +420,14 @@ q_data <- function(id) {
   read_json(path, simplifyVector = FALSE)
 }
 split_rows <- function(q, split) {
+  # A split-sample question nests its splits under the version, so its rows are
+  # not where this expects them. Refused rather than read wrong: a quiz answer
+  # drawn from one arm of an experiment is a claim about the people who saw
+  # that version, not about US adults, and the prompt does not say so.
+  if (length(q$arms) > 0) {
+    stop("Quiz question ", q$id, " is split-sampled — its versions cannot be ",
+         "pooled into one answer.")
+  }
   rows <- q$splits[[split]]
   if (is.null(rows)) stop("Quiz needs split ", split, " on ", q$id, ".")
   rows

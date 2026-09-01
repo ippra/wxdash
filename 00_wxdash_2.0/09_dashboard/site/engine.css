@@ -383,6 +383,28 @@ html[data-theme="wxops"] #navbar { position: sticky; border-bottom: none; }
   font-weight: 400; margin-bottom: 3px;
 }
 .wx-row-question { font-weight: 600; }
+
+/* The split-sample version menu, under the question it belongs to. Sits with
+   the heading rather than in the page toolbar: it is a property of this
+   question and it disappears with it. */
+.wx-arm-pick {
+  display: flex; align-items: center; gap: 8px;
+  margin: 0 0 12px;
+}
+.wx-arm-label {
+  font-family: var(--mono, monospace);
+  font-size: 10.5px; font-weight: 600;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--text-muted);
+}
+.wx-arm-select {
+  border: 1px solid var(--control-border); border-radius: 6px;
+  background: var(--control-bg); color: var(--text);
+  padding: 5px 9px; font-size: 13.5px; font-family: inherit;
+}
+.wx-arm-select:focus-visible {
+  outline: 3px solid var(--accent); outline-offset: 2px;
+}
 .wx-explore-caption { margin: 10px 4px 0; line-height: 1.5; }
 .wx-explore-caption p { margin: 0 0 8px; }
 .wx-explore-caption p:last-child { margin-bottom: 0; }

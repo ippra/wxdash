@@ -81,6 +81,53 @@ questions <- questions |>
          response_scale, response_options, n_options, experimental,
          graphic_shown)
 
+# Split-Sample Questions -------------------------------------------------------
+# Some questions were asked of everyone but not in the same words: the wording
+# varied by a randomization variable the instrument records beside the answer.
+# Those are estimated one version at a time, because pooling them averages
+# across the treatment and reports a number nobody was asked.
+#
+# Two declarations, because they answer different questions and grow at
+# different rates. question_arms.csv says which randomizer governs a question -
+# one row per question, and the reference does not record this, so it is read
+# off the instruments. arms.csv is the roster: the prompt above the menu and a
+# label and order for each value, since the raw values are codes as often as
+# they are words (`spc_high_ero_slight`, `1`).
+#
+# Read here rather than beside the loop that uses them, because a randomizer is
+# not a charted question and would not otherwise survive the column selection
+# below.
+arms_roster <- read_csv(
+  here::here("00_wxdash_2.0", "09_dashboard", "arms.csv"),
+  col_types = cols(arm_order = col_integer(), .default = col_character())
+) |>
+  arrange(arm_variable, arm_order)
+
+question_arms <- read_csv(
+  here::here("00_wxdash_2.0", "09_dashboard", "question_arms.csv"),
+  col_types = cols(.default = col_character())
+)
+
+# A prompt is a property of the randomizer, not of one of its values, so more
+# than one would mean the menu says different things on different questions.
+multi_prompt <- arms_roster |>
+  summarise(n = n_distinct(prompt), .by = arm_variable) |>
+  filter(n > 1)
+
+if (nrow(multi_prompt) > 0) {
+  print(multi_prompt)
+  stop("Randomizers above carry more than one prompt in arms.csv.")
+}
+
+unrostered <- setdiff(question_arms$arm_variable, arms_roster$arm_variable)
+
+if (length(unrostered) > 0) {
+  print(unrostered)
+  stop("Randomizers above are named in question_arms.csv but not in arms.csv.")
+}
+
+arm_columns <- unique(question_arms$arm_variable)
+
 # Responses --------------------------------------------------------------------
 response_columns <- names(read_csv(
   paste0(outputs, "05_survey_responses.csv"),
@@ -172,7 +219,7 @@ salience_items <- c("follow", "plan_around")
 
 keep_columns <- c(
   "p_id", "survey_hazard", "survey_year", "PERSON_WEIGHT", source_groups,
-  split_items, unique(questions$variable)
+  split_items, arm_columns, unique(questions$variable)
 )
 
 responses <- read_csv(
@@ -253,7 +300,7 @@ questions <- answered |> filter(n > 0) |> select(-n)
 
 responses <- responses |>
   select(p_id, survey_hazard, survey_year, PERSON_WEIGHT, all_of(group_columns),
-         all_of(unique(questions$variable)))
+         all_of(arm_columns), all_of(unique(questions$variable)))
 
 # The landing page quotes the respondent total and the years covered, which no
 # other output carries. Written here because this is where the table exists;
@@ -574,11 +621,56 @@ respondent_summary <- function(narrow, grouping) {
 # wide table costs 0.03s a time, which is small until it happens 24,000 times.
 split_columns <- unname(groups[groups != "All"])
 
-narrow_for <- function(variable, hazard) {
-  responses |>
-    filter(survey_hazard == hazard) |>
-    select(resp = all_of(variable), all_of(split_columns), survey_year,
-           PERSON_WEIGHT)
+narrow_for <- function(variable, hazard, arm_variable = NA_character_) {
+  d <- responses |> filter(survey_hazard == hazard)
+  if (is.na(arm_variable)) {
+    d |> select(resp = all_of(variable), all_of(split_columns), survey_year,
+                PERSON_WEIGHT)
+  } else {
+    d |> select(resp = all_of(variable), arm = all_of(arm_variable),
+                all_of(split_columns), survey_year, PERSON_WEIGHT)
+  }
+}
+
+# Checked against the data rather than trusted: a pairing that names a column
+# no wave carries, or whose values never appear, would draw an empty menu.
+for (v in arm_columns) {
+  if (!v %in% names(responses)) {
+    stop("`", v, "` is declared in question_arms.csv but is not a column in ",
+         "the survey data.")
+  }
+  declared <- arms_roster$value[arms_roster$arm_variable == v]
+  seen <- unique(na.omit(responses[[v]]))
+  absent <- setdiff(seen, declared)
+  if (length(absent) > 0) {
+    print(absent)
+    stop("`", v, "` takes the values above in the data, and arms.csv does not ",
+         "list them - they would vanish from the menu.")
+  }
+}
+
+missing_pairs <- question_arms |>
+  anti_join(questions, by = c("hazard", "variable"))
+
+if (nrow(missing_pairs) > 0) {
+  print(missing_pairs)
+  stop("Questions above are paired with a randomizer but are not charted.")
+}
+
+message("Split-sample questions: ", nrow(question_arms), " across ",
+        n_distinct(question_arms$arm_variable), " randomizers")
+
+# The versions a question offers, in roster order, keeping only those its own
+# respondents actually fall into.
+arms_for <- function(variable, hazard, narrow) {
+  v <- question_arms$arm_variable[question_arms$variable == variable &
+                                    question_arms$hazard == hazard]
+  if (length(v) == 0) return(NULL)
+  roster <- arms_roster |> filter(arm_variable == v)
+  present <- unique(na.omit(narrow$arm[!is.na(narrow$resp)]))
+  roster <- roster |> filter(value %in% present)
+  if (nrow(roster) < 2) return(NULL)   # one version is not an experiment
+  list(variable = v, prompt = roster$prompt[1], roster = roster)
 }
 
 # Reproduction Scripts ---------------------------------------------------------
@@ -645,21 +737,43 @@ for (i in seq_len(nrow(questions))) {
   row <- questions[i, ]
   id <- question_id(row$variable, row$hazard)
 
-  narrow <- narrow_for(row$variable, row$hazard)
+  arm_var <- question_arms$arm_variable[
+    question_arms$variable == row$variable & question_arms$hazard == row$hazard]
+  narrow <- narrow_for(row$variable, row$hazard,
+                       if (length(arm_var) == 1) arm_var else NA_character_)
+  arms <- arms_for(row$variable, row$hazard, narrow)
 
-  splits <- list()
-  summaries <- list()
+  # One pass per version, or a single pooled pass where the question was asked
+  # the same way of everyone. A version is estimated on its own: pooling would
+  # average across the treatment and report a number nobody was asked.
+  arm_keys <- if (is.null(arms)) NA_character_ else arms$roster$value
+  per_arm <- list()
 
-  for (g in groups) {
-    d <- suppressWarnings(distribution(narrow, g))
-    if (is.null(d) || nrow(d) == 0) next
-    splits[[g]] <- d
-    summaries[[g]] <- respondent_summary(narrow, g)
+  for (ak in arm_keys) {
+    nar <- if (is.na(ak)) narrow else filter(narrow, arm == ak)
+    s <- list()
+    su <- list()
+    for (g in groups) {
+      d <- suppressWarnings(distribution(nar, g))
+      if (is.null(d) || nrow(d) == 0) next
+      s[[g]] <- d
+      su[[g]] <- respondent_summary(nar, g)
+    }
+    if (length(s) == 0) next
+    per_arm[[if (is.na(ak)) "all" else ak]] <- list(splits = s, summaries = su)
   }
 
   # A question with nothing to draw under any split is dropped rather than
-  # listed and then failing to open.
-  if (length(splits) == 0) next
+  # listed and then failing to open. So is a split-sample question left with
+  # one version, which is no longer a comparison.
+  if (length(per_arm) == 0) next
+  if (!is.null(arms) && length(per_arm) < 2) next
+
+  armed <- !is.null(arms) && length(per_arm) >= 2
+
+  splits <- if (armed) map(per_arm, "splits") else per_arm[["all"]]$splits
+  summaries <- if (armed) map(per_arm, "summaries") else
+    per_arm[["all"]]$summaries
 
   # The R that rebuilds each of these charts, written by the script that just
   # computed them. Keyed by split the same way the splits themselves are, so
@@ -669,9 +783,11 @@ for (i in seq_len(nrow(questions))) {
   waves <- wave_of(row$hazard, years)
 
   # A code the instrument does not document is drawn as itself on the page, so
-  # the script labels it as itself rather than dropping it to NA. Sorted as a
-  # number where it is one: as text, 10 sorts between 1 and 2.
-  extra <- setdiff(unique(splits[["All"]]$resp), q_options$value)
+  # the script labels it as itself rather than dropping it to NA. Taken across
+  # every version, so a code only one version elicited still gets a label.
+  # Sorted as a number where it is one: as text, 10 sorts between 1 and 2.
+  seen_resp <- unique(unlist(map(per_arm, ~ .x$splits[["All"]]$resp)))
+  extra <- setdiff(seen_resp, q_options$value)
   extra <- extra[order(suppressWarnings(as.numeric(extra)), extra)]
   resp_levels <- tibble(value = c(q_options$value, extra),
                         label = c(q_options$label, extra))
@@ -679,63 +795,91 @@ for (i in seq_len(nrow(questions))) {
   wx17_note <- row$hazard == "Severe Weather (WX)" &&
     !("2017" %in% years) && row$variable %in% wx17_columns
 
+  # One script per (version, split), keyed the way the splits are: nested under
+  # the version for a split-sample question, flat for every other, so the front
+  # end reads whichever shape the question file already told it to expect.
   scripts <- list()
+  checks <- list()
 
-  for (g in names(splits)) {
-    # Instrument order, which is what the prefixes in the data encode, rather
-    # than the alphabetical order a plain sort would give. Levels a split has
-    # in the data but not in this question's rows are dropped, so the legend
-    # is the groups the chart actually draws.
-    group_levels <- if (g == "All") NULL else {
-      lv <- str_remove(sort(unique(na.omit(as.character(narrow[[g]])))),
-                       "^\\(\\d+\\) ")
-      lv[lv %in% splits[[g]]$group]
+  for (ak in names(per_arm)) {
+    arm_row <- if (armed) arms$roster |> filter(value == ak) else NULL
+    per_split <- list()
+    for (g in names(per_arm[[ak]]$splits)) {
+      # Instrument order, which is what the prefixes in the data encode, rather
+      # than the alphabetical order a plain sort would give. Levels a split has
+      # in the data but not in this question's rows are dropped, so the legend
+      # is the groups the chart actually draws.
+      group_levels <- if (g == "All") NULL else {
+        lv <- str_remove(sort(unique(na.omit(as.character(narrow[[g]])))),
+                         "^\\(\\d+\\) ")
+        lv[lv %in% per_arm[[ak]]$splits[[g]]$group]
+      }
+      per_split[[g]] <- r_script(
+        question = row$question, variable = row$variable, hazard = row$hazard,
+        waves = waves, years = years, split = g,
+        split_label = names(groups)[match(g, groups)],
+        level_values = resp_levels$value, level_labels = resp_levels$label,
+        group_order = group_levels, wx17_note = wx17_note,
+        arm_column = if (armed) arms$variable else NULL,
+        arm_value = if (armed) ak else NULL,
+        arm_label = if (armed) arm_row$label else NULL
+      )
+      checks[[paste(ak, g)]] <- list(arm = ak, split = g)
     }
-    scripts[[g]] <- r_script(
-      question = row$question, variable = row$variable, hazard = row$hazard,
-      waves = waves, years = years, split = g,
-      split_label = names(groups)[match(g, groups)],
-      level_values = resp_levels$value, level_labels = resp_levels$label,
-      group_order = group_levels, wx17_note = wx17_note
-    )
+    if (armed) scripts[[ak]] <- per_split else scripts <- per_split
   }
 
-  rcode$scripts <- rcode$scripts + length(scripts)
+  rcode$scripts <- rcode$scripts + length(checks)
   write_json(scripts, paste0(data_dir, "rcode/", id, ".json"),
              auto_unbox = TRUE, na = "null")
 
-  for (g in names(scripts)) {
-    shape <- paste(row$hazard, g)
+  script_at <- function(ak, g) if (armed) scripts[[ak]][[g]] else scripts[[g]]
+
+  for (k in names(checks)) {
+    ak <- checks[[k]]$arm
+    g <- checks[[k]]$split
+    # Every version of a split-sample question is checked: the arm filter is
+    # the one line the generator writes that nothing else exercises.
+    shape <- if (armed) paste(row$hazard, g, ak) else paste(row$hazard, g)
     scale_key <- if (g == "All") coalesce(row$response_scale, "(none)") else NA
-    if (shape %in% checked_shape &&
+    if (!armed && shape %in% checked_shape &&
         (is.na(scale_key) || scale_key %in% checked_scale)) next
-    verify_r_code(scripts[[g]], splits[[g]], resp_levels, paste(id, g), rcode)
+    verify_r_code(script_at(ak, g), per_arm[[ak]]$splits[[g]], resp_levels,
+                  paste(id, k), rcode)
     checked_shape <- c(checked_shape, shape)
     if (!is.na(scale_key)) checked_scale <- c(checked_scale, scale_key)
   }
 
-  write_json(
-    list(
-      id = id,
-      variable = row$variable,
-      hazard = row$hazard,
-      hazard_phrase = unname(hazard_phrases[row$hazard]),
-      question = row$question,
-      # The stem and the item apart, so the heading can quiet the sentence
-      # every item of a battery shares. `question` stays as the one string
-      # anything needing a whole question uses - the PDF title, the search,
-      # the title of the R script that rebuilds this chart.
-      question_intro = row$question_intro,
-      question_text = row$question_text,
-      response_scale = row$response_scale,
-      options = q_options,
-      has_r_code = length(scripts) > 0,
-      splits = splits,
-      summaries = summaries
-    ),
-    paste0(data_dir, "q/", id, ".json"),
-    auto_unbox = TRUE, na = "null", digits = 4
+  q_json <- list(
+    id = id,
+    variable = row$variable,
+    hazard = row$hazard,
+    hazard_phrase = unname(hazard_phrases[row$hazard]),
+    question = row$question,
+    # The stem and the item apart, so the heading can quiet the sentence
+    # every item of a battery shares. `question` stays as the one string
+    # anything needing a whole question uses - the PDF title, the search,
+    # the title of the R script that rebuilds this chart.
+    question_intro = row$question_intro,
+    question_text = row$question_text,
+    response_scale = row$response_scale,
+    options = q_options,
+    has_r_code = length(checks) > 0
   )
+
+  # Added rather than set to NULL, because `list(arms = NULL)` serialises as
+  # "arms":{} and every question in the dashboard would then carry an empty
+  # key. Presence is the signal the front end reads, so it has to be absent.
+  if (armed) {
+    q_json$arms <- arms$roster |> select(id = value, label)
+    q_json$arm_prompt <- arms$prompt
+  }
+
+  q_json$splits <- splits
+  q_json$summaries <- summaries
+
+  write_json(q_json, paste0(data_dir, "q/", id, ".json"),
+             auto_unbox = TRUE, na = "null", digits = 4)
 
   written <- written + 1
   index[[i]] <- tibble(

@@ -171,6 +171,38 @@ item of its own — 148 of the 915 — the stem *is* the question, so it moves i
 PDF title, the table's search and sort, and the title of the R script that
 rebuilds the chart.
 
+**A split-sample question is estimated one version at a time.** Some questions
+were asked of everyone but not in the same words: the wording varied by a
+randomization variable the instrument records beside the answer. Those carry a
+version menu under the heading, and the chart always shows one version —
+there is no pooled option, because pooling averages across the difference the
+experiment was testing and reports a number nobody was asked. `?arm=`
+deep-links one.
+
+Two declarations in `09_dashboard/`, because they answer different questions
+and grow at different rates. `question_arms.csv` says which randomizer governs
+a question; the variable reference marks the randomizers themselves
+(`question_type == "randomization"`, 34 of them) but records nowhere which
+question each governs, so this is read off the instruments and grows a row at a
+time. `arms.csv` is the roster: one prompt per randomizer and a label and order
+per value, because the raw values are codes as often as words
+(`spc_high_ero_slight`, `1`).
+
+The shape follows: an armed question nests `splits` and `summaries` one level
+deeper, under the version, and carries `arms` and `arm_prompt`. **Presence of
+`arms` is the signal**, so it has to be absent everywhere else — `list(arms =
+NULL)` serialises as `"arms":{}`, which would put an empty key on all 915
+questions and read as armed to anything checking truthiness. `questionSlice()`
+in `engine.js` is the one place that knows about the nesting; all three
+components that chart a question go through it. The quiz refuses an armed
+question outright: an answer drawn from one arm is a claim about the people who
+saw that version, and the prompt does not say so.
+
+Not every experiment fits this. Where the randomizer decided *which column* a
+respondent answered — `rand_evnt_cncrn_ice` against `_snow`, `exf_exp_d3/d5/d7`
+— the arms are separate variables, and they stay separate questions in the
+table. A menu cannot split what was never one column.
+
 **The measure menu is declared once**, in `09_dashboard/measures.csv`: one row
 per mapped measure, giving its order, its group and its label. It is validated
 against what `07` actually produces — in both directions, plus duplicates — so

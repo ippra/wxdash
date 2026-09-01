@@ -153,10 +153,17 @@ wave_of <- function(hazard, year) {
 # split, which has no column in the data and names the year per file instead.
 r_script <- function(question, variable, hazard, waves, years, split,
                      split_label, level_values, level_labels,
-                     group_order = NULL, wx17_note = FALSE) {
+                     group_order = NULL, wx17_note = FALSE,
+                     arm_column = NULL, arm_value = NULL, arm_label = NULL) {
   obj <- str_to_lower(waves)
   grp <- if (split == "All") NULL else split
   derived <- !is.null(grp) && !is.null(r_derive[[grp]])
+
+  # A split-sample question is estimated one version at a time, so the wave is
+  # filtered to the respondents who read this one before anything else happens.
+  arm_filter <- if (is.null(arm_column)) "" else
+    paste0(" |>\n    filter(", r_name(arm_column), " == ",
+           r_quote(arm_value), ")")
 
   # What each wave contributes: the weight, the grouping if there is one, and
   # the answer. Nothing else - a chart split by age has no business reading
@@ -177,7 +184,7 @@ r_script <- function(question, variable, hazard, waves, years, split,
       })
     }
     lines <- c(lines, paste0("      resp = ", r_name(variable)))
-    paste0("  ", o, " |>\n", if (is.null(pre)) "" else pre,
+    paste0("  ", o, arm_filter, " |>\n", if (is.null(pre)) "" else pre,
            "    transmute(\n", paste(lines, collapse = ",\n"), "\n    )")
   })
 
@@ -240,12 +247,19 @@ r_script <- function(question, variable, hazard, waves, years, split,
     if (split == "All") "" else
       paste0("# Split by ", str_to_lower(split_label), " (the `", split,
              "` column).\n"),
+    if (is.null(arm_column)) "" else
+      paste0("# Version shown to this part of the sample: ", arm_label,
+             " (`", arm_column, "`).\n"),
     if (wx17_note)
       paste0("# WX17 asked this on a 1-7 scale rather than 1-5, so it is not\n",
              "# pooled with the waves below.\n") else "",
     "\n",
     "library(tidyverse)\n",
     "library(srvyr)\n\n",
+    if (is.null(arm_column)) "" else paste0(
+      "# This question was split-sampled - respondents did not all read the\n",
+      "# same thing - so this version is estimated on its own. Pooling the\n",
+      "# versions would average across the treatment.\n\n"),
     "# Read as character: a question asked in one wave is empty in the\n",
     "# others, and a column empty for its first thousand rows is guessed\n",
     "# logical, which turns every real value after it into NA.\n",

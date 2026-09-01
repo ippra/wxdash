@@ -1,0 +1,14 @@
+arm_variable,prompt,value,label,arm_order
+exf_ex_loc,Forecast location shown,Location A,Location A,1
+exf_ex_loc,Forecast location shown,Location B,Location B,2
+exf_ex_loc,Forecast location shown,Location C,Location C,3
+spc_level_rand,Risk level shown,1,Level 1,1
+spc_level_rand,Risk level shown,2,Level 2,2
+spc_level_rand,Risk level shown,3,Level 3,3
+spc_level_rand,Risk level shown,4,Level 4,4
+spc_level_rand,Risk level shown,5,Level 5,5
+rand_otlks_loc,Outlook pair shown,spc_high_ero_slight,Severe high / flood slight,1
+rand_otlks_loc,Outlook pair shown,spc_enh_ero_enh,Severe enhanced / flood enhanced,2
+rand_otlks_loc,Outlook pair shown,spc_slight_ero_high,Severe slight / flood high,3
+rand_prog,Program described,small grants,Small grants,1
+rand_prog,Program described,low-interest loans,Low-interest loans,2
