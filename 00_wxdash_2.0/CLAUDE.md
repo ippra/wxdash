@@ -35,6 +35,19 @@ names `04_county_poststrat_2024.csv` explicitly, so a new poststrat vintage
 means editing `07`; and `06` expects a human to read 24 model summaries, which
 is deliberate and means the chain is not push-button.
 
+`WXDASH_LOCAL` points inside Dropbox, and **`outputs/` is marked
+Dropbox-ignored** — `xattr -w com.dropbox.ignored 1` on that directory. Without
+it a sync races a rebuild: Dropbox restores the previous `engine.js` under its
+own name and files the new one as a conflicted copy, publishing stale
+JavaScript beside fresh data — a site that loads, draws, and is wrong. It
+happened three times in one session and produced over a thousand conflicted
+copies. The attribute is per machine and does not travel with the repo, so set
+it on any machine that runs `10` or `11`; everything under `outputs/` is
+regenerable from `01`–`11`, which is the same argument that keeps it out of
+git. `10` and `11` both scan the built site for conflicted copies and stop, but
+that only catches what a previous run left behind — nothing can catch Dropbox
+reverting a build after it finishes.
+
 The five poststratification cells — `AGE_GROUP`, `GENDER_GROUP`, `RACE_GROUP`,
 `EDUC_GROUP`, `INCOME_GROUP` — are built in `04` and fit in `06`. Anything
 that splits the data should use those, so the app cuts it the way the models
@@ -157,6 +170,49 @@ A full build takes about fifteen minutes, almost all of it the 915 questions.
 measure list and the HTML in about two seconds; use it for anything that does
 not touch survey data. It refuses to run without a previous full build.
 
+**Every chart carries the R that rebuilds it.** `10_rcode.R` holds the
+generator, and `10` runs it in the question loop: one concrete script per
+(question, split), written into `data/rcode/<id>.json` and fetched by the front
+end on the first click. The script that computed the numbers writes the code
+that reproduces them, which is the same property that makes `11` carry
+statistics rather than calculate them.
+
+The scripts read the released wave files — `WX18_data_wtd.csv` and the rest of
+the 22 — rather than `05`'s pooled output, which is 400 MB and which nothing
+releases. Three rules the generated code follows, and they are the point of it:
+no helper functions, column names written where they are used rather than
+through `.data[[ ]]`, and only the columns that chart needs. That is why there
+is a script per split instead of one template: splitting by age should not make
+a reader read a roster of twelve grouping columns, and the five derived splits
+each write their own `case_when` out where a reader can see it.
+
+**`10` then runs them and compares.** `verify_r_code()` evaluates a script
+against the same wave files a reader would download and checks its estimates
+against the rows being written to the question file — matching on *labels*, so
+a levels/labels pairing that had drifted would not slip through. Coverage is
+every hazard by every split, so each derived `case_when` is exercised in all
+four, plus one Everyone script per response scale. Running all ~11,900 would
+add hours for no more coverage than that.
+
+Two things the generated code makes visible that the pipeline only describes:
+the WX17 reception and response batteries dropped for being on a 1-7 scale, and
+that weather salience needs both items rather than one.
+
+**A question is a stem and an item, and they are set differently.** `08`
+records `question_intro` and `question_text` apart; `09` keeps them apart as
+well as joining them into `question`, and `10` carries all three. Both front
+ends set the stem quiet, small and unbolded above the item, which carries the
+weight — in the chart heading and in each row of the question table. The stem
+is the same sentence on every item of a battery and the item is what changes,
+so without it a row of the risk battery reads "Tornadoes", which is not a
+question. Where a question has no item of its own — 148 of the 915 — the stem
+*is* the question, so `09` moves it into `question_text` and leaves nothing
+above it.
+
+`question` stays the one string anything needing a whole question uses: the
+PDF title, the table's search and sort, and the title of the R script that
+rebuilds the chart.
+
 **The measure menu is declared once**, in `09_wxdash_app/measures.csv`: one row
 per mapped measure, giving its order, its group and its label. `09` validates
 that file against what `07` actually produces — in both directions, plus
@@ -164,10 +220,12 @@ duplicates — copies it into `data/`, and both front ends read it from there.
 Adding a measure is a row in that CSV, and a measure that no longer exists
 upstream stops the build rather than vanishing from a menu.
 
-**Splits are declared four times** — in `app.R`, in `10_build_static_site.R`,
-in `10_static_site/app.js` and in `11_build_dashboard.R`, across two languages.
-Thirteen splits with a caption phrase each, currently identical in all four,
-and nothing catches a missed edit. Palettes are worse: four in `10`, and
+**Splits are declared five times** — in `app.R`, in `10_build_static_site.R`,
+in `10_static_site/app.js`, in `11_build_dashboard.R` and, for the five derived
+ones, as generated R in `10_rcode.R`, across two languages.
+Thirteen splits with a caption phrase each, currently identical everywhere they
+appear, and nothing catches a missed edit — except in the generated R, where
+`verify_r_code()` would fail on a derived split that had drifted. Palettes are worse: four in `10`, and
 `11_dashboard/site/engine.js` carries its own viridis, cividis and greys plus a
 scheme picker. This is the largest remaining maintenance cost in the repo; the
 fix is the one that worked for measures — declare them in a CSV the build
@@ -195,6 +253,15 @@ legends are positioned from the image rather than the page margin, or the
 second one lands under the gap between two maps instead of under its own. The
 scan sheet's PDF is a different animal — rows, not a plot — and is built by
 `scanPDF` with its own geometry.
+
+**Download R code** sits beside **Download chart (PDF)** on Explore Survey
+Questions, in a `.wx-toolbar-actions` group because `.wx-pdf-btn` takes
+`margin-left: auto` and two of them loose in the row end up at opposite ends of
+it. The scripts are `10`'s, carried over like the numbers they rebuild, and the
+builder refuses to publish a site with fewer script files than questions — a
+button that 404s looks to the page exactly like a network failure. It is a
+download and not a panel: someone who wants the script wants it in their
+editor, not in a scrolling box.
 
 `site/` is the hand-edited front end — `engine.js`, `engine.css`, `index.html`,
 vendored Leaflet, Chart.js and jsPDF. The builder copies it, fills the

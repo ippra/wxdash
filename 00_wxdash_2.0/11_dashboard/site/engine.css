@@ -369,6 +369,20 @@ html[data-theme="wxops"] #navbar { position: sticky; border-bottom: none; }
 .wx-ci-label input { accent-color: var(--accent); width: 15px; height: 15px; }
 .wx-ci-label:has(input:disabled) { opacity: 0.45; cursor: default; }
 .wx-question-head { font-size: 17px; line-height: 1.4; margin: 0 0 10px; }
+/* The stem a battery of items shares, above the item itself. Quieter and
+   smaller, because it is the same sentence on every item in the battery and
+   the item is what changes. */
+.wx-question-intro {
+  font-size: 13px; line-height: 1.45; color: var(--text-muted);
+  font-weight: 400; margin: 0 0 6px;
+}
+/* The same two weights in the question table, so a row and the heading it
+   loads read the same way round. */
+.wx-row-intro {
+  font-size: 12px; line-height: 1.35; color: var(--text-muted);
+  font-weight: 400; margin-bottom: 3px;
+}
+.wx-row-question { font-weight: 600; }
 .wx-explore-caption { margin: 10px 4px 0; line-height: 1.5; }
 .wx-explore-caption p { margin: 0 0 8px; }
 .wx-explore-caption p:last-child { margin-bottom: 0; }
@@ -387,6 +401,16 @@ html[data-theme="wxops"] #navbar { position: sticky; border-bottom: none; }
 }
 .wx-pdf-btn:hover { border-color: var(--accent); color: var(--accent); }
 .wx-pdf-btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+/* Chart PDF and R code sit together at the right of the toolbar. .wx-pdf-btn
+   carries margin-left:auto, so two of them loose in the row each push
+   themselves to the right edge and end up at opposite ends of it; the group
+   takes the auto margin once instead. */
+.wx-toolbar-actions {
+  margin-left: auto; display: flex; align-items: flex-end; gap: 10px;
+  flex-wrap: wrap;
+}
+.wx-toolbar-actions .wx-pdf-btn { margin-left: 0; }
 
 /* Map explorer, Joe's Aug-2026 layout: controls across the top, map full
    width below. The toolbar needs a stacking context above Leaflet's panes

@@ -37,7 +37,8 @@ web host. Currently deployed at http://c.itation.net/wxdash.
 10_build_static_site.R          all statistics (srvyr), ~15 min
         │
         ▼
-outputs/10_site/data/           915 question files, measures, CWA map values
+outputs/10_site/data/           915 question files and the R that rebuilds
+                                each of their charts, measures, CWA map values
         │
         ▼                       ┌── site/ (front end source)
 11_build_dashboard.R  ◄─────────┘   seconds; no statistics
@@ -151,6 +152,19 @@ overrides just the three HTML entry URLs (`/wxdash`, `/wxdash/`,
 
 ## What the front end does with it
 
+- **A question is a stem and an item.** The stem — the sentence every item of
+  a battery shares — is set quiet and small above the item, which carries the
+  weight; the same two weights in the chart heading and in each row of the
+  question table. `10` supplies `question_intro` and `question_text` beside the
+  joined `question`, which is still what search, sort and the PDF title use.
+- **Every chart carries the R that rebuilds it.** *Download R code* sits beside
+  *Download chart (PDF)* on Explore Survey Questions and saves a script that
+  rebuilds that question under that split, from the released wave files and
+  nothing else. `10` generates one script per (question, split) and checks a
+  sample of them against the numbers it is publishing; this builder carries
+  them over the way it carries every other number, and stops if there are
+  fewer script files than questions. Download rather than an on-page viewer:
+  someone who wants the script wants it in their editor.
 - **Explore Communities is one page in four parts**: the toolbar, the map (or
   two), the notes that explain what is mapped, and the scan sheet for whichever
   area was clicked. The notes come before the sheet because one area's standing

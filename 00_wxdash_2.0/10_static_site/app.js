@@ -235,7 +235,11 @@ function renderTable() {
       `<tr data-id="${escapeHtml(q.id)}"` +
       `${q.id === state.selectedId ? ' class="is-selected"' : ""}>` +
       `<td>${escapeHtml(q.hazard)}</td>` +
-      `<td>${escapeHtml(q.question)}</td>` +
+      "<td>" +
+      (q.question_intro
+        ? `<div class="row-intro">${escapeHtml(q.question_intro)}</div>` : "") +
+      `<div class="row-question">${escapeHtml(q.question_text || q.question)}` +
+      "</div></td>" +
       `<td>${escapeHtml(q.kind)}</td></tr>`).join("") +
     "</tbody></table>";
 
@@ -258,7 +262,39 @@ async function selectQuestion(id) {
      rather than drawing an empty panel. */
   if (!state.question.splits[state.split]) state.split = "All";
   el("split").value = state.split;
+  el("download-rcode").hidden = !state.question.has_r_code;
   renderChart();
+}
+
+/* Reproduction scripts -------------------------------------------------------
+   Every chart carries the R that rebuilds it, written by the build script that
+   computed the numbers rather than composed here - this page does a lookup.
+   Download rather than a panel: someone who wants the script wants it in their
+   editor, not in a scrolling box. The file is fetched on the first click and
+   kept, because one question holds thirteen scripts and code nobody asked for
+   has no business loading with every chart. */
+const rcodeCache = new Map();
+
+async function rcodeFor(id, split) {
+  let all = rcodeCache.get(id);
+  if (!all) {
+    const res = await fetch(`data/rcode/${encodeURIComponent(id)}.json`);
+    if (!res.ok) return "";
+    all = await res.json();
+    rcodeCache.set(id, all);
+  }
+  return all[split] || "";
+}
+
+function downloadRCode(text, id, split) {
+  const url = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `wxdash-${id}-${split}.R`;
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 /* Chart ---------------------------------------------------------------------
@@ -283,7 +319,9 @@ function renderChart() {
     .sort((a, b) => (Number(a) - Number(b)) || String(a).localeCompare(b));
   const groups = [...new Set(rows.map(r => r.group))].sort();
 
-  el("question-text").textContent = q.question;
+  el("question-intro").textContent = q.question_intro || "";
+  el("question-intro").hidden = !q.question_intro;
+  el("question-text").textContent = q.question_text || q.question;
 
   const colours = state.split === "All"
     ? [seriesColours(state.palette, 1)[0]]
@@ -813,6 +851,11 @@ async function start() {
   /* Everything the print stylesheet needs is already on the page, so this only
      has to open the dialog. The reader chooses Save as PDF from there. */
   el("print-chart").addEventListener("click", () => window.print());
+  el("download-rcode").addEventListener("click", async () => {
+    if (!state.question) return;
+    const text = await rcodeFor(state.question.id, state.split);
+    if (text) downloadRCode(text, state.question.id, state.split);
+  });
   el("print-map").addEventListener("click", () => window.print());
 
   /* The chart is sized from its container, so it has to be redrawn when the

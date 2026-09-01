@@ -49,10 +49,21 @@ questions <- questions |>
     # pasting so a missing one does not print as the string "NA".
     question = str_squish(paste(
       coalesce(question_intro, ""), coalesce(question_text, "")
-    ))
+    )),
+    # The two halves are also kept apart, because the stem is the same sentence
+    # on every item of a battery and the item is what changes. The front ends
+    # quiet the stem and show the item, so a row reads "Tornadoes" under the
+    # question it answers rather than on its own.
+    #
+    # A question with no item of its own is one whose stem is the whole
+    # question: it becomes the item, and there is no stem left above it.
+    question_intro = if_else(is.na(question_text), NA_character_,
+                             question_intro),
+    question_text = coalesce(question_text, question)
   ) |>
-  select(hazard, variable, question, keywords, response_scale, response_options,
-         n_options, experimental, graphic_shown)
+  select(hazard, variable, question, question_intro, question_text, keywords,
+         response_scale, response_options, n_options, experimental,
+         graphic_shown)
 
 # Responses --------------------------------------------------------------------
 response_columns <- names(read_csv(

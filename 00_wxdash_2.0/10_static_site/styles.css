@@ -261,6 +261,7 @@ a { color: var(--ink); }
 
   /* A chart split down the middle by a page break is not worth keeping, and a
      question stranded at the foot of a page is worse. */
+  #question-intro,
   #question-text { break-after: avoid; }
   #chart { break-inside: avoid; }
 
@@ -270,3 +271,25 @@ a { color: var(--ink); }
      height it uses on screen. */
   #map { height: 150mm; border: 0; }
 }
+
+/* Stem and item -------------------------------------------------------------
+   A battery shares one stem and its items are what change, so the stem is set
+   quieter and smaller and the item carries the weight. Without the stem a row
+   of the risk battery reads "Tornadoes", which is not a question. */
+#question-intro {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted);
+  font-weight: 400;
+  margin: 0 0 6px;
+}
+
+.row-intro {
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--muted);
+  font-weight: 400;
+  margin-bottom: 3px;
+}
+
+.row-question { font-weight: 600; }

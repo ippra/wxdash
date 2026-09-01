@@ -48,9 +48,15 @@
         <input type="checkbox" id="ci"> Show 95% confidence intervals
       </label>
       <button id="print-chart" type="button">Print / Save as PDF</button>
+      <!-- Shown once a question is loaded: it downloads that question's
+           script, so it has nothing to offer before one is chosen. -->
+      <button id="download-rcode" type="button" hidden>Download R code</button>
     </div>
   </div>
 
+  <!-- The stem a battery of items shares, above the item itself: it is the
+       same sentence on every item, and the item is what changes. -->
+  <p id="question-intro" hidden></p>
   <h4 id="question-text"></h4>
   <div id="chart"></div>
   <div id="chart-caption" class="help"></div>

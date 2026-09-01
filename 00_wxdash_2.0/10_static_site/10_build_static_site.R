@@ -4,6 +4,7 @@ library(sf)
 library(jsonlite)
 
 source(here::here("00_wxdash_2.0", "00_paths.R"))
+source(here::here("00_wxdash_2.0", "10_static_site", "10_rcode.R"))
 
 # Static Site ------------------------------------------------------------------
 # Builds a copy of the dashboard that needs no R at run time: plain HTML, one
@@ -77,7 +78,8 @@ measure_menu <- read_csv(needed[6], show_col_types = FALSE) |>
   mutate(group = fct_inorder(group))
 measure_questions <- read_csv(needed[4], show_col_types = FALSE)
 
-dir.create(paste0(site_dir, "data/q"), recursive = TRUE, showWarnings = FALSE)
+for (d in c("data/q", "data/rcode"))
+  dir.create(paste0(site_dir, d), recursive = TRUE, showWarnings = FALSE)
 
 # Splits -----------------------------------------------------------------------
 # The same twelve the app offers, plus Everyone. Held here rather than read from
@@ -211,6 +213,57 @@ narrow_for <- function(variable, hazard) {
            PERSON_WEIGHT)
 }
 
+# Reproduction Scripts ---------------------------------------------------------
+# The wave files the generated scripts send a reader to. Their headers are read
+# here so a script naming a column its wave file does not carry is caught now
+# rather than by whoever runs it - a reader cannot tell a generator bug from
+# their own mistake.
+wave_codes <- responses |>
+  distinct(survey_hazard, survey_year) |>
+  transmute(wave = wave_of(survey_hazard, survey_year)) |>
+  pull(wave) |>
+  sort()
+
+wave_paths <- paste0(survey_files, wave_codes, "_data_wtd.csv")
+
+if (!all(file.exists(wave_paths))) {
+  print(basename(wave_paths)[!file.exists(wave_paths)])
+  stop("Wave files above are missing - the generated scripts would name them.")
+}
+
+wave_headers <- map(set_names(wave_paths, wave_codes),
+                    ~names(read_csv(.x, n_max = 0, show_col_types = FALSE)))
+
+script_columns <- c(
+  "PERSON_WEIGHT",
+  setdiff(split_columns, c(names(derive_sources), "survey_year")),
+  unlist(derive_sources, use.names = FALSE)
+)
+
+absent_columns <- imap(wave_headers, ~setdiff(script_columns, .x)) |>
+  keep(~length(.x) > 0)
+
+if (length(absent_columns) > 0) {
+  print(absent_columns)
+  stop("Wave files above lack columns above - a script would name them anyway.")
+}
+
+# WX17 asked the reception and response batteries on a 1-7 scale, so 05 drops
+# those columns rather than pooling them. A generated script that reads WX18
+# onward for a question WX17 plainly asked owes the reader that sentence.
+wx17_columns <- if ("WX17" %in% wave_codes) wave_headers[["WX17"]] else
+  character(0)
+
+rcode <- new_rcode_tally()
+
+# Which scripts get run. Every hazard by every split is checked once - each
+# derived grouping writes its own case_when, so an error in one would not show
+# up in another - and then one Everyone script per response scale, which is
+# where a levels/labels pairing would drift. Running all ~11,900 would add
+# hours for no more coverage than this.
+checked_shape <- character(0)
+checked_scale <- character(0)
+
 # --map-only is only safe if a previous full run left the question files and
 # their index behind. Checked, because the alternative is a site that serves a
 # map and an empty question table.
@@ -251,6 +304,59 @@ for (i in seq_len(nrow(questions))) {
   # listed and then failing to open.
   if (length(splits) == 0) next
 
+  # The R that rebuilds each of these charts, written by the script that just
+  # computed them. Keyed by split the same way the splits themselves are, so
+  # the front ends do a lookup and compose nothing.
+  q_options <- option_labels(row$response_options)
+  years <- sort(unique(narrow$survey_year[!is.na(narrow$resp)]))
+  waves <- wave_of(row$hazard, years)
+
+  # A code the instrument does not document is drawn as itself on the page, so
+  # the script labels it as itself rather than dropping it to NA. Sorted as a
+  # number where it is one: as text, 10 sorts between 1 and 2.
+  extra <- setdiff(unique(splits[["All"]]$resp), q_options$value)
+  extra <- extra[order(suppressWarnings(as.numeric(extra)), extra)]
+  resp_levels <- tibble(value = c(q_options$value, extra),
+                        label = c(q_options$label, extra))
+
+  wx17_note <- row$hazard == "Severe Weather (WX)" &&
+    !("2017" %in% years) && row$variable %in% wx17_columns
+
+  scripts <- list()
+
+  for (g in names(splits)) {
+    # Instrument order, which is what the prefixes in the data encode, rather
+    # than the alphabetical order a plain sort would give. Levels a split has
+    # in the data but not in this question's rows are dropped, so the legend
+    # is the groups the chart actually draws.
+    group_levels <- if (g == "All") NULL else {
+      lv <- str_remove(sort(unique(na.omit(as.character(narrow[[g]])))),
+                       "^\\(\\d+\\) ")
+      lv[lv %in% splits[[g]]$group]
+    }
+    scripts[[g]] <- r_script(
+      question = row$question, variable = row$variable, hazard = row$hazard,
+      waves = waves, years = years, split = g,
+      split_label = names(groups)[match(g, groups)],
+      level_values = resp_levels$value, level_labels = resp_levels$label,
+      group_order = group_levels, wx17_note = wx17_note
+    )
+  }
+
+  rcode$scripts <- rcode$scripts + length(scripts)
+  write_json(scripts, paste0(site_dir, "data/rcode/", id, ".json"),
+             auto_unbox = TRUE, na = "null")
+
+  for (g in names(scripts)) {
+    shape <- paste(row$hazard, g)
+    scale_key <- if (g == "All") coalesce(row$response_scale, "(none)") else NA
+    if (shape %in% checked_shape &&
+        (is.na(scale_key) || scale_key %in% checked_scale)) next
+    verify_r_code(scripts[[g]], splits[[g]], resp_levels, paste(id, g), rcode)
+    checked_shape <- c(checked_shape, shape)
+    if (!is.na(scale_key)) checked_scale <- c(checked_scale, scale_key)
+  }
+
   write_json(
     list(
       id = id,
@@ -258,8 +364,15 @@ for (i in seq_len(nrow(questions))) {
       hazard = row$hazard,
       hazard_phrase = unname(hazard_phrases[row$hazard]),
       question = row$question,
+      # The stem and the item apart, so the heading can quiet the sentence
+      # every item of a battery shares. `question` stays as the one string
+      # anything needing a whole question uses - the PDF title, the search,
+      # the title of the R script that rebuilds this chart.
+      question_intro = row$question_intro,
+      question_text = row$question_text,
       response_scale = row$response_scale,
-      options = option_labels(row$response_options),
+      options = q_options,
+      has_r_code = length(scripts) > 0,
       splits = splits,
       summaries = summaries
     ),
@@ -272,6 +385,8 @@ for (i in seq_len(nrow(questions))) {
     id = id,
     hazard = row$hazard,
     question = row$question,
+    question_intro = row$question_intro,
+    question_text = row$question_text,
     variable = row$variable,
     response_scale = row$response_scale,
     keywords = row$keywords,
@@ -289,6 +404,8 @@ for (i in seq_len(nrow(questions))) {
 index <- list_rbind(compact(index))
 
 message("Questions written: ", written, " of ", nrow(questions))
+message("Reproduction scripts: ", rcode$scripts, " written, ", rcode$checks,
+        " run and checked against the chart they rebuild")
 
 if (nrow(index) == 0) stop("No questions were written - nothing to serve.")
 
@@ -390,6 +507,19 @@ if (!all(copied)) {
   stop("Template files above did not copy.")
 }
 
+# outputs/ lives in Dropbox, and a sync racing the rebuild files the new copy
+# of a page under a "conflicted copy" name while restoring the old one. The
+# result loads and draws and is stale, so it is checked rather than noticed
+# later.
+conflicted <- list.files(site_dir, pattern = "conflicted copy",
+                         recursive = TRUE)
+
+if (length(conflicted) > 0) {
+  print(head(conflicted, 20))
+  stop(length(conflicted), " conflicted copies reached the built site - ",
+       "delete ", site_dir, ", let Dropbox settle, then run again.")
+}
+
 # Checked rather than trusted: the filter above is the only thing standing
 # between the build script and a public URL.
 published_r <- list.files(site_dir, pattern = "\\.[Rr]$", recursive = TRUE)
@@ -408,6 +538,16 @@ absent <- required[!file.exists(paste0(site_dir, required))]
 if (length(absent) > 0) {
   print(absent)
   stop("Files above are missing from the built site.")
+}
+
+# A question whose file is there and whose scripts are not is a button that
+# 404s, which the page cannot distinguish from a network failure.
+without_code <- setdiff(list.files(paste0(site_dir, "data/q")),
+                        list.files(paste0(site_dir, "data/rcode")))
+
+if (length(without_code) > 0) {
+  print(without_code)
+  stop("Questions above have no reproduction scripts.")
 }
 
 size_mb <- sum(file.size(list.files(site_dir, recursive = TRUE,
