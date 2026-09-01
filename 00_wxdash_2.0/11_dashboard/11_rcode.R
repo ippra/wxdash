@@ -1,9 +1,9 @@
 # Reproduction Scripts ---------------------------------------------------------
 # Every chart on the explore page carries the R that rebuilds it. This file
 # holds the generator and the check that a generated script actually produces
-# the numbers being published beside it. Sourced by 10_build_static_site.R,
-# which is the script that computes those numbers - the code that reproduces an
-# estimate is written by the code that made it, so the two cannot drift.
+# the numbers being published beside it. Sourced by 11_statistics.R, which is
+# the file that computes those numbers - the code that reproduces an estimate
+# is written by the code that made it, so the two cannot drift.
 #
 # One script per (question, split), not one template with placeholders. A
 # script for a specific chart should name that chart's columns and no others:
@@ -62,9 +62,9 @@ r_title <- function(title) {
 # Splits -----------------------------------------------------------------------
 # The five derived groupings, written out where they are used. A reader holding
 # the script and the wave files has everything; a reader sent to look up
-# 09_create_dashboard_data.R does not. The labels and the cuts are that
-# script's - the prefixes it uses to order the groups are dropped here, and the
-# order comes back as factor levels below.
+# 11_statistics.R does not. The labels and the cuts are that file's - the
+# prefixes it uses to order the groups are dropped here, and the order comes
+# back as factor levels below.
 r_derive <- list(
   RURAL_GROUP = list(
     pre = NULL,

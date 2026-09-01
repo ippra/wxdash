@@ -7,11 +7,12 @@ social and hazard indicators, then uses multilevel regression and
 poststratification (MRP) to produce an estimate for every county in the
 contiguous United States and every NWS County Warning Area (CWA).
 
-The pipeline is eleven numbered steps, run in order. Each output file is named
+The pipeline is nine numbered steps, run in order. Each output file is named
 for the script that wrote it, so `03_county_alert_counts.csv` came from `03`.
-Steps `01`-`07` build the estimates; `08` documents the survey instruments;
-`09` and `10` are the Shiny and static dashboards, and `11` assembles the
-production site from `10`'s output.
+Steps `01`-`07` build the estimates; `08` documents the survey instruments; and
+`11` computes every statistic the dashboard shows and assembles the site that
+shows them. The numbering skips `09` and `10`, and the gap stays: closing it
+would rename `outputs/11_site/`, which is the rsync target.
 
 ---
 
@@ -312,59 +313,34 @@ documents say.
 **Writes** `variable_reference.csv`. The `.docx` instruments are gitignored, so
 a fresh clone has the sheet but not the sources.
 
-### `09_wxdash_app/`
-
-The Shiny dashboard, in two tabs. **Explore Survey Results** shows weighted
-response distributions for any of 915 questions, split by twelve demographic and
-survey variables. **Map Survey Estimates** maps the 24 CWA estimates and the
-nine alert counts, with a printable one-page overview sheet per area.
-
-`data/09_create_dashboard_data.R` builds what the app reads: it will not write
-unless `app.R` sits beside the target, because writing to an old path while the
-app reads a new one looks like a successful rebuild that changes nothing.
-
-The six files it writes are versioned, so a clone has everything the app needs
-and anyone building against them can pin a commit. Rerun `09` when the survey
-data changes; the app's `.gitignore` records why they are tracked and what it
-costs.
-
-Percentages are weighted with `srvyr` on `PERSON_WEIGHT`, which comes from
-raking against six ACS margins in the `wxsurveys` repository.
-
-### `10_static_site/`
-
-The same dashboard as static files — plain HTML, one JavaScript file and a
-folder of data. No server, no Shiny, no R at run time.
-
-Nothing in the dashboard is computed from user input: every view it can draw is
-one slice of a fixed set, so `10_build_static_site.R` works all of them out in
-advance. The 915 questions across 45 split levels come to about 204,000 rows,
-small enough to ship as files. Upload the output directory to any web host.
-
-A full build takes about fifteen minutes, almost all of it the questions.
-`--map-only` reuses the existing question files and rebuilds the map, the
-measure list and the HTML in about two seconds.
-
-**Writes** `outputs/10_site/`.
-
 ### `11_dashboard/`
 
-The production site. `11_build_dashboard.R` computes no statistics: it takes
-`10`'s question files and map values verbatim and adds presentation — a richer
-front end, precomputed place ranks and medians, and simplified geometry.
-Because the numbers are carried over rather than recomputed, the production
-site cannot disagree with `10`.
+The dashboard, in two halves behind one entry point.
+
+`11_build_dashboard.R --data` sources `11_statistics.R`, which computes every
+number the dashboard shows — weighted response distributions for 915 questions
+across thirteen splits, the map values, and one R script per (question, split)
+that rebuilds its chart from the released wave files. About fifteen minutes.
+Percentages are weighted with `srvyr` on `PERSON_WEIGHT`, which comes from
+raking against six ACS margins in the `wxsurveys` repository. **Writes**
+`outputs/11_data/`.
+
+Without the flag it assembles the site from that directory and computes no
+statistics: every percentage, interval and estimate is carried over verbatim,
+so the site cannot disagree with what was computed. Two seconds, which is why
+front-end work does not pay for the statistics.
 
 What the front end adds: themes, a landing page, and a knowledge quiz whose
-answer keys are derived from `10`'s own distributions. On the map, choosing an
+answer keys are derived from the distributions. Every chart carries a
+**Download R code** button beside its PDF download. On the map, choosing an
 alert history draws it as a second map beside the measure its model was fitted
-on, and clicking an area opens `09`'s overview sheet — every measure for that
-area, each row stretched to its own range — as a panel on the page. The map,
-chart downloads are standalone PDF documents — the plot, its legends, and the
-page's own notes, so a download carries what was asked, how it was scored and
-where it came from — and the sheet has a one-page printable form of its own.
+on, and clicking an area opens an overview sheet — every measure for that area,
+each row stretched to its own range — as a panel on the page. Map and chart
+downloads are standalone PDF documents, carrying the plot, its legends and the
+page's own notes, so a download says what was asked, how it was scored and
+where it came from; the sheet has a one-page printable form of its own.
 
-Run it after `10`; it takes a few seconds. Preview with
+Preview with
 `python3 -m http.server --directory "$WXDASH_LOCAL/outputs/11_site"`.
 
 **Writes** `outputs/11_site/`.
@@ -410,13 +386,17 @@ source("04_create_poststrat_dataset.R")
 source("05_create_survey_dataset.R")
 source("06_fit_models.R")
 source("07_predict_estimates.R")
-source("09_wxdash_app/data/09_create_dashboard_data.R")
-source("10_static_site/10_build_static_site.R")
+```
+
+then, from a shell rather than from R, because it takes a flag:
+
+```sh
+Rscript 00_wxdash_2.0/11_dashboard/11_build_dashboard.R --data
 ```
 
 `01` through `03` depend only on downloaded data and can run in any order. `04`
 needs `01`. `05` needs `01` through `04`. `06` needs `05`. `07` needs `02`,
-`03`, `04` and `06`. `09` needs `05`, `07` and `08`; `10` needs `09`.
+`03`, `04` and `06`. `11 --data` needs `05`, `07` and `08`.
 
 Re-running only the tail is common and safe: if the survey data has not changed,
 `06` and `07` can be run on their own.
@@ -430,8 +410,8 @@ One line of code: the `waves` vector at the top of `05`. Everything else is
 data — the new instrument added to `08` following the procedure there, and a
 new `_all` alert year in `downloads/` if the archive has moved.
 
-Then rerun `02` and `03` (only if the alert year is new), `05`, `06`, `07`, `09`
-and `10`. Two rough edges: `07` names `04_county_poststrat_2024.csv`
+Then rerun `02` and `03` (only if the alert year is new), `05`, `06`, `07`, and
+`11 --data`. Two rough edges: `07` names `04_county_poststrat_2024.csv`
 explicitly, so a new poststratification vintage means editing `07`; and the
 alert archive spans differ by hazard, which `02` records rather than anything
 assuming.

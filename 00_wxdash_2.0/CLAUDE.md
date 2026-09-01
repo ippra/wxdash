@@ -23,14 +23,16 @@ so provenance reads off the filename. All of them `source(here::here(
 | `06` | multilevel models; fixed effects are the five poststrat cells |
 | `07` | CWA and county estimates, as CSV and as simplified `sf` for mapping |
 | `08` | `variable_reference.csv` — the codebook, read off instruments |
-| `09_wxdash_app/` | the Shiny app, with `data/09_create_dashboard_data.R` |
-| `10_static_site/` | the dashboard as static files; no R at run time |
-| `11_dashboard/` | the production site, assembled from `10`'s output |
+| `11_dashboard/` | the dashboard: every statistic, and the site that shows it |
+
+The numbering skips `09` and `10`, and the gap stays. Closing it would rename
+`outputs/11_site/`, which is the rsync target, and renaming a deploy path to
+tidy a sequence is how a deploy breaks.
 
 Adding a survey wave is one line of code: the `waves` vector at the top of
 `05`. Everything else is data — a new instrument in `08`, a new `_all` alert
 year in `downloads/` — then rerun `02` and `03` (only if the alert year is
-new), `05`, `06`, `07`, `09`, `10`, `11`. Two rough edges on that path: `07`
+new), `05`, `06`, `07`, and `11 --data`. Two rough edges on that path: `07`
 names `04_county_poststrat_2024.csv` explicitly, so a new poststrat vintage
 means editing `07`; and `06` expects a human to read 24 model summaries, which
 is deliberate and means the chain is not push-button.
@@ -108,74 +110,35 @@ option label makes `response_options` unsplittable.
 The `.docx` instruments are gitignored, so a fresh clone has the sheet and the
 skill but not the sources.
 
-## The app
+## The statistics
 
-`09_wxdash_app/app.R` has two tabs. **Explore Survey Results** is the weighted
-response distributions; **Map Survey Estimates** maps 33 measures across the 116
-CWAs on MapLibre, with a printable overview sheet per area. The 33 are the 24
-measures `06` predicts — twelve reception, comprehension and response scales for
-four hazards, plus twelve risk perceptions — and the nine alert-day counts `07`
-carries alongside them. It reads six files
-from `data/`, all written by `data/09_create_dashboard_data.R`: the questions,
-the responses, the CWA geometry, the questions behind each mapped measure, the
-measure menu and the year span each alert count covers.
-Those paths are **relative** on purpose: a deployed Shiny app is a copy of its
-own directory, with no `00_paths.R` and no `WXDASH_LOCAL` on the server. That
-is the one place this pipeline departs from "every script writes to
-`outputs/`".
+`11_dashboard/11_statistics.R` computes every number the dashboard shows, and
+nothing else does. It is sourced by `11_build_dashboard.R` under `--data`, not
+run on its own, and it writes `outputs/11_data/`: the 915 question files, the R
+that rebuilds each of their charts, the measure menu and the map.
 
-`data/` **is versioned**, and its `.gitignore` records why. These six files are
-the contract other people build against, and what such a build needs is
-provenance — which commit produced these numbers — which git answers natively
-and a folder sent out of band cannot. The cost is about 6 MB a refresh, since
-`.rds` stores a full new object rather than a delta. Revisit if the refresh
-cadence becomes weekly rather than a few times a year.
-
-Nothing in that directory is ignored, deliberately: a seventh output file added
-later should be tracked without anyone remembering to allow it, and an explicit
-list of six is a list that goes out of date silently. A bare `data/` rule also
-never lets git descend far enough to see the build script itself.
-
-A fresh clone therefore has everything the app needs and starts without running
-`09` first. Rerun `09` when the survey data changes.
-
-If the app directory is ever renamed again, `09_create_dashboard_data.R` has to
-be pointed at the new name. It refuses to write unless `app.R` sits beside the
-target, because the failure it is guarding against — writing to the old path
-while the app reads the new one — looks like a successful rebuild that changes
-nothing.
+**The two halves of `11` are split on cost, not on subject.** This one reads a
+400 MB file and makes about 24,000 `srvyr` calls, and takes roughly fifteen
+minutes; assembly reads what it wrote and takes two seconds. Front-end work is
+the common case, so `outputs/11_data/` is the boundary between them and the
+default run does not touch it. Run `--data` when the survey data, the models or
+the measure menu change; without it for anything else. Assembly refuses to
+start if that directory is not there.
 
 Percentages are weighted with `srvyr` on `PERSON_WEIGHT`, which comes from
 `rake()` against six ACS margins in the `wxsurveys` repo. Two estimators are in
 play: `survey_prop(proportion = TRUE)` when confidence intervals are shown, and
 `proportion = FALSE` when they are not — identical point estimates, but the
 logit fit warns on a cell at 0 or 100%. Measured across 3,109 cells, the two
-differ by at most 2.9e-09, so `10` precomputes only the first and uses it for
-both.
+differ by at most 2.9e-09, so only the first is computed and it is used for
+both. The second call was most of the build: with both, a full run took over an
+hour.
 
-## The static site
-
-`10_static_site/` holds `10_build_static_site.R` and the site source it copies.
-The build writes `outputs/10_site/` — plain HTML, one JavaScript file and a
-folder of data — which needs no R, no Shiny and no server. Nothing in the
-dashboard is computed from user input, so every view it can draw is precomputed
-here instead.
-
-The build script lives in the folder it copies, so the copy filters `.R` files
-out and then checks the built site for them. Without that, the script would be
-published as readable source at `/10_build_static_site.R`.
-
-A full build takes about fifteen minutes, almost all of it the 915 questions.
-`--map-only` reuses the existing question files and rebuilds the map, the
-measure list and the HTML in about two seconds; use it for anything that does
-not touch survey data. It refuses to run without a previous full build.
-
-**Every chart carries the R that rebuilds it.** `10_rcode.R` holds the
-generator, and `10` runs it in the question loop: one concrete script per
-(question, split), written into `data/rcode/<id>.json` and fetched by the front
-end on the first click. The script that computed the numbers writes the code
-that reproduces them, which is the same property that makes `11` carry
-statistics rather than calculate them.
+**Every chart carries the R that rebuilds it.** `11_rcode.R` holds the
+generator, and the question loop runs it: one concrete script per (question,
+split), written into `11_data/rcode/<id>.json` and fetched by the front end on
+the first click. The code that computed the numbers writes the code that
+reproduces them, so the two cannot drift.
 
 The scripts read the released wave files — `WX18_data_wtd.csv` and the rest of
 the 22 — rather than `05`'s pooled output, which is 400 MB and which nothing
@@ -186,7 +149,7 @@ is a script per split instead of one template: splitting by age should not make
 a reader read a roster of twelve grouping columns, and the five derived splits
 each write their own `case_when` out where a reader can see it.
 
-**`10` then runs them and compares.** `verify_r_code()` evaluates a script
+**It then runs them and compares.** `verify_r_code()` evaluates a script
 against the same wave files a reader would download and checks its estimates
 against the rows being written to the question file — matching on *labels*, so
 a levels/labels pairing that had drifted would not slip through. Coverage is
@@ -199,47 +162,42 @@ the WX17 reception and response batteries dropped for being on a 1-7 scale, and
 that weather salience needs both items rather than one.
 
 **A question is a stem and an item, and they are set differently.** `08`
-records `question_intro` and `question_text` apart; `09` keeps them apart as
-well as joining them into `question`, and `10` carries all three. Both front
-ends set the stem quiet, small and unbolded above the item, which carries the
-weight — in the chart heading and in each row of the question table. The stem
-is the same sentence on every item of a battery and the item is what changes,
-so without it a row of the risk battery reads "Tornadoes", which is not a
-question. Where a question has no item of its own — 148 of the 915 — the stem
-*is* the question, so `09` moves it into `question_text` and leaves nothing
-above it.
+records `question_intro` and `question_text` apart, and both are carried
+through beside the joined `question`. The front end sets the stem quiet, small
+and unbolded above the item, which carries the weight — in the chart heading
+and in each row of the question table. The stem is the same sentence on every
+item of a battery and the item is what changes, so without it a row of the risk
+battery reads "Tornadoes", which is not a question. Where a question has no
+item of its own — 148 of the 915 — the stem *is* the question, so it moves into
+`question_text` and nothing is left above it.
 
 `question` stays the one string anything needing a whole question uses: the
 PDF title, the table's search and sort, and the title of the R script that
 rebuilds the chart.
 
-**The measure menu is declared once**, in `09_wxdash_app/measures.csv`: one row
-per mapped measure, giving its order, its group and its label. `09` validates
-that file against what `07` actually produces — in both directions, plus
-duplicates — copies it into `data/`, and both front ends read it from there.
-Adding a measure is a row in that CSV, and a measure that no longer exists
+**The measure menu is declared once**, in `11_dashboard/measures.csv`: one row
+per mapped measure, giving its order, its group and its label. It is validated
+against what `07` actually produces — in both directions, plus duplicates — so
+adding a measure is a row in that CSV, and a measure that no longer exists
 upstream stops the build rather than vanishing from a menu.
 
-**Splits are declared five times** — in `app.R`, in `10_build_static_site.R`,
-in `10_static_site/app.js`, in `11_build_dashboard.R` and, for the five derived
-ones, as generated R in `10_rcode.R`, across two languages.
-Thirteen splits with a caption phrase each, currently identical everywhere they
-appear, and nothing catches a missed edit — except in the generated R, where
-`verify_r_code()` would fail on a derived split that had drifted. Palettes are worse: four in `10`, and
-`11_dashboard/site/engine.js` carries its own viridis, cividis and greys plus a
-scheme picker. This is the largest remaining maintenance cost in the repo; the
-fix is the one that worked for measures — declare them in a CSV the build
-scripts publish and every front end reads.
+**Splits are declared twice** — in `11_statistics.R` and in
+`11_dashboard/site/engine.js`, across two languages. Thirteen splits with a
+caption phrase each, and nothing catches a missed edit, though the five derived
+ones are also written out as generated R where `verify_r_code()` would fail on
+a drift. This was five declarations before `09` and `10` were retired, and
+palettes were worse still; what is left is one duplication across the language
+boundary, which is the smallest it goes without a CSV both sides read.
 
 ## The production site
 
 `11_dashboard/` is the deployed dashboard, maintained by Matthew Henderson on
-top of `01`–`10`. It has its own `README.md`, which is the fuller account; what
-matters from here is the property the arrangement buys. `11_build_dashboard.R`
-computes **no statistics**: every percentage, interval and estimate is `10`'s
-output carried over verbatim, so the production site cannot disagree with the
-reference site. A calculation added to the builder gives that up, and the
-verification harness it replaced would have to come back.
+top of `01`–`08`. It has its own `README.md`, which is the fuller account; what
+matters from here is the property the arrangement buys. **Assembly computes no
+statistics**: every percentage, interval and estimate is read from
+`outputs/11_data/` verbatim, so the site cannot disagree with what was
+computed. A calculation moved into the assembly half gives that up, and a
+verification harness would have to come back to replace it.
 
 The map and chart PDFs are documents rather than screenshots: title, subtitle,
 plot, legends, then the page's own notes set in columns, with a footer. Their
@@ -257,8 +215,9 @@ scan sheet's PDF is a different animal — rows, not a plot — and is built by
 **Download R code** sits beside **Download chart (PDF)** on Explore Survey
 Questions, in a `.wx-toolbar-actions` group because `.wx-pdf-btn` takes
 `margin-left: auto` and two of them loose in the row end up at opposite ends of
-it. The scripts are `10`'s, carried over like the numbers they rebuild, and the
-builder refuses to publish a site with fewer script files than questions — a
+it. The scripts come from the data half, carried over like the numbers they
+rebuild, and assembly refuses to publish a site with fewer scripts than
+questions — a
 button that 404s looks to the page exactly like a network failure. It is a
 download and not a panel: someone who wants the script wants it in their
 editor, not in a scrolling box.
@@ -270,7 +229,7 @@ a built site containing `.R` files. It writes `outputs/11_site/`, which is the
 rsync unit; a run takes seconds, so iterating on the front end is cheap.
 
 The quiz is the one place the builder authors claims about the data. Prompts
-are fixed, answers and reveal numbers are read off `10`'s distributions, and
+are fixed, answers and reveal numbers are read off the distributions, and
 guards halt the build when the data stops supporting the sentence: an answer
 naming a winner has to clear the runner-up by three points, more than the
 intervals the reveal chart draws beside it, while an answer resting on an

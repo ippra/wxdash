@@ -1,7 +1,7 @@
 /* engine.js — the WxDash dashboard, client side.
  *
- * Renders the site 11_build_dashboard.R assembles: 10_build_static_site.R's
- * question and map data plus a config.json of presentation content. Nothing
+ * Renders the site 11_build_dashboard.R assembles: the question and map data
+ * 11_statistics.R computed, plus a config.json of presentation content. Nothing
  * here computes a statistic — every percentage, CI, rank, percentile and
  * median was precomputed upstream, so this file only ever picks a slice and
  * draws it. That is what lets the site run with no server.

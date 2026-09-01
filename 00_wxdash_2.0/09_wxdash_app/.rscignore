@@ -1,5 +1,0 @@
-# Kept out of the deployment bundle. rsconnect ships what is on disk, not what
-# git tracks, so the repo's .gitignore does not cover this - Finder recreates
-# .DS_Store the moment anyone opens the folder, and it would ride along.
-.DS_Store
-.gitignore

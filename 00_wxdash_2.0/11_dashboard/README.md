@@ -1,21 +1,25 @@
 # 11_dashboard — the production WxDash site
 
-The deployed dashboard, as the eleventh step of the pipeline. Maintained by
-Matthew Henderson on top of Joe Ripberger's estimation pipeline (`01`–`10`);
+The deployed dashboard, and the last step of the pipeline. Maintained by
+Matthew Henderson on top of Joe Ripberger's estimation pipeline (`01`–`08`);
 imported 2026-08-14 from the ShinyRails project where it was developed and
 verified (its history lives there, commits `933d668`–`2bdff4e`).
 
-## Two sides, kept separate
+## Three sides, kept separate
 
-**The builder** — `11_build_dashboard.R`. Reads what the pipeline already
-produced and assembles the deployable site. It computes **no statistics**:
-every percentage, confidence interval and estimate is `10`'s output carried
-over verbatim, so the production site cannot disagree with the reference
-site. (Before this arrangement an independent reimplementation was verified
-against `10`'s output cell by cell — 596,031 cells, zero mismatches,
-2026-08-14 — and then retired in favor of consuming `10`'s artifact
-directly. If the builder ever grows a calculation, that is the moment to
-bring the harness back.)
+**The statistics** — `11_statistics.R`, with the script generator in
+`11_rcode.R`. Sourced by the builder under `--data`, not run on its own.
+Computes every number the dashboard shows and writes `outputs/11_data/`. It
+reads the codebook from `08`, the pooled survey data from `05`, the model
+estimates from `07` and the alert spans from `02`. Roughly fifteen minutes,
+almost all of it the 915 questions.
+
+**The builder** — `11_build_dashboard.R`. Assembles the deployable site from
+`outputs/11_data/` plus `site/`. It computes **no statistics**: every
+percentage, confidence interval and estimate is carried over verbatim, so the
+site cannot disagree with what was computed. If the builder ever grows a
+calculation, that property is gone and a verification harness has to replace
+it.
 
 **The site source** — `site/`. The front end as hand-editable files:
 `engine.js`, `engine.css`, `index.html`, vendored libraries under
@@ -31,13 +35,14 @@ web host. Currently deployed at http://c.itation.net/wxdash.
 ## Data flow
 
 ```
-09_wxdash_app/data/*            versioned survey + estimate data (six files)
+08 codebook · 05 survey data · 07 estimates · 02 alert spans
         │
         ▼
-10_build_static_site.R          all statistics (srvyr), ~15 min
+11_statistics.R                 all statistics (srvyr), ~15 min
+   (11_build_dashboard.R --data)
         │
         ▼
-outputs/10_site/data/           915 question files and the R that rebuilds
+outputs/11_data/                915 question files and the R that rebuilds
                                 each of their charts, measures, CWA map values
         │
         ▼                       ┌── site/ (front end source)
@@ -47,9 +52,9 @@ outputs/10_site/data/           915 question files and the R that rebuilds
 outputs/11_site/                the deployable site
 ```
 
-Running the builder therefore always reflects the latest committed data and
-the latest `10` semantics — there is nothing to hand off and no second copy
-of any number.
+One entry point, two costs. The data directory is the boundary, so iterating
+on the front end never pays for the statistics — and there is nothing to hand
+off and no second copy of any number.
 
 ## Machine setup (once)
 
@@ -61,7 +66,7 @@ WXSURVEYS_ROOT="/path/to/wxsurveys/"       # see note
 ```
 
 Note: `00_paths.R` requires `WXSURVEYS_ROOT` to point at an existing
-directory even for scripts (`10`, `11`) that never read survey sources. On a
+directory even for the assembly half, which never reads survey sources. On a
 machine without the wxsurveys repository, an empty placeholder directory
 works. Candidate cleanup: gate that check to the scripts that need it.
 
@@ -71,10 +76,16 @@ R packages beyond the repo's usual set: `tidyverse`, `sf`, `jsonlite`,
 ## Building and previewing
 
 ```
-Rscript 00_wxdash_2.0/10_static_site/10_build_static_site.R   # if data or 10 changed (~15 min)
-Rscript 00_wxdash_2.0/11_dashboard/11_build_dashboard.R       # always (seconds)
+Rscript 00_wxdash_2.0/11_dashboard/11_build_dashboard.R --data  # if survey data,
+                                                                # models or the
+                                                                # menu changed
+                                                                # (~15 min)
+Rscript 00_wxdash_2.0/11_dashboard/11_build_dashboard.R         # always (seconds)
 python3 -m http.server --directory "$WXDASH_LOCAL/outputs/11_site"
 ```
+
+Without `--data` the builder reads `outputs/11_data/` and refuses to start if
+it is not there, rather than assembling a site around an empty question table.
 
 The builder halts loudly rather than producing a quietly wrong site: menu
 entries missing from the map file, mapped measures with no question wording,
@@ -106,15 +117,14 @@ the current host's backend sent max-age=1yr on everything, and its nginx now
 overrides just the three HTML entry URLs (`/wxdash`, `/wxdash/`,
 `/wxdash/index.html`) to no-cache. Any future host needs the equivalent.
 
-## What the builder adds on top of 10's data
+## What the builder adds on top of the computed data
 
 - `config.json` — pages, themes (wxdash light / wxops dark / greyscale
   accessibility), the split roster with caption phrases, popover texts, and
   the caption/popup `{token}` templates the front end fills at render time.
 - **Place ranks, percentiles and medians** for the map popups, precomputed
-  from `10`'s own values with the same formulas `10`'s app.js derives in the
-  browser (rank = 1 + count strictly greater; percentile = share strictly
-  below).
+  from the map values themselves (rank = 1 + count strictly greater;
+  percentile = share strictly below).
 - **The alert-history pairing** — which alert layer each measure is offered
   against, in `compare_pairing`, transcribed from `06_fit_models.R`. Drought,
   hail and lightning have no NWS alert product — `06` fits them on FEMA NRI
@@ -125,11 +135,11 @@ overrides just the three HTML entry URLs (`/wxdash`, `/wxdash/`,
   rows readable: each row is stretched to its own range, so equal positions
   mean equal standing and not equal differences. The three widths it quotes
   (widest warning scale, widest risk item, widest alert count) are measured
-  off `10`'s values at build time rather than asserted, and the sentence about
+  off the values at build time rather than asserted, and the sentence about
   which years the alert counts cover is written from the menu, so a category
   whose coverage changes moves itself into or out of the exception.
 - **Test Your Knowledge quiz**: five two-part questions. Prompts are fixed;
-  answer keys and reveal numbers are derived from `10`'s distributions at
+  answer keys and reveal numbers are derived from the distributions at
   build time, so they always agree with what the explorer shows. Prose
   guards halt the build when the data stops supporting a hand-written claim,
   naming the sentence to re-write. A "which group is highest" answer has to
@@ -148,22 +158,23 @@ overrides just the three HTML entry URLs (`/wxdash`, `/wxdash/`,
   they ask. Every reveal plus the finale recap deep-links into the survey
   explorer, so a reader can exit the quiz into the data at any point.
 - Simplified CWA geometry (the full-resolution polygons and per-measure
-  properties in `10`'s geojson aren't needed — values ship separately).
+  properties in the computed geojson aren't needed — values ship separately).
 
 ## What the front end does with it
 
 - **A question is a stem and an item.** The stem — the sentence every item of
   a battery shares — is set quiet and small above the item, which carries the
   weight; the same two weights in the chart heading and in each row of the
-  question table. `10` supplies `question_intro` and `question_text` beside the
-  joined `question`, which is still what search, sort and the PDF title use.
+  question table. The data half supplies `question_intro` and `question_text`
+  beside the joined `question`, which is still what search, sort and the PDF
+  title use.
 - **Every chart carries the R that rebuilds it.** *Download R code* sits beside
   *Download chart (PDF)* on Explore Survey Questions and saves a script that
   rebuilds that question under that split, from the released wave files and
-  nothing else. `10` generates one script per (question, split) and checks a
-  sample of them against the numbers it is publishing; this builder carries
-  them over the way it carries every other number, and stops if there are
-  fewer script files than questions. Download rather than an on-page viewer:
+  nothing else. The data half generates one script per (question, split) and
+  checks a sample of them against the numbers it is publishing; assembly
+  carries them over the way it carries every other number, and stops if there
+  are fewer scripts than questions. Download rather than an on-page viewer:
   someone who wants the script wants it in their editor.
 - **Explore Communities is one page in four parts**: the toolbar, the map (or
   two), the notes that explain what is mapped, and the scan sheet for whichever
@@ -216,21 +227,23 @@ overrides just the three HTML entry URLs (`/wxdash`, `/wxdash/`,
   change lands. Both of us (and both Claude sessions) iterate here, so
   expect the directory to have moved since you last saw it — read the diff,
   not your memory of it.
-- **Statistics belong upstream.** A change to what is computed goes in
-  `01`–`10` (Joe's side); a change to what is shown goes here (`site/` and
-  the builder). If `10`'s output schema changes, the builder's guards fail
-  loudly — update the reader code and this README in the same commit.
+- **Statistics belong in the data half.** A change to what is computed goes in
+  `01`–`08` or `11_statistics.R` (Joe's side); a change to what is shown goes
+  in `site/` and the builder. If the shape of `outputs/11_data/` changes, the
+  builder's guards fail loudly — update the reader code and this README in the
+  same commit.
 - R code here follows the repo's style guide (`00_wxdash_2.0/CLAUDE.md`).
-- The split roster and caption phrases in the builder intentionally mirror
-  `10_build_static_site.R`; if a split is added there, add it here too.
+- The split roster and caption phrases in the builder mirror the one in
+  `11_statistics.R`; if a split is added there, add it here too. That pair is
+  the only duplication left in the roster, and it crosses the R/JavaScript
+  boundary, so nothing catches a missed edit.
 
 ## Maintainer notes
 
-- Split groups render in their coded `"(1) "` order, stripped for display —
-  matching `app.R`'s design ("the prefixes order the levels upstream; they
-  are noise in a legend"). `10`'s app.js sorts the stripped labels
-  alphabetically instead, which scrambles ordinal splits like income and
-  education; worth aligning someday.
+- Split groups render in their coded `"(1) "` order, stripped for display: the
+  prefixes order the levels upstream and are noise in a legend. Sorting the
+  stripped labels alphabetically instead would scramble ordinal splits like
+  income and education.
 - `engine.js` was forked 2026-08-14 from the ShinyRails shared engine (which
   continues to serve the S3OK dashboard there). This copy is maintained here
   and has diverged deliberately: S3OK-only components are removed, and the
@@ -239,7 +252,6 @@ overrides just the three HTML entry URLs (`/wxdash`, `/wxdash/`,
 - The engine renders only precomputed values; the one derivation it performs
   is presentation arithmetic (assembling popup sentences from shipped rank/
   percentile/median). Keep it that way — it is what makes the "cannot
-  disagree with 10" property inspectable.
-- `index.html` is covered by a `.gitignore` negation (the repo ignores
-  rendered `*.html`; this one is source, same exception as
-  `10_static_site/`).
+  disagree with what was computed" property inspectable.
+- `index.html` is covered by a `.gitignore` negation: the repo ignores
+  rendered `*.html`, and this one is source.
