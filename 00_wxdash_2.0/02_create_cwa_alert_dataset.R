@@ -3,6 +3,7 @@ library(data.table)
 library(lubridate)
 
 source(here::here("00_wxdash_2.0", "00_paths.R"))
+require_roots()
 
 # Locate Watch/Warning Data ----------------------------------------------------
 wwa_paths <- list.files(downloads, full.names = TRUE, pattern = "_all") # source: https://mesonet.agron.iastate.edu/request/gis/watchwarn.phtml

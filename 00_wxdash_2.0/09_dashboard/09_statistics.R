@@ -4,6 +4,7 @@ library(sf)
 library(jsonlite)
 
 source(here::here("00_wxdash_2.0", "00_paths.R"))
+require_roots()
 source(here::here("00_wxdash_2.0", "09_dashboard", "09_rcode.R"))
 
 # Statistics -------------------------------------------------------------------
@@ -12,9 +13,13 @@ source(here::here("00_wxdash_2.0", "09_dashboard", "09_rcode.R"))
 #
 # It reads the variable reference from 08, the pooled survey data from 05, the
 # model estimates from 07 and the alert spans from 02, and writes
-# outputs/09_data/ - the question files, the R that rebuilds each of their
+# 09_dashboard/data/ - the question files, the R that rebuilds each of their
 # charts, the measure menu and the map. The assembly half then reads that
 # directory and nothing else.
+#
+# That directory is committed, so assembly runs from a plain clone. This half
+# does not: it needs both roots and the pipeline outputs, and it is the reason
+# they are still required anywhere.
 #
 # The two halves are separate because they change on different cadences and
 # cost three orders of magnitude apart: this one reads a 400 MB file and runs
@@ -782,8 +787,14 @@ rcode <- new_rcode_tally()
 checked_shape <- character(0)
 checked_scale <- character(0)
 
-for (d in c("q", "rcode"))
+# Emptied rather than written over, for the reason assembly rebuilds the site
+# from scratch: a question dropped upstream would otherwise survive as a file
+# nothing writes and nothing removes. This directory is committed, so a
+# survivor would be permanent.
+for (d in c("q", "rcode")) {
+  unlink(paste0(data_dir, d), recursive = TRUE)
   dir.create(paste0(data_dir, d), recursive = TRUE, showWarnings = FALSE)
+}
 
 message("Building ", nrow(questions), " questions x ", length(groups),
         " splits. This takes about 15 minutes.")

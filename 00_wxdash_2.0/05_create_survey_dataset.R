@@ -5,6 +5,7 @@ library(tidyverse)
 # because attaching it masks several dplyr and ggplot2 functions.
 
 source(here::here("00_wxdash_2.0", "00_paths.R"))
+require_roots()
 
 # Import Survey Data -----------------------------------------------------------
 # The 22 built datasets come from the wxsurveys repository, which now derives

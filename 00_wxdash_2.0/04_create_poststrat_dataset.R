@@ -8,6 +8,7 @@ options(max.print = 99999)
 "%ni%" <- Negate("%in%")
 
 source(here::here("00_wxdash_2.0", "00_paths.R"))
+require_roots()
 
 # Project Settings -------------------------------------------------------------
 acs_year <- 2024 # ACS 5-year release

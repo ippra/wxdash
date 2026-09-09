@@ -3,6 +3,7 @@ library(lme4)
 library(sf)
 
 source(here::here("00_wxdash_2.0", "00_paths.R"))
+require_roots()
 
 # Model Fits -------------------------------------------------------------------
 # Saved by 06. Reading them rather than refitting keeps these estimates tied to

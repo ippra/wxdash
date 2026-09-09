@@ -2,6 +2,7 @@ library(tidyverse)
 library(sf)
 
 source(here::here("00_wxdash_2.0", "00_paths.R"))
+require_roots()
 
 # Import Shapefiles ------------------------------------------------------------
 cnty_shp <- st_read(paste0(downloads, "cb_2025_us_county_20m")) |> st_transform(crs = 5070)

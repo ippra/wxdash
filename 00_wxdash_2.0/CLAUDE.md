@@ -12,7 +12,11 @@ reason rather than the history. The full guide is `~/.claude/ippra-r-style.md`.
 Scripts run in number order; each output is named for the script that wrote it,
 so provenance reads off the filename. All of them `source(here::here(
 "00_wxdash_2.0", "00_paths.R"))`, which resolves `WXDASH_LOCAL` and
-`WXSURVEYS_ROOT` from `~/.Renviron`.
+`WXSURVEYS_ROOT` from `~/.Renviron`, then call `require_roots()` to check them.
+The check is a function rather than a check at source time because `09`'s
+assembly half needs neither root — it reads data committed in the repo and
+writes beside it — and requiring one there meant cloning `wxsurveys` to get
+past a check for data that half never opens.
 
 | script | what it produces |
 |---|---|
@@ -41,7 +45,9 @@ JavaScript beside fresh data — a site that loads, draws, and is wrong. It
 happened three times in one session and produced over a thousand conflicted
 copies. The attribute is per machine and does not travel with the repo, so set
 it on any machine that runs `09`; everything under `outputs/` is regenerable
-from `01`–`09`, which is the same argument that keeps it out of git. The
+from `01`–`09`, which is the same argument that keeps it out of git. The one
+exception is `09_dashboard/data/`, which is committed — see The production
+site. The
 builder scans the built site for conflicted copies and stops, but that only
 catches what a previous run left behind — nothing can catch Dropbox reverting
 a build after it finishes.
@@ -110,13 +116,13 @@ skill but not the sources.
 
 `09_dashboard/09_statistics.R` computes every number the dashboard shows, and
 nothing else does. It is sourced by `09_build_dashboard.R` under `--data`, not
-run on its own, and it writes `outputs/09_data/`: the 915 question files, the R
-that rebuilds each of their charts, the measure menu and the map.
+run on its own, and it writes `09_dashboard/data/`: the 915 question files, the
+R that rebuilds each of their charts, the measure menu and the map.
 
 **The two halves of `09` are split on cost, not on subject.** This one reads a
 400 MB file and makes about 24,000 `srvyr` calls, and takes roughly fifteen
 minutes; assembly reads what it wrote and takes two seconds. Front-end work is
-the common case, so `outputs/09_data/` is the boundary between them and the
+the common case, so `09_dashboard/data/` is the boundary between them and the
 default run does not touch it. Run `--data` when the survey data, the models or
 the measure menu change; without it for anything else. Assembly refuses to
 start if that directory is not there.
@@ -132,7 +138,7 @@ hour.
 
 **Every chart carries the R that rebuilds it.** `09_rcode.R` holds the
 generator, and the question loop runs it: one concrete script per (question,
-split), written into `09_data/rcode/<id>.json` and fetched by the front end on
+split), written into `data/rcode/<id>.json` and fetched by the front end on
 the first click. The code that computed the numbers writes the code that
 reproduces them, so the two cannot drift.
 
@@ -266,9 +272,19 @@ boundary, which is the smallest it goes without a CSV both sides read.
 top of `01`–`08`. It has its own `README.md`, which is the fuller account; what
 matters from here is the property the arrangement buys. **Assembly computes no
 statistics**: every percentage, interval and estimate is read from
-`outputs/09_data/` verbatim, so the site cannot disagree with what was
+`09_dashboard/data/` verbatim, so the site cannot disagree with what was
 computed. A calculation moved into the assembly half gives that up, and a
 verification harness would have to come back to replace it.
+
+**`09_dashboard/data/` is committed**, and is the only large thing in the repo:
+69 MB on disk, about 7 MB packed. It is versioned so that a clone builds and
+deploys the site with no pipeline outputs, no survey waves and no `~/.Renviron`
+— the whole front-end and hosting side of the work needs nothing but the repo.
+The cost is real and was accepted knowingly: the write loop rewrites all 915
+question files and all 915 script files on every `--data` run, so each one adds
+its own copy to history, and it cannot be taken back out without a rewrite.
+Weigh that before adding anything else large. The built site stays out of git
+as before.
 
 The map and chart PDFs are documents rather than screenshots: title, subtitle,
 plot, legends, then the page's own notes set in columns, with a footer. Their
@@ -296,8 +312,9 @@ editor, not in a scrolling box.
 `site/` is the hand-edited front end — `engine.js`, `engine.css`, `index.html`,
 vendored Leaflet, Chart.js and jsPDF. The builder copies it, fills the
 `__BUILD__` cache-busting stamp, drops anything hidden, and refuses to publish
-a built site containing `.R` files. It writes `outputs/09_site/`, which is the
-rsync unit; a run takes seconds, so iterating on the front end is cheap.
+a built site containing `.R` files. It writes `outputs/09_site/` under
+`WXDASH_LOCAL`, or `09_dashboard/_site/` on a machine without one; either is
+the rsync unit. A run takes seconds, so iterating on the front end is cheap.
 
 The quiz is the one place the builder authors claims about the data. Prompts
 are fixed, answers and reveal numbers are read off the distributions, and

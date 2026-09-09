@@ -11,7 +11,7 @@ source(here::here("00_wxdash_2.0", "00_paths.R"))
 #   Rscript 00_wxdash_2.0/09_dashboard/09_build_dashboard.R --data
 #
 # computes every statistic — 09_statistics.R, about fifteen minutes — and
-# writes outputs/09_data/. Without the flag,
+# writes 09_dashboard/data/. Without the flag,
 #
 #   Rscript 00_wxdash_2.0/09_dashboard/09_build_dashboard.R
 #
@@ -22,7 +22,7 @@ source(here::here("00_wxdash_2.0", "00_paths.R"))
 # anything else.
 #
 # Assembly calculates NO statistics. Every percentage, confidence interval and
-# estimate is read from outputs/09_data/ verbatim, so the two halves cannot
+# estimate is read from 09_dashboard/data/ verbatim, so the two halves cannot
 # disagree — a property that is true by construction rather than enforced by a
 # harness. A calculation moved into this half gives that up.
 #
@@ -32,26 +32,46 @@ source(here::here("00_wxdash_2.0", "00_paths.R"))
 # simplified geometry, and a quiz whose answer keys are derived from the
 # distributions at build time.
 #
-# Writes outputs/09_site/ — plain static files; upload the directory to any
-# web host. Preview with:
-#   python3 -m http.server --directory "$WXDASH_LOCAL/outputs/09_site"
+# The data half's output is committed, so only that half needs WXDASH_LOCAL,
+# WXSURVEYS_ROOT and the 02/05/07 pipeline outputs. Assembly runs from a plain
+# clone with none of them.
+#
+# Writes outputs/09_site/ under WXDASH_LOCAL, or 09_dashboard/_site/ without
+# one — plain static files either way; upload the directory to any web host.
+# Preview the second with:
+#   python3 -m http.server --directory 00_wxdash_2.0/09_dashboard/_site
 
-data_dir <- paste0(outputs, "09_data/")
-out <- paste0(outputs, "09_site/")
+# The data half writes here and the assembly half reads here, and the directory
+# is committed. That is what lets a clone build the site with no pipeline
+# outputs, no survey waves and no ~/.Renviron - the alternative was handing
+# every collaborator 69 MB by side channel and trusting the copies to agree.
+data_dir <- paste0(here::here("00_wxdash_2.0", "09_dashboard", "data"), "/")
+
+# The built site is regenerable, so it stays out of the repo. It goes under
+# WXDASH_LOCAL where there is one, so the deploy rsync keeps its path; a clone
+# without one gets _site/ beside the source rather than a stop.
+out <- if (wxdash_local == "") {
+  paste0(here::here("00_wxdash_2.0", "09_dashboard", "_site"), "/")
+} else {
+  paste0(outputs, "09_site/")
+}
+
 site_src <- here::here("00_wxdash_2.0", "09_dashboard", "site")
 
 if ("--data" %in% commandArgs(trailingOnly = TRUE)) {
   source(here::here("00_wxdash_2.0", "09_dashboard", "09_statistics.R"))
 }
 
-# Checked rather than assumed: without --data this half reads a directory it
-# did not write, and the alternative to saying so is a site that serves a map
-# and an empty question table.
+# Checked rather than assumed: this half reads a directory it did not write,
+# and the alternative to saying so is a site that serves a map and an empty
+# question table. In a clone these files are committed, so their absence means
+# a partial checkout rather than a missing build.
 needed <- paste0(data_dir, c("questions.json", "measures.json", "cwa.geojson",
                              "respondents.json"))
 if (!all(file.exists(needed))) {
   print(basename(needed[!file.exists(needed)]))
-  stop("Files above are missing — run this script with --data first.")
+  stop("Files above are missing from ", data_dir,
+       " — restore them, or rebuild them with --data.")
 }
 
 if (!dir.exists(site_src)) {

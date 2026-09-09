@@ -66,3 +66,9 @@ vignettes/*.pdf
 # it. Without this negation the rule above would silently skip any page added
 # there.
 !/00_wxdash_2.0/09_dashboard/site/*.html
+
+# The built dashboard. 09 regenerates it in seconds from 09_dashboard/data/,
+# so it is output, not source — unlike site/, which is the hand-edited front
+# end it is built from. Only a clone without WXDASH_LOCAL writes here; with one
+# the site goes to outputs/09_site/, outside the repo like every other output.
+/00_wxdash_2.0/09_dashboard/_site/

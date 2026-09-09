@@ -2,6 +2,7 @@ library(tidyverse)
 library(lme4)
 
 source(here::here("00_wxdash_2.0", "00_paths.R"))
+require_roots()
 
 # Survey Data ------------------------------------------------------------------
 survey_data <- read.csv(paste0(outputs, "05_survey_responses.csv")) |> tibble() # use read.csv because of a parsing issue

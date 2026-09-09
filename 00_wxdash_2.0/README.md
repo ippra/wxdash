@@ -69,8 +69,10 @@ county estimates reproduces its CWA estimate.
 ## Data sources
 
 All inputs are downloaded manually into a single `downloads/` directory, except
-the ACS county tables, which are pulled through the Census API at run time. No
-data is stored in this repository.
+the ACS county tables, which are pulled through the Census API at run time.
+None of it is stored in this repository — the one thing that is, and the only
+large thing here, is `09_dashboard/data/`, which the dashboard's assembly half
+reads so that building and deploying the site needs nothing but a clone.
 
 ### Survey data
 
@@ -130,9 +132,11 @@ filename in the script must be updated to match when it is.
 ### `00_paths.R`
 
 Defines `downloads`, `outputs` and `survey_files`. Every other script sources
-it, so directory locations exist in exactly one place, and it stops if either
-root in `~/.Renviron` is unset or points somewhere that does not exist. Not a
-pipeline step.
+it, so directory locations exist in exactly one place. `require_roots()` stops
+if either root in `~/.Renviron` is unset or points somewhere that does not
+exist, and every script that reads one of those directories calls it. It is a
+function rather than a check at source time so that `09`'s assembly half, which
+reads only committed data, runs without either root. Not a pipeline step.
 
 ### `01_create_county_cwa_crosswalk.R`
 
@@ -322,7 +326,8 @@ across thirteen splits, the map values, and one R script per (question, split)
 that rebuilds its chart from the released wave files. About fifteen minutes.
 Percentages are weighted with `srvyr` on `PERSON_WEIGHT`, which comes from
 raking against six ACS margins in the `wxsurveys` repository. **Writes**
-`outputs/09_data/`.
+`09_dashboard/data/`, which is committed, so a clone builds the site without
+running any of this.
 
 Without the flag it assembles the site from that directory and computes no
 statistics: every percentage, interval and estimate is carried over verbatim,
@@ -356,8 +361,8 @@ WXDASH_LOCAL="/path/to/local files"
 WXSURVEYS_ROOT="/path/to/wxsurveys/"
 ```
 
-`00_paths.R` derives three directories from these, and stops if either root is
-unset or missing:
+`00_paths.R` derives three directories from these, and `require_roots()` stops
+if either root is unset or missing:
 
 - `downloads/` — everything listed under **Data sources**
 - `outputs/` — everything the pipeline writes
@@ -367,6 +372,10 @@ unset or missing:
 `.Renviron` is read once at R startup, so restart the session after editing it.
 A Census API key is required as `CENSUS_API_KEY`, and an IPUMS key as
 `IPUMS_API_KEY` if you rebuild the microdata extract.
+
+None of this is needed to build and deploy the dashboard. `09` without `--data`
+reads `09_dashboard/data/` and writes beside it, so a clone with no `.Renviron`
+at all produces the site. The roots are what `01`–`07` and `09 --data` need.
 
 **Packages.** Estimation: `tidyverse`, `data.table`, `sf`, `lubridate`,
 `readxl`, `here`, `ipumsr`, `tidycensus`, `mipfp`, `lme4`, `psych`,

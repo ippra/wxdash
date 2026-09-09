@@ -9,13 +9,13 @@ verified (its history lives there, commits `933d668`–`2bdff4e`).
 
 **The statistics** — `09_statistics.R`, with the script generator in
 `09_rcode.R`. Sourced by the builder under `--data`, not run on its own.
-Computes every number the dashboard shows and writes `outputs/09_data/`. It
+Computes every number the dashboard shows and writes `data/`. It
 reads the codebook from `08`, the pooled survey data from `05`, the model
 estimates from `07` and the alert spans from `02`. Roughly fifteen minutes,
 almost all of it the 915 questions.
 
 **The builder** — `09_build_dashboard.R`. Assembles the deployable site from
-`outputs/09_data/` plus `site/`. It computes **no statistics**: every
+`data/` plus `site/`. It computes **no statistics**: every
 percentage, confidence interval and estimate is carried over verbatim, so the
 site cannot disagree with what was computed. If the builder ever grows a
 calculation, that property is gone and a verification harness has to replace
@@ -27,10 +27,16 @@ it.
 `site/assets/geo/`. Iterating on how the dashboard looks or behaves means
 editing here and re-running the builder, which takes seconds.
 
-**The output** — `outputs/09_site/` (outside the repo, like every pipeline
-output). Plain static files, fully self-contained: no server code, no
-third-party requests, every library vendored. Upload the directory to any
-web host. Currently deployed at http://c.itation.net/wxdash.
+**The data** — `data/`, the only large thing committed in this repo. It is
+the boundary between the two halves, and it is versioned so that a clone
+builds the site with no pipeline outputs, no survey waves and no `~/.Renviron`.
+69 MB on disk, about 7 MB packed.
+
+**The output** — `outputs/09_site/` under `WXDASH_LOCAL`, or `_site/` here on a
+machine without one. Outside the repo either way, like every pipeline output.
+Plain static files, fully self-contained: no server code, no third-party
+requests, every library vendored. Upload the directory to any web host.
+Currently deployed at http://c.itation.net/wxdash.
 
 ## Data flow
 
@@ -42,14 +48,15 @@ web host. Currently deployed at http://c.itation.net/wxdash.
    (09_build_dashboard.R --data)
         │
         ▼
-outputs/09_data/                915 question files and the R that rebuilds
+09_dashboard/data/              915 question files and the R that rebuilds
                                 each of their charts, measures, CWA map values
+                                — committed, so a clone starts here
         │
         ▼                       ┌── site/ (front end source)
 09_build_dashboard.R  ◄─────────┘   seconds; no statistics
         │
         ▼
-outputs/09_site/                the deployable site
+outputs/09_site/ (or _site/)    the deployable site
 ```
 
 One entry point, two costs. The data directory is the boundary, so iterating
@@ -58,17 +65,22 @@ off and no second copy of any number.
 
 ## Machine setup (once)
 
-`~/.Renviron`, per `00_paths.R`:
+**To build and deploy the site, nothing.** Clone, install the packages, run the
+builder. `data/` is committed and the site is written beside it, so no
+environment variable is read and no file outside the repo is opened. This is
+the common case and the reason `data/` is versioned.
+
+**To recompute the statistics** — `--data`, and `01`–`07` — `~/.Renviron`, per
+`00_paths.R`:
 
 ```
 WXDASH_LOCAL="/path/to/local files"        # outputs/ and downloads/ live here
-WXSURVEYS_ROOT="/path/to/wxsurveys/"       # see note
+WXSURVEYS_ROOT="/path/to/wxsurveys/"       # the 22 built survey datasets
 ```
 
-Note: `00_paths.R` requires `WXSURVEYS_ROOT` to point at an existing
-directory even for the assembly half, which never reads survey sources. On a
-machine without the wxsurveys repository, an empty placeholder directory
-works. Candidate cleanup: gate that check to the scripts that need it.
+`00_paths.R` checks these in `require_roots()`, which the scripts that read a
+root call and the assembly half does not. With `WXDASH_LOCAL` set the site goes
+to `outputs/09_site/` as before.
 
 R packages beyond the repo's usual set: `tidyverse`, `sf`, `jsonlite`,
 `here`.
@@ -81,11 +93,12 @@ Rscript 00_wxdash_2.0/09_dashboard/09_build_dashboard.R --data  # if survey data
                                                                 # menu changed
                                                                 # (~15 min)
 Rscript 00_wxdash_2.0/09_dashboard/09_build_dashboard.R         # always (seconds)
-python3 -m http.server --directory "$WXDASH_LOCAL/outputs/09_site"
+python3 -m http.server --directory 00_wxdash_2.0/09_dashboard/_site
 ```
 
-Without `--data` the builder reads `outputs/09_data/` and refuses to start if
-it is not there, rather than assembling a site around an empty question table.
+Without `--data` the builder reads `data/` and refuses to start if it is not
+there, rather than assembling a site around an empty question table. In a clone
+those files are committed, so their absence means a partial checkout.
 
 The builder halts loudly rather than producing a quietly wrong site: menu
 entries missing from the map file, mapped measures with no question wording,
@@ -94,7 +107,7 @@ below), and R sources leaking into the output all stop the build.
 
 ## Deploying
 
-`outputs/09_site/` is the rsync unit. Current home:
+The built site directory is the rsync unit. Current home:
 
 ```
 rsync -av --delete "$WXDASH_LOCAL/outputs/09_site/" <host>:<docroot>/wxdash/
@@ -241,7 +254,7 @@ overrides just the three HTML entry URLs (`/wxdash`, `/wxdash/`,
   not your memory of it.
 - **Statistics belong in the data half.** A change to what is computed goes in
   `01`–`08` or `09_statistics.R` (Joe's side); a change to what is shown goes
-  in `site/` and the builder. If the shape of `outputs/09_data/` changes, the
+  in `site/` and the builder. If the shape of `data/` changes, the
   builder's guards fail loudly — update the reader code and this README in the
   same commit.
 - R code here follows the repo's style guide (`00_wxdash_2.0/CLAUDE.md`).

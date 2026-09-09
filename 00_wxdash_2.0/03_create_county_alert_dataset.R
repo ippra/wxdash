@@ -4,6 +4,7 @@ library(lubridate)
 sf_use_s2(FALSE)
 
 source(here::here("00_wxdash_2.0", "00_paths.R"))
+require_roots()
 
 # Import Shapefiles ------------------------------------------------------------
 wwa_paths <- list.files(downloads, full.names = TRUE, pattern = "_all") # source: https://mesonet.agron.iastate.edu/request/gis/watchwarn.phtml
