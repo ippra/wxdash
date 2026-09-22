@@ -109,8 +109,9 @@ Watch two traps. `"graphics" in keywords` also matches `demographics`, so match
 keyword tokens exactly. And the option separator is `" | "`, so a pipe inside an
 option label makes `response_options` unsplittable.
 
-The `.docx` instruments are gitignored, so a fresh clone has the sheet and the
-skill but not the sources.
+The `.docx` instruments are committed beside the sheet, so a clone has the
+sources as well as the record read off them. They are about 12 MB of binaries,
+which stay in history once added; replace one only when its content changes.
 
 ## The statistics
 

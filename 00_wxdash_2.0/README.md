@@ -313,8 +313,8 @@ scripted; judgment is not. Instrument errors are recorded in `NOTES.md` and in
 the `notes` column, never corrected in the sheet — the sheet records what the
 documents say.
 
-**Writes** `variable_reference.csv`. The `.docx` instruments are gitignored, so
-a fresh clone has the sheet but not the sources.
+**Writes** `variable_reference.csv`. The `.docx` instruments are committed
+beside it, so a clone has the sources as well as the sheet.
 
 ### `09_dashboard/`
 

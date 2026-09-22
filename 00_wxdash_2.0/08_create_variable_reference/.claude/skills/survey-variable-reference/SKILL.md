@@ -301,18 +301,15 @@ the new instrument fixed, and add whatever the new instrument introduced.
 `00_wxdash_2.0/08_create_variable_reference/` in the wxdash repo holds the
 `.docx` instruments, one per hazard per fielding, named `WX25 Instrument.docx`.
 
-They are **gitignored** — roughly 10 MB of Word binaries, and a binary
-committed once cannot be removed from history without a rewrite. A fresh clone
-therefore has this skill and `variable_reference.csv` but no instruments, and
-they have to be copied in before step 1 will run.
+They are **committed**, so a fresh clone has everything step 1 needs. The
+repo is their authoritative copy: a new instrument is added here, beside the
+others, rather than passed hand to hand. They run to roughly 12 MB, most of it
+the embedded images in WX25 and WW25, and a binary committed once stays in
+history — so replace an instrument only when its content has changed, not to
+re-save it.
 
-> Canonical source not yet recorded. Fill this in with wherever the instruments
-> are authoritatively kept, so they can be re-obtained rather than passed hand
-> to hand.
-
-`variable_reference.csv` is the versioned record of what the instruments
-contain, and `NOTES.md` the record of what still needs checking. Both are small
-enough to belong in git.
+`variable_reference.csv` is the record of what the instruments contain, and
+`NOTES.md` the record of what still needs checking.
 
 ## Current state
 

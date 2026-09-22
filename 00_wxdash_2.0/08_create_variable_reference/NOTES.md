@@ -153,9 +153,9 @@ kind of thing that becomes a real problem later.
 
 ## 6. Open questions I could not answer from the documents
 
-- [ ] **Where do the instruments authoritatively live?** They are gitignored, so
-      a fresh clone cannot rebuild this sheet. Recorded as unresolved in the
-      skill.
+- [x] **Where do the instruments authoritatively live?** In the repo, beside
+      this file; they are committed, so a clone can rebuild the sheet.
+      (2026-09-22)
 
 - [ ] **Are the WX24-only blocks retired or just not repeated?** `tor_eff1`–`8`,
       `rand_svr*`, `rand_otlk*`, the `timing_*` block, `exf_access`/`exf_use`/
