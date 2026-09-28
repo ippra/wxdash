@@ -201,8 +201,10 @@ wjson(list(
 # The prose under the map: what was asked, how it is scored, how to read the
 # colors, where it came from. Same content 10's page derives in the browser
 # from measures.json, authored here as HTML in a two-column note layout.
+# ippra.net is the institute's own domain; www.ou.edu/ippra still answers but
+# is not the one it wants indexed.
 INSTITUTE_LINK <- paste0(
-  "<a href=\"https://www.ou.edu/ippra\">The University of Oklahoma's ",
+  "<a href=\"https://ippra.net\">The University of Oklahoma's ",
   "Institute for Public Policy Research and Analysis</a>")
 ARCHIVE_LINK <- paste0(
   "<a href=\"https://dataverse.harvard.edu/dataverse/wxsurvey\">",
@@ -730,20 +732,98 @@ groupings_cfg <- lapply(seq_along(groups), function(i) {
        phrase = if (id == "All") NULL else unname(group_phrases[id]))
 })
 
+# The landing page, the About page and the menu all describe the three
+# working pages, so each description is written once here.
+blurbs <- list(
+  survey = paste0("Browse every survey question across hazards, ",
+                  "demographic groups, and other characteristics."),
+  map = paste0("Compare estimates across National Weather Service ",
+               "forecast offices, beside the alert history that helps ",
+               "explain them."),
+  quiz = paste0("Challenge your assumptions about how people receive, ",
+                "understand, trust, and respond to weather forecasts and ",
+                "warnings.")
+)
+
+about_link <- function(id, name, body) {
+  paste0(
+    "<a class=\"wx-about-link\" href=\"#", id, "\">",
+    "<span class=\"wx-about-link-name\">", name, "</span>",
+    "<span class=\"wx-about-link-body\">", body, "</span></a>"
+  )
+}
+
+# The About page is one column of prose in sections, each under an eyebrow
+# heading, as the fusion dashboard's is. The opening paragraph is the reason
+# the platform exists, so it is set as the lede rather than under a heading.
 about_html <- paste0(
-  "<h2>About WxDash</h2>",
-  "<p><strong>Motivation.</strong> Members of the weather enterprise, including National Weather Service (NWS) forecasters, emergency managers, broadcast meteorologists, and private partners have many responsibilities, ranging from the issuance of forecasts and warnings during high impact weather events to outreach and public education campaigns during less turbulent periods. Effective education and risk communication across this range of responsibilities requires knowledge of the communities that enterprise members serve. Enterprise members often have access to a wide variety of data about atmospheric and climate conditions, but relatively little data on the populations they serve. This platform works to close that gap.</p>",
-  "<p><strong>The survey.</strong> The Extreme Weather and Society Survey is a yearly survey of US adults run by ", INSTITUTE_LINK, ", covering severe weather, tropical cyclones, winter weather, and flooding. Every wave is raked to American Community Survey benchmarks for age, gender, race, education, income and region, so weighted percentages describe US adults rather than only the people surveyed.</p>",
-  "<p><strong>Community estimates.</strong> Place-level estimates are produced with multilevel regression and poststratification (MRP), which combines the survey with US Census population data — every County Warning Area gets an estimate, including places where few people were surveyed. Alert-day counts shown beside them are observed National Weather Service records from the ", MESONET_LINK, " archive. For more information see:</p>",
+  "<p class=\"wx-about-lede\">Members of the weather enterprise, including ",
+  "National Weather Service (NWS) forecasters, emergency managers, broadcast ",
+  "meteorologists, and private partners have many responsibilities, ranging ",
+  "from the issuance of forecasts and warnings during high impact weather ",
+  "events to outreach and public education campaigns during less turbulent ",
+  "periods. Effective education and risk communication across this range of ",
+  "responsibilities requires knowledge of the communities that enterprise ",
+  "members serve. Enterprise members often have access to a wide variety of ",
+  "data about atmospheric and climate conditions, but relatively little data ",
+  "on the populations they serve. This platform works to close that gap.</p>",
+
+  "<hr>",
+  "<h3>The survey</h3>",
+  "<p>The Extreme Weather and Society Survey is a yearly survey of US adults ",
+  "run by ", INSTITUTE_LINK, ", covering severe weather, tropical cyclones, ",
+  "winter weather, and flooding. Every wave is raked to American Community ",
+  "Survey benchmarks for age, gender, race, education, income and region, so ",
+  "weighted percentages describe US adults rather than only the people ",
+  "surveyed.</p>",
+
+  "<hr>",
+  "<h3>Community estimates</h3>",
+  "<p>Place-level estimates are produced with multilevel regression and ",
+  "poststratification (MRP), which combines the survey with US Census ",
+  "population data \u2014 every County Warning Area gets an estimate, ",
+  "including places where few people were surveyed. Alert-day counts shown ",
+  "beside them are observed National Weather Service records from the ",
+  MESONET_LINK, " archive. For more information see:</p>",
   "<ul>",
-  "<li><a href=\"https://doi.org/10.1175/WCAS-D-19-0015.1\">Measuring Tornado Warning Reception, Comprehension, and Response in the United States</a></li>",
-  "<li><a href=\"https://doi.org/10.1175/BAMS-D-19-0064.1\">Exploring Community Differences in Tornado Warning Reception, Comprehension, and Response Across the United States</a></li>",
-  "<li><a href=\"https://doi.org/10.1111/risa.13569\">Geographic Distributions of Extreme Weather Risk Perceptions in the United States</a></li>",
+  "<li><a href=\"https://doi.org/10.1175/WCAS-D-19-0015.1\">Measuring ",
+  "Tornado Warning Reception, Comprehension, and Response in the United ",
+  "States</a></li>",
+  "<li><a href=\"https://doi.org/10.1175/BAMS-D-19-0064.1\">Exploring ",
+  "Community Differences in Tornado Warning Reception, Comprehension, and ",
+  "Response Across the United States</a></li>",
+  "<li><a href=\"https://doi.org/10.1111/risa.13569\">Geographic ",
+  "Distributions of Extreme Weather Risk Perceptions in the United ",
+  "States</a></li>",
   "</ul>",
-  "<p><strong>Caution.</strong> These data, like most survey data, come from non-probability samples that are not necessarily representative of the entire US population. Use caution when making inferences and drawing conclusions.</p>",
-  "<p><strong>Support.</strong> The University of Oklahoma provides support for data collection. The US Weather Program Office (WPO) and National Weather Service (NWS) provide support for data analysis, programming, and maintenance.</p>",
-  "<p><strong>Data.</strong> All of the survey data and metadata are available at the <a href=\"https://dataverse.harvard.edu/dataverse/wxsurvey\">Extreme Weather and Society Dataverse</a>.</p>",
-  "<p><strong>Contact.</strong> <a href=\"mailto:jtr@ou.edu\">Joe Ripberger</a> or <a href=\"mailto:mjkrocak@ou.edu\">Makenzie Krocak</a> at OU IPPRA.</p>")
+
+  "<hr>",
+  "<h3>Using this site</h3>",
+  "<div class=\"wx-about-links\">",
+  about_link("survey", "Explore Survey Questions", blurbs$survey),
+  about_link("map", "Explore Communities", blurbs$map),
+  about_link("quiz", "Test Your Knowledge", blurbs$quiz),
+  "</div>",
+
+  "<hr>",
+  "<h3>Data and support</h3>",
+  "<p>All of the survey data and metadata are available at the ",
+  "<a href=\"https://dataverse.harvard.edu/dataverse/wxsurvey\">Extreme ",
+  "Weather and Society Dataverse</a>.</p>",
+  "<p>The University of Oklahoma provides support for data collection. The ",
+  "US Weather Program Office (WPO) and National Weather Service (NWS) provide ",
+  "support for data analysis, programming, and maintenance.</p>",
+  "<p>Contact <a href=\"mailto:jtr@ou.edu\">Joe Ripberger</a> or ",
+  "<a href=\"mailto:mjkrocak@ou.edu\">Makenzie Krocak</a> at OU IPPRA.</p>",
+
+  "<div class=\"wx-about-note\">",
+  "<p class=\"wx-about-note-label\">Caution</p>",
+  "<p class=\"wx-about-note-body\">These data, like most survey data, come ",
+  "from non-probability samples that are not necessarily representative of ",
+  "the entire US population. Use caution when making inferences and drawing ",
+  "conclusions.</p>",
+  "</div>"
+)
 
 config <- list(
   schema_version = 3,
@@ -824,6 +904,7 @@ config <- list(
            question = "WX_alert_und")),
     list(id = "survey", component = "explore",
          label = "Explore Survey Questions",
+         title = "Survey questions",
          questions = "data/questions.json", default_grouping = "All",
          intro = paste0("Click a survey question in the table below to see ",
                         "the weighted distribution of responses, split by ",
@@ -832,10 +913,10 @@ config <- list(
                         "cyclones (TC), winter weather (WW), and flooding ",
                         "(FL)."),
          chart = list(x_label = "Response", y_label = "Respondents (%)"),
-         blurb = paste0("Browse every survey question across hazards, ",
-                        "demographic groups, and other characteristics.")),
+         blurb = blurbs$survey),
     list(id = "map", component = "wx_map_explorer",
          label = "Explore Communities",
+         title = "Communities by forecast office",
          default_measure = "TO_RECEP",
          sidebar_lead = paste0("These are model estimates, not raw survey ",
                                "responses — every area gets a value, ",
@@ -843,20 +924,17 @@ config <- list(
                                "surveyed. Hover an area to read its value; ",
                                "click it for the full story, and for a scan ",
                                "of every measure estimated there."),
-         blurb = paste0("Compare estimates across National Weather Service ",
-                        "forecast offices, beside the alert history that ",
-                        "helps explain them.")),
+         blurb = blurbs$map),
     list(id = "quiz", component = "wx_quiz", label = "Test Your Knowledge",
+         title = "How well do you know the public?",
          intro = paste0("Challenge your assumptions about how people ",
                         "receive, understand, trust, and respond to weather ",
                         "forecasts and warnings. Guess first — then open ",
                         "the real data."),
-         blurb = paste0("Challenge your assumptions about how people ",
-                        "receive, understand, trust, and respond to weather ",
-                        "forecasts and warnings."),
+         blurb = blurbs$quiz,
          questions = quiz),
     list(id = "about", component = "static_page", label = "About",
-         html = about_html)
+         title = "About WxDash", html = about_html)
   ),
   footer = list(
     tagline = paste0("Nationally representative survey data measuring the ",
@@ -865,7 +943,7 @@ config <- list(
       "<a href=\"#about\">About & methods</a>",
       "<a href=\"https://dataverse.harvard.edu/dataverse/wxsurvey\">",
       "Survey data (Dataverse)</a>",
-      "<a href=\"https://ou.edu/ippra\">OU IPPRA</a>",
+      "<a href=\"https://ippra.net\">OU IPPRA</a>",
       "<a href=\"mailto:jtr@ou.edu\">Contact</a>"),
     funding = paste0("Supported by the University of Oklahoma, the US ",
                      "Weather Program Office (WPO), and the National ",

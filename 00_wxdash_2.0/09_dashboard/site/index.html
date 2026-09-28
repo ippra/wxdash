@@ -47,6 +47,79 @@ window.addEventListener("load",function(){setTimeout(function(){
 <script src="./assets/vendor/jspdf.umd.min.js?v=__BUILD__"></script>
 </head>
 <body>
+<!-- The IPPRA institutional bar, shared with the institute's other dashboards.
+     Static markup rather than built from config, so it paints with the page
+     instead of waiting on engine.js.
+
+     It has two jobs, chosen by how the visitor arrived:
+       • direct    — names the institute and links to ippra.net: a dashboard
+                     on its own gives no clue who made it.
+       • referred  — someone clicked through from ippra.net. Those links open
+                     in a new tab, so the reader has no back button; the bar
+                     becomes their way back to the page they left.
+
+     Black with white text (21:1). OU crimson on black measures 2.11:1 and
+     fails WCAG AA, so crimson is not used here at all. -->
+<div id="ippra-bar">
+  <a class="ippra-bar-home" href="https://ippra.net">IPPRA &middot; University of Oklahoma</a>
+  <a class="ippra-bar-back" href="https://ippra.net"><span aria-hidden="true">&larr;</span> Back to IPPRA</a>
+</div>
+<script>
+// Runs immediately after the bar so the mode is settled before paint — doing
+// this from engine.js (loaded at the end of body) would flash the wrong one.
+(function () {
+  var root = document.documentElement;
+  // Only ever return to a path on this origin. A caller-supplied destination
+  // that could be absolute would make this an open redirect.
+  function safePath(p) {
+    return (typeof p === "string" && p.charAt(0) === "/" &&
+            p.charAt(1) !== "/" && p.charAt(1) !== "\\") ? p : null;
+  }
+  var back = null;
+  try {
+    // An explicit ?from= on the link first; it survives the trailing-slash
+    // canonicalizer in <head> because that keeps location.search.
+    back = safePath(new URLSearchParams(location.search).get("from"));
+    // Otherwise a same-origin referrer, so links added elsewhere on the site
+    // work without anyone remembering the parameter.
+    if (!back && document.referrer) {
+      var r = new URL(document.referrer);
+      if (r.origin === location.origin &&
+          r.pathname.replace(/\/+$/, "") !== location.pathname.replace(/\/+$/, "")) {
+        back = r.pathname + r.search;
+      }
+    }
+  } catch (e) { /* malformed referrer or no URL support: fall through */ }
+
+  if (back) {
+    root.setAttribute("data-entry", "referred");
+    var backLink = document.querySelector(".ippra-bar-back");
+    backLink.setAttribute("href", back);
+
+    // The page they came from is still open in the tab behind this one, so
+    // the real "back" is closing this tab. A tab opened with target="_blank"
+    // is script-closable while its history holds one document; once they have
+    // moved between pages here it is not, and close() is refused silently —
+    // so try it, and fall through to the href if this tab is still open.
+    backLink.addEventListener("click", function (ev) {
+      // Modified clicks still mean "open this somewhere else".
+      if (ev.button !== 0 || ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey) return;
+      ev.preventDefault();
+      var href = backLink.getAttribute("href");
+      window.close();
+      setTimeout(function () { location.href = href; }, 150);
+    });
+    // Wipe ?from= so a copied link is clean and shows the institutional bar
+    // rather than someone else's back button.
+    if (window.history && history.replaceState && /[?&]from=/.test(location.search)) {
+      var q = new URLSearchParams(location.search);
+      q.delete("from");
+      var qs = q.toString();
+      history.replaceState(null, "", location.pathname + (qs ? "?" + qs : "") + location.hash);
+    }
+  }
+})();
+</script>
 <header id="navbar">
   <span id="nav-title"></span>
   <nav id="nav-pages"></nav>

@@ -1138,7 +1138,7 @@ components.explore = async function (page, container) {
   else qTable.selectFirst();
   tableCard.append(qTable);
 
-  const intro = el("p", { class: "wx-explore-intro" }, page.intro ||
+  const intro = pageHead(page,
     "Click a survey question in the table below to see the weighted distribution of responses, split by the group you choose.");
   const bar = el("div", { class: "card wx-toolbar" });
   const gWrap = groupingSelect(g => { grouping = g; draw(); }, grouping, "Split responses by");
@@ -1612,9 +1612,10 @@ components.wx_map_explorer = async function (page, container) {
   setParams({ mix: null });   // retires the crossfade's parameter on old links
 
   // --- top control bar (controls across the top, full-width map below)
-  const lead = el("p", { class: "wx-explore-intro" }, page.sidebar_lead || "");
+  const lead = pageHead(page, page.sidebar_lead);
   const aboutHtml = explain("about_estimates");
-  if (aboutHtml) lead.append(" ", infoTip(aboutHtml, { label: "About the estimates" }));
+  if (aboutHtml) lead.querySelector(".wx-explore-intro")
+    .append(" ", infoTip(aboutHtml, { label: "About the estimates" }));
 
   const bar = el("div", { class: "card wx-toolbar wx-map-toolbar" });
   const measureSel = el("select", { class: "grouping", id: "measure-sel", onchange: () => {
@@ -2224,8 +2225,10 @@ components.wx_quiz = async function (page, container) {
   let idx = 0, score = 0, answered = 0;
   const results = quiz.map(() => []);   // per-question ✓/✗, feeds progress + recap
   const card = el("div", { class: "card wx-quiz-card" });
+  // Title only: the quiz's intro is the first card's opening line, and
+  // printing it above the card as well would say it twice.
   container.append(el("div", { class: "page wx-quiz-page" },
-    el("div", { class: "content" }, card)));
+    el("div", { class: "content" }, pageHead({ title: page.title }), card)));
 
   // One segment per prompt; ✓/✗ glyphs carry the state (greyscale theme —
   // never color alone), the outlined segment is where you are.
@@ -2409,12 +2412,27 @@ components.wx_quiz = async function (page, container) {
   renderQ();
 };
 
-/* Static page (About) — compiler-authored HTML from config. */
+/* Static page (About) — compiler-authored HTML from config, under the same
+ * head every other page carries, so it opens with its title rather than with
+ * a heading buried in the card. */
 components.static_page = async function (page, container) {
   container.append(el("div", { class: "page" },
-    el("div", { class: "content" },
+    el("div", { class: "content" }, pageHead(page),
       el("div", { class: "card wx-static", html: page.html || "" }))));
 };
+
+/* A page opens with what it is, then how to use it: a title that is a phrase
+ * rather than an instruction, and the paragraph under it that instructs. Both
+ * are authored in the builder like every other sentence on the site; a page
+ * without a title renders the paragraph alone, and a page with neither
+ * renders an empty head that takes no space. */
+function pageHead(page, fallback) {
+  const wrap = el("div", { class: "wx-page-head" });
+  if (page.title) wrap.append(el("h1", { class: "wx-page-title" }, page.title));
+  const text = page.intro || fallback || "";
+  if (text) wrap.append(el("p", { class: "wx-explore-intro" }, text));
+  return wrap;
+}
 
 /* ------------------------------------------------------------- routing -- */
 

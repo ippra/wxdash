@@ -317,6 +317,18 @@ a built site containing `.R` files. It writes `outputs/09_site/` under
 `WXDASH_LOCAL`, or `09_dashboard/_site/` on a machine without one; either is
 the rsync unit. A run takes seconds, so iterating on the front end is cheap.
 
+The site shares its look with the fusion dashboard (`fusion_dash`, forked
+from this front end), and a change to the shared chrome is worth carrying to
+the other. Four pieces are common to both: the black IPPRA bar above the
+masthead, static markup in `index.html` that turns into a back link when the
+reader arrived from ippra.net; a title over every page but home, from
+`pageHead()` and each page's `title`; a landing page set on the page rather
+than in a card, with the pages below it as one connected row; and an About
+page in eyebrow-headed sections. Home keeps its flagship chart and its
+figures, where fusion's landing has neither; that is a deliberate difference.
+The masthead keeps `nav_subtitle`, which fusion dropped because its subtitle
+repeated the bar; here it names the project.
+
 The quiz is the one place the builder authors claims about the data. Prompts
 are fixed, answers and reveal numbers are read off the distributions, and
 guards halt the build when the data stops supporting the sentence: an answer

@@ -63,6 +63,36 @@ body {
   display: flex; flex-direction: column; min-height: 100vh;
 }
 
+/* ---------- IPPRA institutional bar ---------- */
+/* Shared chrome above the dashboard's own header; index.html explains its two
+   modes. Black and white in every theme, because institutional chrome should
+   read the same on all of them. No crimson rule beneath it: black, crimson,
+   then the dark purple masthead is three competing darks in 30 pixels.
+
+   Not sticky. #navbar is sticky at top: 0 and the data tables sticky their
+   own headers, so a second sticky layer would mean retuning those offsets for
+   a 26px strip; it scrolls away instead. */
+#ippra-bar {
+  background: #000;
+  color: #fff;
+  font-size: 11.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 600;
+  padding: 0 20px;
+  min-height: 26px;
+  display: flex;
+  align-items: center;
+}
+#ippra-bar a { color: #fff; text-decoration: none; padding: 5px 0; }
+#ippra-bar a:hover { text-decoration: underline; }
+#ippra-bar a:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+/* One mode at a time. The default is the institutional link, so a visitor
+   still gets it if the script is blocked or throws. */
+.ippra-bar-back { display: none; }
+html[data-entry="referred"] .ippra-bar-home { display: none; }
+html[data-entry="referred"] .ippra-bar-back { display: inline; }
+
 /* ---------- navbar ---------- */
 #navbar {
   display: flex; align-items: center; gap: 24px;
@@ -278,7 +308,59 @@ html[data-theme="wxops"] #navbar { position: sticky; border-bottom: none; }
 .wx-caption { font-size: 12px; color: var(--text-muted); margin: 6px 4px 0; }
 .chart-wrap.tall { height: 560px; }
 .wx-static { line-height: 1.65; }
-.wx-static h3 { margin-top: 22px; }
+/* The rule between the About page's sections. Light, because it separates
+   parts of one account rather than unrelated blocks. */
+.wx-static hr {
+  border: 0; border-top: 1px solid var(--panel-border); margin: 26px 0 22px;
+}
+/* A section heading, marked with a short accent rule rather than by size
+   alone: the About page is one column of prose and needs somewhere for the
+   eye to stop. The same eyebrow the fusion dashboard's About page uses. */
+.wx-static h3 {
+  margin: 0 0 12px; font-size: 13px; font-weight: 700; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--accent);
+  font-family: var(--mono, monospace);
+}
+.wx-static h3::after {
+  content: ""; display: block; width: 34px; height: 2px; margin-top: 8px;
+  background: var(--accent); opacity: .5;
+}
+.wx-static a { color: var(--accent); text-underline-offset: 3px; }
+.wx-static ul { margin: 0 0 14px; padding-left: 20px; }
+.wx-static li { margin-bottom: 6px; }
+/* The opening paragraph says what the platform is for, so it is set larger
+   than what follows rather than being one paragraph among several. */
+.wx-about-lede {
+  font-size: 16.5px; line-height: 1.6; color: var(--text); margin: 0 0 14px;
+}
+/* Each page of the site as a link rather than a bullet: a reader who has just
+   been told what a page holds should be one click from it. */
+.wx-about-links { display: grid; gap: 8px; margin: 14px 0 16px; }
+.wx-about-link {
+  display: block; text-decoration: none; color: inherit;
+  border: 1px solid var(--panel-border); border-left: 3px solid var(--accent);
+  border-radius: 6px; padding: 10px 14px; background: var(--bg);
+}
+.wx-static a.wx-about-link { color: inherit; text-decoration: none; }
+.wx-about-link:hover { border-color: var(--accent); }
+.wx-about-link-name {
+  display: block; font-weight: 650; font-size: 14.5px; color: var(--accent);
+}
+.wx-about-link-name::after { content: " \2192"; }
+.wx-about-link-body {
+  display: block; font-size: 13.5px; color: var(--text-muted); margin-top: 2px;
+}
+/* The caveat, set off from the account around it. */
+.wx-about-note {
+  margin: 22px 0 0; padding: 2px 0 2px 16px;
+  border-left: 3px solid var(--panel-border);
+}
+.wx-about-note-label {
+  margin: 0 0 5px; font-family: var(--mono, monospace); font-size: 10.5px;
+  letter-spacing: .09em; text-transform: uppercase; color: var(--text-muted);
+  font-weight: 600;
+}
+.wx-about-note-body { margin: 0; font-size: 14px; line-height: 1.6; }
 
 /* ============ WxDash design pass (2026-08-06): landing + typography ====== */
 
@@ -320,15 +402,18 @@ html[data-theme="wxops"] #navbar { position: sticky; border-bottom: none; }
 .wx-meta-line b { color: var(--text); font-weight: 600; }
 
 /* ---------- survey-first landing hero (Aug 2026, Joe's direction) --------
-   Text column beside a live flagship-question chart card; the choropleth
-   hero above now belongs to Find Your Place. */
+   Text column beside a live flagship-question chart card. Set on the page
+   rather than in a card of its own, as the fusion dashboard's landing is:
+   the chart is the one thing boxed, so it reads as the example it is and the
+   headline reads as the page's own voice. */
 .wx-hero-survey {
   display: grid; grid-template-columns: minmax(0, 1.02fr) minmax(0, 1fr);
-  align-items: center; gap: 8px;
-  background: var(--panel, var(--bg));
-  min-height: 0;
+  align-items: center; gap: 8px 32px;
+  background: none; border: none; box-shadow: none; border-radius: 0;
+  min-height: 0; overflow: visible;
+  padding: 44px 44px 12px;
 }
-.wx-hero-survey .wx-hero-content { max-width: none; padding: 40px 12px 40px 44px; }
+.wx-hero-survey .wx-hero-content { max-width: none; padding: 0; }
 .wx-hero-cta { margin: 0 0 14px; }
 .wx-cta-button {
   display: inline-block; text-decoration: none;
@@ -340,7 +425,7 @@ html[data-theme="wxops"] #navbar { position: sticky; border-bottom: none; }
 .wx-cta-button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 .wx-hero-alt { font-size: 13.5px; color: var(--text-muted); margin: 0; }
 .wx-hero-alt a { color: var(--accent); }
-.wx-hero-chartcard { margin: 20px 20px 20px 8px; padding: 16px 18px 12px; }
+.wx-hero-chartcard { margin: 0; padding: 16px 18px 12px; }
 .wx-hero-chartcard h3 { margin: 0 0 8px; font-size: 14.5px; line-height: 1.35; }
 .wx-hero-chartbar { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
 .wx-hero-chartbar .field-label { margin: 0; white-space: nowrap; }
@@ -348,15 +433,23 @@ html[data-theme="wxops"] #navbar { position: sticky; border-bottom: none; }
 .wx-hero-chartbar .grouping { width: auto; padding: 4px 8px; font-size: 13px; }
 .wx-hero-chartwrap { height: 300px; }
 @media (max-width: 900px) {
-  .wx-hero-survey { grid-template-columns: 1fr; }
-  .wx-hero-survey .wx-hero-content { padding: 26px 18px 4px; }
-  .wx-hero-chartcard { margin: 12px 14px 16px; }
+  .wx-hero-survey { grid-template-columns: 1fr; padding: 26px 18px 4px; gap: 22px; }
 }
 
 /* ---------- toolbar explorer layout (Joe's Aug-2026 redesign) ------------
    Intro line, control bar, question heading, full-width chart,
    response-key caption, question table below. Opt-in via page.layout. */
 .wx-explore-intro { color: var(--text-muted); font-size: 14px; margin: 0 2px; }
+.wx-page-head { margin: 0 2px 4px; }
+.wx-page-head:empty { display: none; }
+.wx-page-head .wx-explore-intro { margin: 0; }
+/* Sized against the card headlines rather than the hero: this sits inside the
+   page, above a paragraph, not on a title screen. */
+.wx-page-title {
+  margin: 0 0 6px; font-size: 26px; line-height: 1.25; font-weight: 650;
+  letter-spacing: -0.01em; color: var(--text); font-family: var(--font-display);
+}
+@media (max-width: 700px) { .wx-page-title { font-size: 21px; } }
 .wx-toolbar {
   display: flex; align-items: flex-end; gap: 28px; flex-wrap: wrap;
   padding: 14px 18px;
@@ -748,27 +841,37 @@ html[data-theme="wxops"] #navbar { position: sticky; border-bottom: none; }
 }
 
 /* ---------- landing surface cards ---------- */
-/* Landing directory — a table of contents, not a feature-card grid: hairline
-   rows, whole row clickable, hover is an underline. Deliberately quiet. */
-.wx-directory-card { padding: 0; overflow: hidden; margin-top: 20px; }
-.wx-directory { display: grid; grid-template-columns: 1fr 1fr; }
+/* What is here: one tab per part of the site, as a connected row rather than
+   loose cards, so they read as the whole of it and not as suggestions - the
+   fusion dashboard's landing does the same. Whole tab clickable, hover is an
+   underline. Inset to the hero's text edge so the page keeps one margin. */
+.wx-directory-card {
+  padding: 0; overflow: hidden; margin: 28px 44px 0;
+  border-radius: 8px; box-shadow: none;
+}
+.wx-directory {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+}
 .wx-dir-row {
   display: block; text-decoration: none; color: var(--text);
-  padding: 18px 24px 16px;
-  border-bottom: 1px solid var(--panel-border);
+  padding: 16px 20px 18px;
 }
-.wx-dir-row:nth-child(odd) { border-right: 1px solid var(--panel-border); }
-.wx-dir-row:nth-last-child(-n+2) { border-bottom: none; }
-.wx-dir-row h3 { margin: 0 0 4px; font-size: 15.5px; font-weight: 600; }
-.wx-dir-row p { margin: 0; font-size: 13px; color: var(--text-muted); line-height: 1.45; }
+.wx-dir-row + .wx-dir-row { border-left: 1px solid var(--panel-border); }
+.wx-dir-row h3 { margin: 0 0 4px; font-size: 15px; font-weight: 650; }
+.wx-dir-row p {
+  margin: 0; font-size: 12.5px; color: var(--text-muted); line-height: 1.45;
+}
 .wx-dir-row:hover { background: var(--row-hover); }
 .wx-dir-row:hover h3 { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
 .wx-dir-row:focus-visible { outline: 3px solid var(--accent); outline-offset: -3px; }
-@media (max-width: 760px) {
+/* Stacked where the hero stacks. Three across on a narrow screen leaves each
+   tab about 230px, which wraps its note to five lines. */
+@media (max-width: 900px) {
+  .wx-directory-card { margin: 22px 18px 0; }
   .wx-directory { grid-template-columns: 1fr; }
-  .wx-dir-row:nth-child(odd) { border-right: none; }
-  .wx-dir-row:nth-last-child(-n+2) { border-bottom: 1px solid var(--panel-border); }
-  .wx-dir-row:last-child { border-bottom: none; }
+  .wx-dir-row + .wx-dir-row {
+    border-left: none; border-top: 1px solid var(--panel-border);
+  }
 }
 
 .wx-landing-page .content { max-width: 1180px; margin: 0 auto; }
@@ -967,6 +1070,9 @@ html #nav-pages .nav-menu a.active { background: var(--row-selected); color: var
    quiet buttons; the correct answer keeps the accent, a wrong pick fades.
    Marks (✓/✗) carry the state — never color alone. */
 .wx-quiz-card { max-width: 760px; margin: 12px auto 0; padding: 28px 32px 30px; }
+/* The title sits over the card's left edge, not the page's, so the two read
+   as one column. */
+.wx-quiz-page .wx-page-head { width: 100%; max-width: 760px; margin: 0 auto; }
 .wx-quiz-intro { margin-bottom: 18px; }
 .wx-quiz-q {
   font-family: var(--font-display);
