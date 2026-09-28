@@ -2100,108 +2100,187 @@ components.wx_map_explorer = async function (page, container) {
   await redraw();
 };
 
-/* Landing page — survey-first (Joe's direction, Aug 2026): headline and CTA
- * into the survey explorer, beside a live flagship-question chart with the
- * explorer's own grouping split. The choropleth hero lives on Find Your
- * Place (wx_places) now. */
+/* Landing page — the program before its results, in seven steps down the
+ * page: identity and title, a one-sentence introduction, the data gap as the
+ * loudest thing on it, what the project is, its scale, why it matters, and
+ * the three ways into the data. No chart: a teaser plot invited a reader to
+ * judge the whole project on whichever question happened to be on it.
+ * Hierarchy comes from type, whitespace, rules and one tinted band rather
+ * than from boxes; the explore cards are the only cards, because they are
+ * the only things on the page to click. Every word is authored in the
+ * builder. */
 components.wx_landing = async function (page, container) {
   const h = page.hero || {};
-  const surveyPage = CONFIG.pages.find(p => p.component === "explore");
-  const mapPage = CONFIG.pages.find(p => p.component === "wx_map_explorer");
 
-  const hero = el("section", { class: "wx-hero wx-hero-survey" });
-  const content = el("div", { class: "wx-hero-content" });
-  if (h.eyebrow) content.append(el("p", { class: "wx-eyebrow" }, h.eyebrow));
-  content.append(el("h1", {}, h.headline || CONFIG.project.title));
-  if (h.sub) content.append(el("p", { class: "wx-hero-sub" }, h.sub));
-  // Entering the explorer lands on the example question shown here (with the
-  // chosen split carried along), so people continue from what they saw.
-  const flagship = h.question || "alert_und";
-  const intoExplorer = () => setParams({
-    q: flagship,
-    grouping: sel.value !== "All" ? sel.value : null
-  });
-  if (surveyPage) content.append(el("p", { class: "wx-hero-cta" },
-    el("a", { class: "wx-cta-button", href: "#" + surveyPage.id, onclick: intoExplorer },
-      h.cta_label || "Explore the survey results")));
-  if (mapPage) content.append(el("p", { class: "wx-hero-alt" },
-    "Looking for one place? ",
-    el("a", { href: "#" + mapPage.id }, "Explore your forecast office's community"),
-    " on the map."));
-  const metaLine = el("p", { class: "wx-meta-line" });
-  content.append(metaLine);
+  const hero = el("section", { class: "wx-landing-hero" });
+  if (h.eyebrow) hero.append(el("p", { class: "wx-eyebrow" }, h.eyebrow));
+  // A headline given as lines keeps those breaks; each line still wraps on
+  // its own when the screen is narrower than it.
+  const title = el("h1", { class: "wx-landing-title" });
+  for (const line of [].concat(h.headline || CONFIG.project.title))
+    title.append(el("span", { class: "wx-title-line" }, line));
+  hero.append(title);
 
-  // Live flagship chart — real explorer data drawn by the explorer's own
-  // chart code, with the grouping select as a working teaser of the split
-  // feature. Everything routes into #survey.
-  const chartCard = el("div", { class: "card wx-hero-chartcard" });
-  const chartTitle = el("h3", {}, "");
-  const wrap = el("div", { class: "chart-wrap wx-hero-chartwrap" });
-  const canvas = el("canvas");
-  wrap.append(canvas);
-  const controls = el("div", { class: "wx-hero-chartbar" });
-  const splitLabel = el("label", { class: "field-label", for: "hero-split" }, "Split by");
-  const sel = el("select", { class: "grouping", id: "hero-split" });
-  for (const g of CONFIG.groupings || [{ id: "All", label: "All" }])
-    sel.append(el("option", { value: g.id }, g.label));
-  sel.value = "All";
-  const caption = el("p", { class: "wx-caption" });
-  controls.append(splitLabel, sel);
-  chartCard.append(chartTitle, controls, wrap, caption);
-  hero.append(content, chartCard);
-
-  const directory = el("div", { class: "card wx-directory-card" });
-  const grid = el("div", { class: "wx-directory" });
-  for (const p of CONFIG.pages.filter(p => p.blurb && !p.hidden)) {
-    const a = el("a", { class: "wx-dir-row", href: "#" + p.id });
-    a.append(el("h3", {}, p.label), el("p", {}, p.blurb));
-    grid.append(a);
+  // Below the title: the words on the left and the dot field on the right,
+  // so the picture of people gathered year on year sits beside the sentence
+  // saying how little data there is about them.
+  const top = el("div", { class: "wx-landing-top" });
+  const words = el("div", { class: "wx-landing-words" });
+  if (h.intro) words.append(el("p", { class: "wx-landing-intro" }, h.intro));
+  // The data gap, set as a statement in the page's display type between two
+  // rules - large enough to be read in a five-second scan, and deliberately
+  // not boxed, so it cannot be mistaken for something to click.
+  if (h.statement) {
+    const stmt = el("p", { class: "wx-landing-statement" });
+    [].concat(h.statement).forEach(line =>
+      stmt.append(el("span", { class: "wx-statement-line" }, line)));
+    words.append(stmt);
   }
-  directory.append(grid);
+  if (h.description)
+    words.append(el("p", { class: "wx-landing-desc" }, h.description));
+  top.append(words);
+  if (page.growth) top.append(dotField(page.growth));
+  hero.append(top);
+
+  // One band, not four cards: hairlines between the figures and a tint
+  // behind them, so the scale reads as one fact about the program.
+  let stats = null;
+  if ((page.stats || []).length) {
+    stats = el("section", { class: "wx-stats", "aria-label": "Project at a glance" });
+    for (const st of page.stats) {
+      const cell = el("div", { class: "wx-stat" });
+      cell.append(el("p", { class: "wx-stat-value" }, st.value),
+                  el("p", { class: "wx-stat-label" }, st.label));
+      stats.append(cell);
+    }
+  }
+
+  // A pair rather than stacked: two halves of one argument.
+  const sections = (page.sections || []).map(sec => {
+    const wrap = el("section", { class: "wx-sec" });
+    const cols = el("div", { class: "wx-sec-cols" });
+    for (const col of (sec.columns || [sec])) {
+      const half = el("div", { class: "wx-sec-col" });
+      if (col.lead) half.append(el("h2", { class: "wx-sec-lead" }, col.lead));
+      const box = el("div", { class: "wx-sec-prose" });
+      for (const para of [].concat(col.body || [])) box.append(el("p", {}, para));
+      half.append(box);
+      cols.append(half);
+    }
+    if (!sec.columns) cols.classList.add("wx-sec-wide");
+    wrap.append(cols);
+    return wrap;
+  });
+
+  let explore = null;
+  const ex = page.explore;
+  if (ex) {
+    explore = el("section", { class: "wx-explore" });
+    if (ex.heading) explore.append(el("h2", { class: "wx-explore-heading" }, ex.heading));
+    if (ex.intro) explore.append(el("p", { class: "wx-explore-lede" }, ex.intro));
+    const grid = el("nav", { class: "wx-explore-cards", "aria-label": ex.heading || "Explore" });
+    for (const c of (ex.cards || [])) {
+      const target = CONFIG.pages.find(p => p.id === c.page);
+      if (!target) continue;
+      const a = el("a", { class: "wx-explore-card", href: "#" + target.id });
+      a.append(el("h3", {}, c.label || target.label),
+               el("p", {}, c.body || target.blurb || ""));
+      if (c.cta) a.append(el("span", { class: "wx-explore-cta" }, c.cta));
+      grid.append(a);
+    }
+    explore.append(grid);
+  }
 
   container.append(el("div", { class: "page wx-landing-page" },
-    el("div", { class: "content" }, hero, directory)));
-
-  // Meta line: real numbers from the bundle (2.0: CWA-only — no counties).
-  try {
-    const [meta, cwaValues] = await Promise.all([
-      fetchJSON("data/meta.json"), fetchJSON("data/map/cwa_values.json")]);
-    const years = meta.years || [];
-    metaLine.innerHTML =
-      `<b>${Number(meta.rows).toLocaleString()}</b> survey responses · ` +
-      `<b>${years[0]}–${years[years.length - 1]}</b> · ` +
-      `<b>${cwaValues.areas}</b> forecast offices`;
-  } catch { metaLine.remove(); }
-
-  // Flagship question: compiler-chosen (hero.question), explorer data.
-  try {
-    if (!surveyPage) { chartCard.remove(); return; }
-    const [v, questions] = await Promise.all([
-      fetchJSON(`data/q/${flagship}.json`),
-      fetchJSON(surveyPage.questions)]);
-    chartTitle.textContent = v.question || flagship;
-    const labelFor = (resp) => {
-      const hit = (v.options || []).find(o => String(o.value) === String(resp));
-      return hit ? wrapTickLabel(hit.label) : String(resp);
-    };
-    const { splits: vSplits } = questionSlice(v);
-    const draw = () => {
-      const g = (vSplits[sel.value] && vSplits[sel.value].length)
-        ? sel.value : "All";   // same not-asked-under-this-split fallback as the explorer
-      const rows = (vSplits[g] || []).map(r => ({
-        group: r.group, category: labelFor(r.resp), value: r.p,
-        label: Math.round(r.p) + "%"
-      }));
-      // Same orientation as the explorer it advertises.
-      groupedBarChart(canvas, rows,
-        { xLabel: "Response", yLabel: "Respondents (%)", horizontal: true });
-    };
-    sel.onchange = draw;
-    caption.append(`One of ${questions.length} questions in the survey — `,
-      el("a", { href: "#" + surveyPage.id, onclick: intoExplorer }, "explore them all"), ".");
-    draw();
-  } catch { chartCard.remove(); }
+    el("div", { class: "content" },
+      ...[hero, stats, ...sections, explore].filter(Boolean))));
 };
+
+/* The landing page's dot field: the program as people accumulated over time.
+ * One column per year, each holding every respondent surveyed up to that
+ * year at one dot per `per_dot`, so the columns climb as the evidence base
+ * grows. Each column stacks year on year, oldest at the bottom, and within a
+ * year each survey's dots take its hazard's color - so the early layers are
+ * all severe weather and the other hazards appear higher up as they join the
+ * program. The year a column stands for is drawn full strength on top, the
+ * years beneath it faded. Visual identity rather than an analytical figure -
+ * no axes, only the first and last year - but every dot is counted from the
+ * data. Drawn as SVG with a viewBox, so it scales with its column. */
+function dotField(growth) {
+  const NS = "http://www.w3.org/2000/svg";
+  const years = growth.years || [];
+  const surveys = growth.surveys || [];
+  const perDot = growth.per_dot || 50;
+  const wide = 10, pitch = 6, r = 1.9, gapCols = 12;
+
+  // Dots per survey, rounded on the running total so a column's height is
+  // its cumulative count rounded once rather than every survey's rounding
+  // added up.
+  let running = 0, prevDots = 0;
+  const layers = surveys.map(sv => {
+    running += sv.n;
+    const dots = Math.round(running / perDot);
+    const layer = { year: sv.year, hazard: sv.hazard, dots: dots - prevDots };
+    prevDots = dots;
+    return layer;
+  });
+  const cols = years.map(y => layers.filter(l => l.year <= y));
+  const heightOf = c => c.reduce((t, l) => t + l.dots, 0);
+  const tallest = Math.ceil(Math.max(1, ...cols.map(heightOf)) / wide);
+  const colW = wide * pitch, W = cols.length * colW + (cols.length - 1) * gapCols;
+  const H = tallest * pitch, labelH = 22;
+
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("viewBox", `0 0 ${W} ${H + labelH}`);
+  svg.setAttribute("class", "wx-dotfield-svg");
+  svg.setAttribute("role", "img");
+  svg.setAttribute("aria-label", growth.caption +
+    (years.length ? ` From ${years[0]} to ${years[years.length - 1]}.` : ""));
+  cols.forEach((col, ci) => {
+    const g = document.createElementNS(NS, "g");
+    g.setAttribute("class", "wx-dot-col");
+    g.style.setProperty("--i", ci);
+    const x0 = ci * (colW + gapCols);
+    let k = 0;
+    for (const layer of col) {
+      const cls = `wx-dot wx-haz-${layer.hazard}` +
+        (layer.year === years[ci] ? "" : " wx-dot-old");
+      for (let d = 0; d < layer.dots; d++, k++) {
+        const dot = document.createElementNS(NS, "circle");
+        dot.setAttribute("cx", x0 + (k % wide) * pitch + pitch / 2);
+        dot.setAttribute("cy", H - Math.floor(k / wide) * pitch - pitch / 2);
+        dot.setAttribute("r", r);
+        dot.setAttribute("class", cls);
+        g.append(dot);
+      }
+    }
+    svg.append(g);
+    if (ci === 0 || ci === cols.length - 1) {
+      const t = document.createElementNS(NS, "text");
+      t.setAttribute("x", x0 + colW / 2);
+      t.setAttribute("y", H + labelH - 4);
+      t.setAttribute("text-anchor", "middle");
+      t.setAttribute("class", "wx-dot-year");
+      t.textContent = years[ci];
+      svg.append(t);
+    }
+  });
+
+  const fig = el("figure", { class: "wx-dotfield" });
+  fig.append(svg);
+  const cap = el("figcaption", { class: "wx-dotfield-caption" });
+  if (growth.caption) cap.append(el("span", {}, growth.caption));
+  // The key, in the order the hazards joined, which is also the order they
+  // first appear going up the field.
+  const key = el("span", { class: "wx-dot-key" });
+  (growth.hazards || []).forEach((name, i) => key.append(
+    el("span", { class: "wx-dot-key-item" },
+      el("span", { class: `wx-dot-swatch wx-haz-${i + 1}`, "aria-hidden": "true" }),
+      name)));
+  if (key.children.length) cap.append(key);
+  fig.append(cap);
+  return fig;
+}
 
 /* Test Your Knowledge — Joe's quiz (Aug 2026): each question is guess the
  * national result, then guess the subgroup, then a deep link into the

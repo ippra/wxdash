@@ -327,9 +327,16 @@ responses <- responses |>
 # other output carries. Written here because this is where the table exists;
 # counting it during assembly would mean reading the 400 MB file twice.
 dir.create(data_dir, recursive = TRUE, showWarnings = FALSE)
+# surveys is respondents per hazard and year: the landing page draws one dot
+# per 50 of them, accumulating year on year.
+surveys_count_data <- responses |>
+  count(survey_hazard, survey_year = as.integer(survey_year)) |>
+  arrange(survey_year, survey_hazard)
+
 write_json(
   list(rows = nrow(responses),
-       years = sort(unique(as.integer(responses$survey_year)))),
+       years = sort(unique(as.integer(responses$survey_year))),
+       surveys = surveys_count_data),
   paste0(data_dir, "respondents.json"), auto_unbox = TRUE
 )
 

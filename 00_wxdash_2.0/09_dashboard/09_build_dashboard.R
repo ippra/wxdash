@@ -732,6 +732,57 @@ groupings_cfg <- lapply(seq_along(groups), function(i) {
        phrase = if (id == "All") NULL else unname(group_phrases[id]))
 })
 
+# Project At A Glance ----------------------------------------------------------
+# The landing page's four figures and the dot field beside its title, counted
+# off the data half's output so they move with every --data run rather than
+# being typed and left to go stale. A survey is one hazard fielded in one
+# year; respondents.json carries each one's respondent count.
+if (is.null(respondents$surveys)) {
+  stop("respondents.json has no per-survey counts - rerun with --data.")
+}
+surveys_data <- as_tibble(respondents$surveys)
+
+if (sum(surveys_data$n) != respondents$rows ||
+    !setequal(surveys_data$survey_year, respondents$years)) {
+  stop("Per-survey counts in respondents.json do not add up to its total ",
+       "or its years.")
+}
+
+# Hazards in the order they joined the program; the code in parentheses is
+# the table's, not the reader's.
+hazards_data <- surveys_data |>
+  group_by(survey_hazard) |>
+  summarize(first_year = min(survey_year), .groups = "drop") |>
+  arrange(first_year, survey_hazard) |>
+  mutate(name = str_remove(survey_hazard, "\\s*\\([A-Z]+\\)$"))
+
+year_span <- range(respondents$years)
+n_years <- diff(year_span) + 1
+
+landing_stats <- list(
+  list(value = format(respondents$rows, big.mark = ","),
+       label = "Survey responses"),
+  list(value = paste(n_years, "years"),
+       label = paste0("of data collection, ", year_span[1], " to ",
+                      year_span[2])),
+  list(value = paste(nrow(hazards_data), "hazards"),
+       label = paste(hazards_data$name, collapse = " · ")),
+  list(value = paste(nrow(surveys_data), "surveys"),
+       label = "National samples across the United States")
+)
+message("Landing: ", paste(map_chr(landing_stats, "value"), collapse = ", "))
+
+# Respondents per survey, for the dot field, with each hazard numbered in
+# the order it joined the program so its color is fixed by that order. A
+# year with no survey would be a gap in the program, drawn as a column that
+# does not grow, so the field is given every year in the span.
+growth_data <- surveys_data |>
+  left_join(hazards_data |> mutate(hazard = row_number()) |>
+              select(survey_hazard, hazard),
+            by = "survey_hazard") |>
+  arrange(survey_year, hazard) |>
+  select(year = survey_year, hazard, n)
+
 # The landing page, the About page and the menu all describe the three
 # working pages, so each description is written once here.
 blurbs <- list(
@@ -893,15 +944,82 @@ config <- list(
   pages = list(
     list(id = "home", component = "wx_landing", label = "Home",
          hero = list(
-           eyebrow = paste0("Extreme Weather and Society Project — ",
+           eyebrow = paste0("Extreme Weather and Society Project \u00b7 ",
                             "University of Oklahoma"),
-           headline = paste0("How do people receive, understand, trust, and ",
-                             "respond to your forecasts and warnings?"),
-           sub = paste0("Explore nationally representative survey data ",
-                        "measuring the human dimensions of the forecast and ",
-                        "warning process."),
-           cta_label = "Explore the survey questions",
-           question = "WX_alert_und")),
+           # Two lines, broken where the phrase breaks; a narrow screen
+           # wraps each line on its own.
+           headline = list("Building a Long-Term Evidence Base",
+                           "for Weather Risk Communication"),
+           intro = paste0("Effective weather risk communication requires ",
+                          "information about both the weather and the ",
+                          "people and communities receiving forecasts and ",
+                          "warnings."),
+           statement = list(
+             paste0("We have tremendous amounts of data about the ",
+                    "atmosphere."),
+             paste0("We have far less systematic data about the people on ",
+                    "the other end of the forecast.")),
+           description = paste0(
+             "The Extreme Weather and Society Survey is a long-term effort ",
+             "to help fill this gap. Through recurring national surveys and ",
+             "experiments across a range of weather hazards, the project ",
+             "collects consistent data on what people know, what they ",
+             "misunderstand, which sources they use and trust, and how they ",
+             "interpret and respond to weather information.")),
+         growth = list(years = seq(year_span[1], year_span[2]),
+                       surveys = growth_data,
+                       hazards = hazards_data$name,
+                       per_dot = 50,
+                       caption = paste0("Each dot is 50 survey respondents, ",
+                                        "accumulated year by year.")),
+         stats = landing_stats,
+         sections = list(
+           list(columns = list(
+             list(lead = "Why understanding the public matters",
+                  body = paste0(
+                    "Forecasts and warnings only work if people receive ",
+                    "them, understand what they mean, and know what to do ",
+                    "with the information. But people differ in what they ",
+                    "know, where they get information, which sources they ",
+                    "trust, and how they understand and respond to risk. ",
+                    "Understanding these differences provides forecasters, ",
+                    "emergency managers, and other partners with better ",
+                    "information about the people and communities they ",
+                    "serve.")),
+             list(lead = "Why long-term data matter",
+                  body = paste0(
+                    "One survey provides a snapshot. Consistent data ",
+                    "collected over time allow us to establish baselines, ",
+                    "track changes in public knowledge and behavior, compare ",
+                    "groups and communities, and examine how people respond ",
+                    "as forecasts, warnings, technologies, and communication ",
+                    "practices change. Recurring measures provide ",
+                    "continuity, while new questions and experiments allow ",
+                    "the project to address emerging challenges."))))),
+         explore = list(
+           heading = "Explore the Data",
+           intro = paste0("The value of these data comes from putting them ",
+                          "to use. Explore the survey itself, examine ",
+                          "differences across communities, or see how well ",
+                          "your assumptions about the public match what the ",
+                          "data tell us."),
+           cards = list(
+             list(page = "survey", label = "Explore Survey Questions",
+                  body = paste0("Browse survey questions and results across ",
+                                "hazards, years, demographic groups, and ",
+                                "other characteristics."),
+                  cta = "Explore the Survey \u2192"),
+             list(page = "map", label = "Explore Communities",
+                  body = paste0("Explore how knowledge, understanding, ",
+                                "trust, and response vary across ",
+                                "communities and National Weather Service ",
+                                "forecast offices."),
+                  cta = "Explore Communities \u2192"),
+             list(page = "quiz", label = "Test Your Knowledge",
+                  body = paste0("How well do you know the people receiving ",
+                                "forecasts and warnings? Test your ",
+                                "assumptions against the survey data."),
+                  cta = "Take the Quiz \u2192")))),
     list(id = "survey", component = "explore",
          label = "Explore Survey Questions",
          title = "Survey questions",

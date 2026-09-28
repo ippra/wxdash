@@ -401,20 +401,167 @@ html[data-theme="wxops"] #navbar { position: sticky; border-bottom: none; }
 .wx-hero-search .wx-hero-search .wx-meta-line { margin-top: 18px; font-size: 12px; color: var(--text-muted); }
 .wx-meta-line b { color: var(--text); font-weight: 600; }
 
-/* ---------- survey-first landing hero (Aug 2026, Joe's direction) --------
-   Text column beside a live flagship-question chart card. Set on the page
-   rather than in a card of its own, as the fusion dashboard's landing is:
-   the chart is the one thing boxed, so it reads as the example it is and the
-   headline reads as the page's own voice. */
-.wx-hero-survey {
-  display: grid; grid-template-columns: minmax(0, 1.02fr) minmax(0, 1fr);
-  align-items: center; gap: 8px 32px;
-  background: none; border: none; box-shadow: none; border-radius: 0;
-  min-height: 0; overflow: visible;
-  padding: 44px 44px 12px;
+/* ---------- landing: the program before its results ---------------------
+   Hierarchy from type, whitespace and rules: the statement is the loudest
+   thing on the page, the statistics band second, and the explore cards are
+   the only cards. Everything shares the hero's 44px text edge. */
+.wx-landing-page .content { gap: 0; }
+.wx-landing-hero { padding: 60px 44px 40px; }
+/* Words left, dot field right, under a title that spans both. The field is
+   centred on the statement it sits beside. */
+.wx-landing-top {
+  display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  gap: 32px 64px; align-items: center;
 }
-.wx-hero-survey .wx-hero-content { max-width: none; padding: 0; }
-.wx-hero-cta { margin: 0 0 14px; }
+.wx-landing-top > :only-child { grid-column: 1 / -1; }
+.wx-dotfield { margin: 0; }
+.wx-dotfield-svg { display: block; width: 100%; height: auto; max-height: 380px; }
+.wx-dot { opacity: .9; }
+.wx-dot-old { opacity: .42; }
+/* Hazards in the order they joined the program, from the viridis ramp the
+   masthead's rule is drawn in; yellow is left off, because a 2px dot of it
+   vanishes on the light page. */
+.wx-haz-1 { fill: var(--haz-1, #443a83); background: var(--haz-1, #443a83); }
+.wx-haz-2 { fill: var(--haz-2, #2a788e); background: var(--haz-2, #2a788e); }
+.wx-haz-3 { fill: var(--haz-3, #22a884); background: var(--haz-3, #22a884); }
+.wx-haz-4 { fill: var(--haz-4, #7ad151); background: var(--haz-4, #7ad151); }
+html[data-theme="greyscale"] {
+  --haz-1: #222; --haz-2: #555; --haz-3: #888; --haz-4: #b0b0b0;
+}
+html[data-theme="wxops"] {
+  --haz-1: #8f7fd6; --haz-2: #3fa3c4; --haz-3: #2fc195; --haz-4: #9ee06f;
+}
+.wx-dot-key { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; }
+.wx-dot-key-item { display: inline-flex; align-items: center; gap: 6px; }
+.wx-dot-swatch { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.wx-dot-year {
+  font-family: var(--mono, monospace); font-size: 10px; letter-spacing: .08em;
+  fill: var(--text-muted);
+}
+.wx-dotfield-caption {
+  margin: 10px 0 0; font-size: 12px; color: var(--text-muted);
+}
+/* Columns arrive left to right, once, on load: the growth shown as growth.
+   Nothing moves for a reader who has asked for less motion. */
+@media (prefers-reduced-motion: no-preference) {
+  .wx-dot-col { animation: wx-dot-in .5s ease-out both;
+                animation-delay: calc(var(--i) * 90ms); }
+  @keyframes wx-dot-in { from { opacity: 0; transform: translateY(6px); } }
+}
+@media (max-width: 900px) {
+  .wx-landing-top { grid-template-columns: 1fr; }
+  .wx-dotfield { max-width: 520px; }
+}
+.wx-landing-title {
+  font-family: var(--font-display);
+  font-size: clamp(28px, 3.4vw, 42px);
+  font-weight: 800; letter-spacing: -0.02em; line-height: 1.12;
+  color: var(--display-ink, var(--text));
+  margin: 0 0 18px; text-wrap: balance;
+}
+.wx-title-line { display: block; }
+.wx-landing-intro {
+  font-size: 18px; line-height: 1.6; color: var(--text-muted);
+  max-width: 62ch; margin: 0;
+}
+/* The data gap: display type between two hairlines, no box. The first line
+   is set quieter than the second, because the second is the problem. */
+.wx-landing-statement {
+  margin: 30px 0; padding: 24px 0;
+  border-top: 1px solid var(--panel-border);
+  border-bottom: 1px solid var(--panel-border);
+  font-family: var(--font-display);
+  font-size: clamp(22px, 2.5vw, 30px); line-height: 1.3;
+  font-weight: 700; letter-spacing: -0.01em; max-width: 36ch;
+}
+.wx-statement-line { display: block; color: var(--text-muted); }
+.wx-statement-line + .wx-statement-line {
+  color: var(--display-ink, var(--text)); margin-top: 8px;
+}
+.wx-landing-desc {
+  font-size: 16.5px; line-height: 1.68; max-width: 68ch; margin: 0;
+}
+/* Project at a glance: one tinted band with hairlines between its figures,
+   so the four read as one fact rather than four cards. */
+.wx-stats {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0 44px; padding: 26px 0;
+  background: var(--panel);
+  border-top: 2px solid var(--accent);
+  border-bottom: 1px solid var(--panel-border);
+}
+.wx-stat { padding: 2px 24px; }
+.wx-stat + .wx-stat { border-left: 1px solid var(--panel-border); }
+.wx-stat-value {
+  margin: 0 0 6px; font-family: var(--font-display);
+  font-size: clamp(20px, 2.2vw, 30px); line-height: 1.1;
+  font-weight: 800; letter-spacing: -0.01em; color: var(--accent);
+}
+.wx-stat-label {
+  margin: 0; font-size: 13px; line-height: 1.45; color: var(--text-muted);
+}
+.wx-sec { padding: 48px 44px 44px; }
+.wx-sec-lead {
+  font-family: var(--mono, monospace); font-size: 11.5px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--text-muted);
+  font-weight: 600; margin: 0 0 14px;
+}
+.wx-sec-cols {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 24px 64px; align-items: start;
+}
+.wx-sec-wide { grid-template-columns: minmax(0, 1fr); }
+.wx-sec-prose p { margin: 0 0 14px; font-size: 15.5px; line-height: 1.7; }
+.wx-sec-prose p:last-child { margin-bottom: 0; }
+/* Explore the Data: its own section under a rule, and the only cards. */
+.wx-explore {
+  margin: 0 44px; padding: 40px 0 12px;
+  border-top: 1px solid var(--panel-border);
+}
+.wx-explore-heading {
+  font-family: var(--font-display); font-size: 26px; font-weight: 700;
+  letter-spacing: -0.01em; margin: 0 0 10px; color: var(--display-ink, var(--text));
+}
+.wx-explore-lede {
+  font-size: 15.5px; line-height: 1.65; color: var(--text-muted);
+  max-width: 68ch; margin: 0 0 24px;
+}
+.wx-explore-cards {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px;
+}
+.wx-explore-card {
+  display: flex; flex-direction: column;
+  text-decoration: none; color: var(--text);
+  background: var(--panel); border: 1px solid var(--panel-border);
+  border-radius: 8px; padding: 20px 22px 18px;
+}
+.wx-explore-card h3 { margin: 0 0 8px; font-size: 16.5px; font-weight: 650; }
+.wx-explore-card p {
+  margin: 0 0 16px; font-size: 14px; line-height: 1.55; color: var(--text-muted);
+}
+.wx-explore-cta {
+  margin-top: auto; font-size: 14px; font-weight: 600; color: var(--accent);
+}
+.wx-explore-card:hover { border-color: var(--accent); }
+.wx-explore-card:hover .wx-explore-cta {
+  text-decoration: underline; text-underline-offset: 3px;
+}
+.wx-explore-card:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+@media (max-width: 900px) {
+  .wx-landing-hero { padding: 30px 18px 28px; }
+  .wx-stats { margin: 0 18px; grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 20px; }
+  .wx-stat:nth-child(odd) { border-left: none; }
+  .wx-sec { padding: 36px 18px 32px; }
+  .wx-sec-cols { grid-template-columns: 1fr; }
+  .wx-explore { margin: 0 18px; }
+  .wx-explore-cards { grid-template-columns: 1fr; }
+}
+@media (max-width: 520px) {
+  .wx-stats { grid-template-columns: 1fr; }
+  .wx-stat + .wx-stat { border-left: none; }
+}
+
+/* The accent button; the quiz's navigation and its finale use it. */
 .wx-cta-button {
   display: inline-block; text-decoration: none;
   background: var(--accent); color: var(--accent-contrast);
@@ -423,18 +570,6 @@ html[data-theme="wxops"] #navbar { position: sticky; border-bottom: none; }
 }
 .wx-cta-button:hover { filter: brightness(1.12); }
 .wx-cta-button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
-.wx-hero-alt { font-size: 13.5px; color: var(--text-muted); margin: 0; }
-.wx-hero-alt a { color: var(--accent); }
-.wx-hero-chartcard { margin: 0; padding: 16px 18px 12px; }
-.wx-hero-chartcard h3 { margin: 0 0 8px; font-size: 14.5px; line-height: 1.35; }
-.wx-hero-chartbar { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
-.wx-hero-chartbar .field-label { margin: 0; white-space: nowrap; }
-.wx-hero-chartcard .wx-caption a { color: var(--accent); }
-.wx-hero-chartbar .grouping { width: auto; padding: 4px 8px; font-size: 13px; }
-.wx-hero-chartwrap { height: 300px; }
-@media (max-width: 900px) {
-  .wx-hero-survey { grid-template-columns: 1fr; padding: 26px 18px 4px; gap: 22px; }
-}
 
 /* ---------- toolbar explorer layout (Joe's Aug-2026 redesign) ------------
    Intro line, control bar, question heading, full-width chart,
@@ -838,40 +973,6 @@ html[data-theme="wxops"] #navbar { position: sticky; border-bottom: none; }
   .wx-toolbar .grouping { width: 100%; }
   .wx-toolbar-search { max-width: none; }
   .wx-pdf-btn { margin-left: 0; }
-}
-
-/* ---------- landing surface cards ---------- */
-/* What is here: one tab per part of the site, as a connected row rather than
-   loose cards, so they read as the whole of it and not as suggestions - the
-   fusion dashboard's landing does the same. Whole tab clickable, hover is an
-   underline. Inset to the hero's text edge so the page keeps one margin. */
-.wx-directory-card {
-  padding: 0; overflow: hidden; margin: 28px 44px 0;
-  border-radius: 8px; box-shadow: none;
-}
-.wx-directory {
-  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-.wx-dir-row {
-  display: block; text-decoration: none; color: var(--text);
-  padding: 16px 20px 18px;
-}
-.wx-dir-row + .wx-dir-row { border-left: 1px solid var(--panel-border); }
-.wx-dir-row h3 { margin: 0 0 4px; font-size: 15px; font-weight: 650; }
-.wx-dir-row p {
-  margin: 0; font-size: 12.5px; color: var(--text-muted); line-height: 1.45;
-}
-.wx-dir-row:hover { background: var(--row-hover); }
-.wx-dir-row:hover h3 { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
-.wx-dir-row:focus-visible { outline: 3px solid var(--accent); outline-offset: -3px; }
-/* Stacked where the hero stacks. Three across on a narrow screen leaves each
-   tab about 230px, which wraps its note to five lines. */
-@media (max-width: 900px) {
-  .wx-directory-card { margin: 22px 18px 0; }
-  .wx-directory { grid-template-columns: 1fr; }
-  .wx-dir-row + .wx-dir-row {
-    border-left: none; border-top: 1px solid var(--panel-border);
-  }
 }
 
 .wx-landing-page .content { max-width: 1180px; margin: 0 auto; }

@@ -322,12 +322,24 @@ from this front end), and a change to the shared chrome is worth carrying to
 the other. Four pieces are common to both: the black IPPRA bar above the
 masthead, static markup in `index.html` that turns into a back link when the
 reader arrived from ippra.net; a title over every page but home, from
-`pageHead()` and each page's `title`; a landing page set on the page rather
-than in a card, with the pages below it as one connected row; and an About
-page in eyebrow-headed sections. Home keeps its flagship chart and its
-figures, where fusion's landing has neither; that is a deliberate difference.
-The masthead keeps `nav_subtitle`, which fusion dropped because its subtitle
-repeated the bar; here it names the project.
+`pageHead()` and each page's `title`; a landing page that says what the
+project is and why it matters rather than showing a result; and an About page
+in eyebrow-headed sections. The masthead keeps `nav_subtitle`, which fusion
+dropped because its subtitle repeated the bar; here it names the project.
+
+The landing page runs title, introduction, the data gap as a two-line
+statement, what the project is, four figures, two paired sections on why it
+matters, then three cards into the data. All of its words are in the
+builder's `hero`, `sections` and `explore`, and none uses an em dash. The four
+figures and the dot field beside the statement are counted, never typed, all
+from `respondents.json`, which `09_statistics.R` writes with each survey's
+respondent count (a survey being one hazard in one year). The field draws one
+column per year, each holding every respondent to date at one dot per 50,
+stacked oldest year at the bottom and colored by hazard, so the other hazards
+appear higher up as they join; the column's own year is full strength, the
+years beneath it faded. Identity rather than an analytical figure, but every
+dot is real. Both move with each `--data` run, and the build stops if
+the per-survey counts do not add up to the total.
 
 The quiz is the one place the builder authors claims about the data. Prompts
 are fixed, answers and reveal numbers are read off the distributions, and
