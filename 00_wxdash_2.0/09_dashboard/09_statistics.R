@@ -36,6 +36,38 @@ variable_reference <- read_csv(
   show_col_types = FALSE
 )
 
+# Topics -----------------------------------------------------------------------
+# Each row's topics are read off its wording when an instrument is added, by
+# the survey-variable-reference skill, from the fixed list in topics.csv: the
+# first is the one a question is shown under, a second only where it plainly
+# spans two. The browser's Topic menu is built from them, so a name off the
+# list would be a menu entry nobody chose, and a weather question without one
+# could not be found by topic.
+topic_list_data <- read_csv(
+  here::here("00_wxdash_2.0", "08_create_variable_reference", "topics.csv"),
+  show_col_types = FALSE
+)
+
+topic_rows_data <- variable_reference |>
+  select(survey_hazard, variable, question_focus, topics) |>
+  mutate(topic = str_split(coalesce(topics, ""), " \\| ")) |>
+  unnest(topic)
+
+# Background belongs to the background rows and to nothing else, which ties
+# the topic to question_focus rather than letting the two disagree.
+bad_topic_data <- topic_rows_data |>
+  filter(!topic %in% topic_list_data$topic |
+           (question_focus == "weather") == (topic == "Background"))
+
+message("Topics: ", n_distinct(topic_rows_data$topic), " in use, ",
+        nrow(bad_topic_data), " rows off the list")
+
+if (nrow(bad_topic_data) > 0) {
+  print(bad_topic_data, n = Inf)
+  stop("Rows above have no topic, a topic not in topics.csv, or Background ",
+       "on a weather question - or a background question without it.")
+}
+
 # Bar plot of response shares only makes sense for a closed set of options.
 # Open text, drop-downs and randomization assignments are dropped by the option
 # count; 11 is the cutoff the 1.0 dashboard used.
@@ -80,10 +112,11 @@ questions <- questions |>
     # question: it becomes the item, and there is no stem left above it.
     question_intro = if_else(is.na(question_text), NA_character_,
                              question_intro),
-    question_text = coalesce(question_text, question)
+    question_text = coalesce(question_text, question),
+    topic = str_remove(topics, " \\| .*$")
   ) |>
-  select(hazard, variable, question, question_intro, question_text, keywords,
-         response_scale, response_options, n_options, experimental,
+  select(hazard, variable, question, question_intro, question_text, topic,
+         topics, response_scale, response_options, n_options, experimental,
          graphic_shown)
 
 # Split-Sample Questions -------------------------------------------------------
@@ -498,6 +531,41 @@ missing_risk <- risk_questions |> filter(is.na(question_text))
 if (nrow(missing_risk) > 0) {
   print(missing_risk |> select(measure, variable))
   stop("Risk items above have no wording in the variable reference.")
+}
+
+# An item in one of the mapped measures takes the topic of that measure's
+# construct, so the questions behind a measure on the map are all found under
+# one topic. topics.csv says which topic each construct is, so the skill that
+# assigns topics and this check read the same declaration. A scale item's
+# construct is its measure name less the hazard (TO_RECEP is RECEP); the risk
+# items, asked in every survey, are RISK.
+construct_topics <- topic_list_data |>
+  filter(!is.na(measure_construct)) |>
+  pull(topic, name = measure_construct)
+
+primary_topic_data <- variable_reference |>
+  transmute(hazard = unname(hazard_labels[survey_hazard]), variable,
+            topic = str_remove(topics, " \\| .*$"))
+
+measure_topic_data <- scale_items |>
+  transmute(measure, hazard = survey_hazard, variable,
+            expected = unname(construct_topics[str_remove(measure,
+                                                           "^[A-Z]+_")])) |>
+  bind_rows(
+    primary_topic_data |>
+      filter(variable %in% str_to_lower(risk_measures)) |>
+      transmute(measure = str_to_upper(variable), hazard, variable,
+                expected = unname(construct_topics["RISK"]))
+  ) |>
+  left_join(primary_topic_data, by = c("hazard", "variable"))
+
+off_construct_data <- measure_topic_data |>
+  filter(is.na(expected) | is.na(topic) | topic != expected)
+
+if (nrow(off_construct_data) > 0) {
+  print(off_construct_data, n = Inf)
+  stop("Measure items above are filed under a topic other than their ",
+       "measure's construct, or their measure has no construct topic.")
 }
 
 measure_questions <- bind_rows(
@@ -966,7 +1034,9 @@ for (i in seq_len(nrow(questions))) {
     question_text = row$question_text,
     variable = row$variable,
     response_scale = row$response_scale,
-    keywords = row$keywords,
+    # The row is labelled with the first topic; the Topic menu matches any.
+    topic = row$topic,
+    topics = row$topics,
     kind = case_when(
       row$experimental & row$graphic_shown ~ "Experiment, graphic",
       row$experimental ~ "Experiment",

@@ -214,7 +214,7 @@ reasonably go the other way — worth checking before anyone filters on them.
       think about weather, which puts them with `rural`. But they are winter- and
       coast-specific exposure, so they may belong with the weather items.
 
-- [ ] **`rq_1`–`rq_10` are `weather` with keyword `preparedness`.** They ask
+- [ ] **`rq_1`–`rq_10` are `weather`, filed under Preparedness.** They ask
       about general emergency preparedness — disaster kits, meeting places, CPR
       — with no weather mention. Kept as `weather` because preparedness is a
       substantive outcome rather than a background trait.
@@ -223,20 +223,24 @@ reasonably go the other way — worth checking before anyone filters on them.
       `choir`, `fiveside`, `sixside`, `mushroom`, `your_ability`,
       `public_ability` measure a personal capability. But the forecast
       probability items (`incremental_prob`, `cumulative_prob`, `percentile_*`,
-      `exceedance_*`, `cond_prob`) are `weather` and tagged
-      `comprehension|numeracy`, because they interpret an actual forecast.
+      `exceedance_*`, `cond_prob`) are `weather`, under Understanding weather
+      and warnings, because they interpret an actual forecast.
 
-- [ ] **`wthr_info_*` is tagged `channels`, not `sources`,** even though its own
+- [x] **`wthr_info_*` is tagged `channels`, not `sources`,** even though its own
       stem says "sources". The items are media types, and WW25/FL25 define
       channels as "tools or avenues of information". Flagging because it means
-      the keyword disagrees with the instrument's own wording.
+      the keyword disagrees with the instrument's own wording. *(2026-09-29:
+      keywords are retired; sources and channels are both Getting weather
+      information under topics, so the split no longer shows.)*
 
-- [ ] **`srg_foot_ft`, `srg_foot_in`, `srg_car_ft`, `srg_car_in` are tagged
+- [x] **`srg_foot_ft`, `srg_foot_in`, `srg_car_ft`, `srg_car_in` are tagged
       `comprehension|response`.** They ask the deepest water it is safe to cross
       on foot or in a car, which is knowledge rather than a report of behaviour,
       so `response` is the arguable half. It was kept because the threshold is
       the protective decision — but if `response` is reserved for what people
-      say they do, these four should drop it.
+      say they do, these four should drop it. *(2026-09-29: keywords are
+      retired; under topics all four are Understanding weather and warnings
+      alone, as knowledge with a right answer.)*
 
 - [ ] **The COVID items are `weather`, not `background`.** `covid_risk` compares
       COVID-19 risk *to* weather risk, and `covid_attention` and `covid_respond`
@@ -318,12 +322,15 @@ map, chart, forecast image or photograph the respondent was shown. WX 106, TC 72
 it: 232 rows are both, 14 are a graphic shown to everyone with nothing
 randomized, and the randomized *text* forecasts are the mirror image.
 
-- [ ] **It is not the `graphics` keyword.** The keyword is a topic tag and
+- [x] **It is not the `graphics` keyword.** The keyword is a topic tag and
       includes questions *about* graphics where none was displayed:
       `hur_map_und`, `tor_map_und`, `tor_radar_und`, `flood_map_und`,
       `flood_map_pref`, `gr_rec` and `wep_rec` are all keyword `graphics` and
       `graphic_shown = FALSE`. Filtering on the keyword to find graphic-based
       questions would pull in seven items that ask about maps in the abstract.
+      *(2026-09-29: keywords are retired, and no topic stands for graphics:
+      those seven are filed by what they ask, four under Understanding and
+      three under Forecast and warning products.)*
 
 - [ ] **The 14 TC `color_*` items are the only rows that are `graphic_shown`
       without being `experimental`.** Everyone saw the same
@@ -584,3 +591,34 @@ data calls it.
 - [ ] **`tor_time` and `tor_ssn` (WX17) are slider answers.** The instrument
       says periods appear as the slider moves but does not say what is stored -
       a period label or a number.
+
+## 11. New column: `topics` replaces `keywords` (2026-09-29)
+
+Every row now carries `topics`: one topic from the fixed list in `topics.csv`
+(a second after ` | ` on the 7 rows that plainly span two), read off the
+wording rather than mapped from the old tags, because a new instrument arrives
+as wording alone. The 212 background rows are `Background`.
+
+The 1,387 weather rows were read four times: a first reading, then three
+independent checkers (literalist, reader's advocate, skeptic) who never saw it.
+All four agreed on 1,298 rows (94%). Of the 89 that were contested, 40 changed
+and the rest held; every one was decided in review.
+
+What the review changed in the list and its rules, all now in `topics.csv`:
+
+- Two topics were renamed - Understanding *weather* and warnings (it takes
+  knowledge of the hazard itself, like the flood-safety myths) and
+  Preparedness, mitigation, and *recovery* (it takes recovery funding and
+  insurance policy).
+- Reactions to forecasts and warnings was split out of Forecast and warning
+  products, for how someone would feel on getting a forecast they are shown.
+- There is no topic for artificial intelligence and no catch-all.
+- The risk a forecast implies for a hypothetical place is Understanding; risk
+  perceptions are the respondent's own area, including comparison hazards.
+- Relying on a source is Getting weather information; self-efficacy is
+  Protective actions; details of a particular warning received are Getting
+  weather information.
+- An item behind a mapped measure takes its construct's topic (declared in
+  `topics.csv`, checked by `09`), which is why `rec_area` and `rec_time` are
+  Getting weather information although they read like understanding.
+

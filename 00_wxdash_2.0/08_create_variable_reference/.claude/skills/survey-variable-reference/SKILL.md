@@ -72,7 +72,7 @@ instrument has, in its order.
 | `experimental` | `TRUE` when the answer depends on a stimulus that varied between respondents — see below |
 | `graphic_shown` | `TRUE` when the respondent was shown a graphic and the answer rests on it — see below |
 | `question_focus` | `weather` or `background` |
-| `keywords` | one or more content tags, ` \| `-separated, from the fixed list below |
+| `topics` | the topic the question is shown under, then a second only where it plainly spans two, ` \| `-separated, from `topics.csv` |
 | `question_intro` | the preamble the item sits under, brackets stripped. Empty when the item is self-contained |
 | `question_text` | the item, verbatim, brackets stripped |
 | `response_options` | `1 = Label \| 2 = Label`, separated by ` \| ` |
@@ -86,7 +86,7 @@ instrument has, in its order.
 
 ### 4. Classify each row — by reading it, never by rule
 
-`experimental`, `question_focus` and `keywords` are decided **by reading the
+`experimental`, `question_focus` and `topics` are decided **by reading the
 question**, one row at a time. Do not write a script that assigns them from
 name prefixes or regexes over the wording. The whole point of these columns is
 the judgment; a rule that gets 90% of them right is the failure mode this skill
@@ -118,12 +118,12 @@ complete.
 
 **`graphic_shown`** — `TRUE` when the respondent was shown a graphic, map, chart,
 forecast product image or photograph and the answer rests on it. This is not the
-`graphics` keyword, which is a topic tag: `hur_map_und` ("how would you rate your
-understanding of maps") and `gr_rec` ("do you want graphics, or words and
-numbers") are tagged `graphics` and are `graphic_shown = FALSE`, because nothing
+same as a question being *about* graphics: `hur_map_und` ("how would you rate
+your understanding of maps") and `gr_rec` ("do you want graphics, or words and
+numbers") are about graphics and are `graphic_shown = FALSE`, because nothing
 was displayed. The reverse also happens — the TC message-reliability arms
 (`rand_wind_*`, `rand_surge_*`, `rand_flood_*`) each carry `[LINK TO IMAGE]`, so
-they are `TRUE` whatever their keywords say.
+they are `TRUE` whatever the question is about.
 
 Read the page, not the item: a graphic is usually displayed once and then
 governs every item until the next page marker, including follow-ups like
@@ -146,21 +146,86 @@ insurance") is `background` even though the section is about weather-driven
 premiums, while `ins_crisis_aware` is `weather` because it asks about a
 weather-driven problem.
 
-**`keywords`** — pick every tag that genuinely applies, usually one or two:
+**`topics`** — what the question is about, in a reader's terms, from the fixed
+list in `topics.csv` beside the sheet. Each topic there has a definition and a
+`deciding_rule`: the test that settles it, including the boundaries readers
+actually hit (where information comes from against how much it is believed;
+an opinion of a product against what it means against how it feels to get
+one; acting on a warning against preparing well ahead of one). Read those
+rules before classifying and apply them as written. If a question fits none of
+them cleanly, that is a finding about the list, not a reason to force a fit:
+record it in `NOTES.md` so the list can be changed deliberately.
 
-`admin` · `ai` · `attention_check` · `channels` · `comprehension` · `demographics` · `engagement` · `experience` · `forecast_products` · `graphics` · `health` · `household` · `insurance` · `location` · `mitigation` · `numeracy` · `open_feedback` · `preparedness` · `reception` · `recovery` · `religion` · `relocation` · `response` · `risk_perception` · `sources` · `trust`
+- **One topic, usually.** Add a second, after ` | `, only when the question
+  plainly spans two, such as trust in a specific named product. The first is
+  the one the question is shown under.
+- **Classify the row, not the battery.** Items sharing a stem usually share a
+  topic, but not always: WX's opening battery pairs "I follow the weather very
+  closely" (Getting weather information) with "I don't understand what causes
+  extreme weather" (Understanding weather and warnings).
+- **A scale item takes its scale's construct.** Every item in one of 05's
+  scales, and every item behind a mapped measure, is filed under the topic of
+  what the measure measures: reception items under Getting weather
+  information, comprehension items under Understanding weather and warnings,
+  response items under Protective actions, the `risk_*` items under Risk
+  perceptions. `rec_area` ("sometimes I am not sure if a tornado warning is for
+  my area") reads like understanding on its own, but it is a reception item,
+  and a reader who finds the reception measure on the map should find all of
+  its questions under one topic. `09` stops the build if one strays.
+- **Randomization rows** take the topic of the questions they govern, the most
+  common one where they govern several.
+- **Background rows** (`question_focus = background`) are `Background`, and
+  nothing else is. `09` checks that the two columns agree.
+- **Same question, same topic.** A variable asked in several surveys in the same
+  words gets the same topic in each; a name reused for a different question,
+  like `rec_time` (negative in WX, positive elsewhere), is judged on its own
+  wording.
 
-`sources` versus `channels` follows the instruments' own distinction: WW25 and
-FL25 split "sources" (organizations and people — NWS, local TV, emergency
-managers, family) from "channels" ("tools or avenues of information" — radio,
-television, internet, social media, word-of-mouth, phone). Apply that split
-everywhere, including where an instrument's own stem calls a list of media
-"sources".
+There is no topic for artificial intelligence: an AI question goes by what it
+asks, so trust in AI forecasts is Trust and support for an AI product is
+Forecast and warning products.
 
-`comprehension` covers both self-rated understanding (`*_und`) and objective
-knowledge tests (`torwatch`, `warn_size`, `otlks_cat_recall_spc`).
-`experience` is for past events the respondent lived through; where they also
-report what they did, add `response`.
+Changing the list means editing `topics.csv` and re-reading every row the
+change could touch; `09` rejects a topic that is not on the list.
+
+#### Topics are read four times, not once
+
+Topics are the one judgment column the public site shows directly, so every
+new row is read by four independent readers before anything goes into the
+sheet. A single reading is not enough: on the first full pass, three checkers
+changed 40 of 1,387 assignments and exposed two deciding rules that needed
+rewriting. **This step is required, not optional.** The scripts it uses are in
+`scripts/`; work in a scratch directory, never beside the sheet.
+
+1. **Make the packets.** `prepare_topic_packets.py` writes the rows that need
+   topics (weather rows with an empty `topics` cell, or `--all`) as one file
+   per survey, grouped by stem. Pass `--scale-items` (05's
+   `05_scale_items.csv`) and `--measures` (`09_dashboard/measures.csv`) so the
+   items behind mapped measures come marked with their fixed topic.
+2. **First reading.** Classify every row in the packets by the rules above,
+   writing `survey_hazard, variable, topic, topic_2, check, reason`; set
+   `check = TRUE` with a reason wherever a deciding rule settled it or the
+   choice was close.
+3. **Three independent checks.** Launch three agents per survey at once, one
+   of each personality in `scripts/topic_checker_prompt.md` - the literalist,
+   the reader's advocate and the skeptic - with that prompt filled in. Each
+   reads every row from scratch and writes its own file. None may see the
+   first reading or another checker's file: a checker shown an answer checks
+   nothing.
+4. **Compare.** Concatenate each reader's files across surveys and run
+   `compare_topic_readings.py`. It sorts every row by agreement, writes a
+   review file of every row that is not unanimous - question, all four
+   topics and every reason side by side, the ones where the first reading
+   lost at the top - and reports stems where several items were contested
+   the same way.
+5. **Joe decides.** Unanimous rows are settled. Every other row goes to Joe,
+   who records a topic in the review file's `decision` column. A contested
+   stem is a deciding rule to sharpen in `topics.csv`, not a string of single
+   calls; if the rule changes, re-read the rows it touches.
+6. **Write the sheet.** Only then paste the decided topics into `topics`,
+   first topic then ` | ` second, and note in `NOTES.md` how many rows were
+   contested and which rules changed. The review file is working material:
+   once the sheet and `topics.csv` carry the decisions, it need not be kept.
 
 ### 5. Write NOTES.md
 

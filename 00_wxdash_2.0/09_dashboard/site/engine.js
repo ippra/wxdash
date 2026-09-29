@@ -232,18 +232,6 @@ function schemeSelect(current, onChange) {
 }
 
 /* ---- PDF export (Joe's demo affordance; jsPDF vendored per bundle) ------ */
-// Composite the visible chart canvas onto the theme's panel background (the
-// chart itself is transparent — dark themes would otherwise export
-// light-on-white text).
-function chartSnapshot(canvas) {
-  const out = document.createElement("canvas");
-  out.width = canvas.width; out.height = canvas.height;
-  const ctx = out.getContext("2d");
-  ctx.fillStyle = getComputedStyle(document.body).getPropertyValue("--panel").trim() || "#ffffff";
-  ctx.fillRect(0, 0, out.width, out.height);
-  ctx.drawImage(canvas, 0, 0);
-  return out;
-}
 // Crop the flat backdrop off a snapshot, so what lands in a document is the
 // map rather than the map plus the empty frame around it. The frame is a
 // fixed-size container the CONUS floats in; left in, it shrinks the plot and
@@ -588,130 +576,12 @@ function groupingSelect(onChange, initial, labelText = "Select a grouping") {
   return wrap;
 }
 
-/* Generic table: sort (click header), global search, optional per-column
-   filters (Shiny DT filter="top" equivalent), pagination. rows = array of
-   objects; columns = [{id, label, width?}]. */
-function dataTable({ columns, rows, pageSize = 25, pageSizeOptions = null, columnFilters = true, clickable = false, onRowClick = null, searchFields = [] }) {
-  let sortCol = null, sortDir = 1, page = 0, globalQ = "";
-  const colQ = {};
-  let filtered = rows.slice();
-  let selectedRow = null;
-
-  const root = el("div");
-  const tools = el("div", { class: "table-tools" });
-  const search = el("input", { type: "search", placeholder: "Search…",
-    oninput: () => { globalQ = search.value.toLowerCase(); page = 0; refresh(); } });
-  const count = el("span", { class: "count" });
-  tools.append(search);
-  if (pageSizeOptions) {   // viewer-adjustable page length (opt-in per table)
-    const psSel = el("select", { onchange: () => {
-      pageSize = Number(psSel.value); page = 0; refresh();
-    } });
-    for (const n of pageSizeOptions) psSel.append(el("option", { value: n }, String(n)));
-    psSel.value = String(pageSize);
-    tools.append(el("label", { class: "pagesize" }, "Show ", psSel, " rows"));
-  }
-  tools.append(count);
-
-  const scroll = el("div", { class: "table-scroll" });
-  const table = el("table", { class: "data" + (clickable ? " clickable" : "") });
-  const thead = el("thead");
-  const headRow = el("tr");
-  for (const c of columns) {
-    const th = el("th", c.width ? { style: `width:${c.width}` } : {});
-    const name = c.plain
-      ? el("span", { class: "col-name" }, c.label)
-      : el("span", { class: "col-name", onclick: () => {
-          if (sortCol === c.id) sortDir = -sortDir; else { sortCol = c.id; sortDir = 1; }
-          refresh();
-        } }, c.label, " ", el("span", { class: "arrow" }, ""));
-    th.append(name);
-    if (columnFilters && !c.plain) {
-      const inp = el("input", { type: "text", placeholder: "Filter…",
-        oninput: () => { colQ[c.id] = inp.value.toLowerCase(); page = 0; refresh(); } });
-      th.append(inp);
-    }
-    headRow.append(th);
-  }
-  thead.append(headRow);
-  const tbody = el("tbody");
-  table.append(thead, tbody);
-  scroll.append(table);
-
-  const pager = el("div", { class: "pager" });
-  const prev = el("button", { onclick: () => { page--; refresh(); } }, "‹ Prev");
-  const info = el("span");
-  const next = el("button", { onclick: () => { page++; refresh(); } }, "Next ›");
-  pager.append(prev, info, next);
-
-  function refresh() {
-    filtered = rows.filter(r => {
-      // Global search covers the visible columns plus any hidden searchFields
-      // (e.g. Joe's content keywords, so "reception" finds questions whose
-      // wording never uses the word).
-      if (globalQ && !columns.some(c => String(r[c.id] ?? "").toLowerCase().includes(globalQ)) &&
-          !searchFields.some(f => String(r[f] ?? "").toLowerCase().includes(globalQ))) return false;
-      for (const c of columns) {
-        const q = colQ[c.id];
-        if (q && !String(r[c.id] ?? "").toLowerCase().includes(q)) return false;
-      }
-      return true;
-    });
-    if (sortCol) {
-      filtered.sort((a, b) => {
-        const av = a[sortCol] ?? "", bv = b[sortCol] ?? "";
-        const an = parseFloat(av), bn = parseFloat(bv);
-        const cmp = (!isNaN(an) && !isNaN(bn)) ? an - bn : String(av).localeCompare(String(bv));
-        return cmp * sortDir;
-      });
-    }
-    const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
-    page = Math.min(Math.max(0, page), pages - 1);
-    const slice = filtered.slice(page * pageSize, (page + 1) * pageSize);
-
-    tbody.textContent = "";
-    for (const r of slice) {
-      const tr = el("tr");
-      if (r === selectedRow) tr.classList.add("selected");
-      // A column may draw its own cell. Sorting and filtering above still run
-      // on r[c.id], so a cell that splits one field into two lines is still
-      // searched as the whole field.
-      for (const c of columns) tr.append(el("td", {},
-        c.render ? c.render(r) : String(r[c.id] ?? "")));
-      if (clickable) tr.addEventListener("click", () => {
-        selectedRow = r;
-        refresh();
-        onRowClick && onRowClick(r);
-      });
-      tbody.append(tr);
-    }
-    count.textContent = `${filtered.length} of ${rows.length} rows`;
-    info.textContent = `Page ${page + 1} of ${pages}`;
-    prev.disabled = page === 0;
-    next.disabled = page >= pages - 1;
-    headRow.querySelectorAll(".arrow").forEach((a, i) =>
-      a.textContent = columns[i].id === sortCol ? (sortDir === 1 ? "▲" : "▼") : "");
-  }
-
-  refresh();
-  root.append(tools, scroll, pager);
-  // Select (and page to) the first row matching pred — for deep-linked rows.
-  root.selectRow = (pred) => {
-    const i = rows.findIndex(pred);
-    if (i >= 0) { selectedRow = rows[i]; page = Math.floor(i / pageSize); refresh(); }
-  };
-  root.selectFirst = () => root.selectRow(() => true);
-  // Redraw the rows in place, for a cell whose state lives outside the row.
-  root.rerender = refresh;
-  return root;
-}
-
 /* Grouped bar chart from long rows [{group, category, value, label}].
    Category axis order + series (group) order = first-appearance order in the
    data (which preserves R's factor-level ordering from the compiler), unless
    an explicit categoryOrder is supplied by config. */
 let activeChart = null;
-function groupedBarChart(canvas, rows, { title = "", xLabel = "", yLabel = "", categoryOrder = null, showCI = false, horizontal = false, colors = null, legend = true }) {
+function groupedBarChart(canvas, rows, { title = "", xLabel = "", yLabel = "", categoryOrder = null, showCI = false, horizontal = false, colors = null, legend = true, legendTitle = "Group", standalone = false, pixelRatio = null, labelSize = null }) {
   const groupsSeen = [], catsSeen = [];
   for (const r of rows) {
     const g = naLabel(r.group), c = naLabel(r.category);
@@ -746,13 +616,16 @@ function groupedBarChart(canvas, rows, { title = "", xLabel = "", yLabel = "", c
     } : {})
   }));
 
-  if (activeChart) { activeChart.destroy(); activeChart = null; }
-  activeChart = new Chart(canvas, {
+  // A standalone chart is drawn for export: fixed size, no animation, at the
+  // pixel ratio asked for, and it leaves the chart on screen alone.
+  if (!standalone && activeChart) { activeChart.destroy(); activeChart = null; }
+  const chart = new Chart(canvas, {
     type: "bar",
     data: { labels: cats.map(tickLines), datasets },
     options: {
-      responsive: true,
+      responsive: !standalone,
       maintainAspectRatio: false,
+      ...(standalone ? { animation: false, devicePixelRatio: pixelRatio || 1 } : {}),
       // horizontal (Joe's Aug-2026 explorer): categories run down the y-axis
       indexAxis: horizontal ? "y" : "x",
       interaction: { mode: "nearest", intersect: false, axis: horizontal ? "y" : "x" },
@@ -762,12 +635,15 @@ function groupedBarChart(canvas, rows, { title = "", xLabel = "", yLabel = "", c
           font: { size: 15, weight: "600" }, padding: { bottom: 16 } } : { display: false },
         // legend:false for single-group charts (quiz reveal) — a one-entry
         // "Group: All" legend is noise.
-        legend: legend ? { position: "bottom", title: { display: true, text: "Group" } }
+        legend: legend ? { position: "bottom",
+                           title: { display: !!legendTitle, text: legendTitle } }
           : { display: false },
         datalabels: showCI ? { display: false } : {
           anchor: "end", align: "end", offset: 0, clip: false,
           color: getComputedStyle(document.body).getPropertyValue("--text").trim() || "#000",
-          font: { size: groupsSeen.length > 8 ? 9 : 11 },
+          font: { size: labelSize
+            ? (groupsSeen.length > 8 ? labelSize - 3 : labelSize)
+            : (groupsSeen.length > 8 ? 9 : 11) },
           formatter: (v, ctx) => ctx.dataset.barLabels[ctx.dataIndex]
         },
         tooltip: {
@@ -792,7 +668,8 @@ function groupedBarChart(canvas, rows, { title = "", xLabel = "", yLabel = "", c
     },
     plugins: [ChartDataLabels, ErrorBarsPlugin]   // ErrorBarsPlugin no-ops without errorLow
   });
-  return activeChart;
+  if (!standalone) activeChart = chart;
+  return chart;
 }
 
 /* ------------------------------------------------------------ components -- */
@@ -838,8 +715,7 @@ components.explore = async function (page, container) {
   let showCI = getParam("ci") === "1";   // ?ci=1 deep-links the CI view
   let currentArm = getParam("arm");      // ?arm= deep-links a split-sample version
   let scheme = urlScheme();              // ?scheme= deep-links a color scheme
-  let currentQuestionText = "";          // for the PDF title
-  let currentSurveyLabel = "";           // and its subtitle line
+  let currentQuestionText = "";          // for the flag list
   // Question files are keyed by `id` — hazard code + variable, because two
   // surveys can share a variable name (alert_und is asked in all four).
   const keyOf = (r) => r.id;
@@ -848,8 +724,12 @@ components.explore = async function (page, container) {
   let currentKey = (urlQ && questions.some(x => keyOf(x) === urlQ))
     ? urlQ : (questions[0] && keyOf(questions[0]));
 
-  const chartCard = el("div", { class: "card" });
-  const weightedTip = explain("weighted_pct");
+  // The selected question leads the section and is set on the page rather
+  // than in a card: the survey as a small label, then the stem it shares
+  // with the rest of its battery, quiet, and the item large beneath it.
+  const resultHead = el("div", { class: "wx-result-head" });
+  const qSurvey = el("p", { class: "wx-result-survey" }, "");
+  const chartCard = el("div", { class: "card wx-result-chart" });
   const wrap = el("div", { class: "chart-wrap" });
   const canvas = el("canvas");
   wrap.append(canvas);
@@ -858,8 +738,8 @@ components.explore = async function (page, container) {
   // The stem a battery of items shares, above the item itself. Quieter,
   // because it is the same sentence on every item in the battery and the item
   // is what changes.
-  const qIntro = el("p", { class: "wx-question-intro" }, "");
-  const qHead = el("h3", { class: "wx-question-head" }, "");
+  const qIntro = el("p", { class: "wx-question-intro wx-result-stem" }, "");
+  const qHead = el("h2", { class: "wx-question-head wx-result-item" }, "");
   // The version menu, inside the chart card rather than the toolbar above it:
   // it belongs to this question, not to the page, and it disappears with the
   // question. Only split-sample items have one.
@@ -964,7 +844,8 @@ components.explore = async function (page, container) {
   ciBox.onchange = () => { showCI = ciBox.checked; setParams({ ci: showCI ? "1" : null }); draw(); };
   const headRow = el("div", { class: "wx-question-headrow" }, qHead);
   if (flagBtn) headRow.append(flagBtn);
-  chartCard.append(qIntro, headRow, armBox, wrap, caption);
+  resultHead.append(qSurvey, qIntro, headRow, armBox);
+  chartCard.append(wrap, caption);
 
   function renderArmPicker(v, armKey) {
     armBox.textContent = "";
@@ -992,6 +873,115 @@ components.explore = async function (page, container) {
   // question files carry no scripts.
   let lastCodeArgs = null;
   let rcodeBtn = null;
+  let lastChart = null;   // what draw() last drew, for the PNG to redraw
+
+  /* The chart as a picture to take away, drawn once for both downloads so
+   * the PNG and the PDF are the same thing in two formats. The on-screen
+   * canvas is only as sharp as the window it sits in, so the chart is redrawn
+   * off screen at a fixed 1200px layout and four times the pixel density -
+   * 4800px across - which holds up full-width on a slide. It carries the
+   * survey, the question, and the caption's facts line and bars sentence, so
+   * it still says what it shows once it has left the page, on the page's own
+   * background so a dark theme exports legibly. */
+  function chartImage() {
+    if (!lastChart) return null;
+    const S = 4, W = 1200, pad = 48, inner = W - pad * 2;
+    const css = getComputedStyle(document.body);
+    const tok = (n, d) => css.getPropertyValue(n).trim() || d;
+    const bg = tok("--panel", "#ffffff"), ink = tok("--text", "#1f1d2b");
+    const muted = tok("--text-muted", "#5f5a73"), accent = tok("--accent", "#443a83");
+    const family = css.fontFamily;
+    const mono = tok("--mono", "monospace");
+
+    // The chart keeps the proportions it has on screen.
+    const ratio = wrap.clientHeight / Math.max(1, wrap.clientWidth);
+    const chartH = Math.round(Math.max(460, Math.min(1400, inner * ratio * 1.1)));
+    const host = el("div", { style:
+      `position:fixed;left:-30000px;top:0;width:${inner}px;height:${chartH}px` });
+    const cv = el("canvas");
+    cv.style.width = inner + "px"; cv.style.height = chartH + "px";
+    cv.width = inner; cv.height = chartH;
+    host.append(cv); document.body.append(host);
+    const saved = Chart.defaults.font.size;
+    Chart.defaults.font.size = 15;   // slide-sized type, not screen-sized
+    let chart;
+    try {
+      chart = groupedBarChart(cv, lastChart.rows,
+        { ...lastChart.opts, standalone: true, pixelRatio: S, labelSize: 14 });
+    } finally { Chart.defaults.font.size = saved; }
+
+    const measure = document.createElement("canvas").getContext("2d");
+    const wrapText = (text, font, width) => {
+      measure.font = font;
+      const words = String(text || "").split(/\s+/).filter(Boolean);
+      const lines = []; let line = "";
+      for (const w of words) {
+        const t = line ? line + " " + w : w;
+        if (line && measure.measureText(t).width > width) { lines.push(line); line = w; }
+        else line = t;
+      }
+      if (line) lines.push(line);
+      return lines;
+    };
+    const blocks = [];
+    const add = (text, size, weight, color, lead, gap, face = family, upper = false) => {
+      if (!text) return;
+      const font = `${weight} ${size}px ${face}`;
+      const t = upper ? String(text).toUpperCase() : text;
+      blocks.push({ lines: wrapText(t, font, inner), font, color, lead, gap });
+    };
+    add(lastChart.survey, 13, 600, accent, 18, 12, mono, true);
+    add(lastChart.stem, 17, 400, muted, 25, 8);
+    add(lastChart.item, 30, 700, ink, 38, 22);
+    const head = blocks.splice(0);
+    const capLine = (cls) => (caption.querySelector(cls) || {}).textContent || "";
+    add(capLine(".wx-caption-meta"), 15, 600, ink, 22, 4);
+    add(capLine(".wx-caption-bars"), 15, 400, muted, 22, 6);
+    add("Source: Extreme Weather and Society Survey, University of Oklahoma " +
+        "Institute for Public Policy Research and Analysis.", 13, 400, muted, 19, 0);
+    const foot = blocks.splice(0);
+    const heightOf = (bs) => bs.reduce((t, b) => t + b.lines.length * b.lead + b.gap, 0);
+    const H = pad + heightOf(head) + chartH + 22 + heightOf(foot) + pad;
+
+    const out = document.createElement("canvas");
+    out.width = W * S; out.height = Math.ceil(H * S);
+    const ctx = out.getContext("2d");
+    ctx.scale(S, S);
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+    ctx.textBaseline = "alphabetic";
+    let y = pad;
+    const paint = (bs) => {
+      for (const b of bs) {
+        ctx.font = b.font; ctx.fillStyle = b.color;
+        for (const ln of b.lines) { y += b.lead; ctx.fillText(ln, pad, y - b.lead * 0.25); }
+        y += b.gap;
+      }
+    };
+    paint(head);
+    ctx.drawImage(cv, pad, y, inner, chartH);
+    y += chartH + 22;
+    paint(foot);
+    chart.destroy(); host.remove();
+    return { canvas: out, width: W, height: H };
+  }
+
+  const exportName = (ext) => {
+    const g = lastChart && lastChart.g;
+    return `wxdash-${currentKey}${g && g !== "All" ? "-" + g : ""}.${ext}`;
+  };
+
+  function chartPNG() {
+    const img = chartImage();
+    if (!img) return;
+    const name = exportName("png");
+    img.canvas.toBlob((blob) => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const a = el("a", { href: url, download: name });
+      document.body.append(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }, "image/png");
+  }
 
   /* The scripts live in their own file, fetched the first time a reader asks
    * for one and kept after: one question carries thirteen splits, and code
@@ -1026,27 +1016,27 @@ components.explore = async function (page, container) {
 
   let groupingSel = null;   // set below; draw() updates it on split fallback
 
-  // The split-aware caption (Joe's 2.0 wording, compiler-authored templates
-  // in config.explore_caption; provenance carries links + the variable code).
+  // The note under the chart (templates in config.explore_caption): a line
+  // of facts, what the bars are for the chosen split, where the data come
+  // from, then the variable and the data link.
   function renderCaption2(v, g, summaries) {
     const tpl = CONFIG.explore_caption;
     const s = summaries && summaries[g];
     caption.textContent = "";
     if (!s) return;
-    const waves = /[-,]/.test(s.years)
-      ? fillTpl(tpl.waves_many, { years: s.years })
-      : fillTpl(tpl.waves_one, { years: s.years });
+    const survey = String(v.hazard || "").replace(/\s*\([A-Z]+\)$/, "");
+    const years = String(s.years || "").replace(/-/g, "\u2013");
+    caption.append(el("p", { class: "wx-caption-meta" }, fillTpl(tpl.meta, {
+      n: Number(s.n).toLocaleString(), survey, years })));
     const gcfg = CONFIG.groupings.find(x => x.id === g);
-    const splitClause = g === "All" ? ""
-      : fillTpl(tpl.split_clause, { group_phrase: (gcfg && gcfg.phrase) || "group" });
-    let text = fillTpl(tpl.answered, {
-      n: Number(s.n).toLocaleString(), hazard_phrase: v.hazard_phrase,
-      waves, split_clause: splitClause });
-    if (g !== "All") text += fillTpl(tpl.smallest, {
+    let bars = g === "All" ? tpl.bars
+      : fillTpl(tpl.bars_split, { group_phrase: (gcfg && gcfg.phrase) || "group" });
+    if (g !== "All") bars += fillTpl(tpl.smallest, {
       smallest: s.smallest, smallest_n: Number(s.smallest_n).toLocaleString() });
-    caption.append(el("p", {}, text));
-    caption.append(el("p", { class: "wx-caption-provenance",
-      html: fillTpl(tpl.provenance, { variable: esc(v.variable) }) }));
+    caption.append(el("p", { class: "wx-caption-bars" }, bars));
+    caption.append(el("p", { class: "wx-caption-provenance", html: tpl.provenance }));
+    caption.append(el("p", { class: "wx-caption-ref",
+      html: fillTpl(tpl.reference, { variable: esc(v.variable) }) }));
   }
 
   async function draw() {
@@ -1069,12 +1059,10 @@ components.explore = async function (page, container) {
       return hit ? hit.label : String(resp);
     };
     currentQuestionText = v.question || currentKey;
-    currentSurveyLabel = [v.hazard, v.variable && `Variable ${v.variable}`]
-      .filter(Boolean).join("  ·  ");
+    qSurvey.textContent = String(v.hazard || "").replace(/\s*\([A-Z]+\)$/, "");
     qIntro.textContent = v.question_intro || "";
     qIntro.style.display = v.question_intro ? "" : "none";
     qHead.textContent = v.question_text || v.question || currentKey;
-    if (weightedTip) qHead.append(" ", infoTip(weightedTip));
     renderCaption2(v, g, summaries);
     syncFlagBtn();
     lastCodeArgs = [currentKey, g, armKey];
@@ -1088,49 +1076,36 @@ components.explore = async function (page, container) {
     const nCats = new Set(rows.map(r => naLabel(r.category))).size;
     const nGroups = new Set(rows.map(r => naLabel(r.group))).size;
     wrap.style.height =
-      Math.max(340, Math.min(1000, 130 + nCats * Math.max(34, nGroups * 18))) + "px";
-    groupedBarChart(canvas, rows, {
+      Math.max(380, Math.min(1000, 110 + nCats * Math.max(44, nGroups * 20))) + "px";
+    // One series needs no key; several are keyed by what they split on, so
+    // the legend reads "Age" rather than "Group".
+    const gLabel = (CONFIG.groupings.find(x => x.id === g) || {}).label;
+    const chartOpts = {
       title: "",
       xLabel: page.chart.x_label, yLabel: page.chart.y_label,
       showCI,
+      legend: nGroups > 1, legendTitle: gLabel || "Group",
       horizontal: true,
       colors: schemeSeriesColors(scheme, new Set(rows.map(r => naLabel(r.group))).size)
-    });
+    };
+    groupedBarChart(canvas, rows, chartOpts);
+    lastChart = { rows, opts: chartOpts, g,
+                  survey: qSurvey.textContent, stem: v.question_intro || "",
+                  item: v.question_text || v.question || currentKey };
   }
 
-  const tableCard = el("div", { class: "card" });
-  tableCard.append(el("h3", {}, "Questions (click on a question)"));
-  const qTable = dataTable({
-    columns: [
-      { id: "hazard", label: "Survey", width: "20%" },
-      // The stem above the item, where there is one. Without it a row of the
-      // risk battery reads "Tornadoes", which is not a question.
-      { id: "question", label: "Question Text", width: "62%",
-        render: (r) => {
-          const cell = el("div");
-          if (r.question_intro)
-            cell.append(el("div", { class: "wx-row-intro" }, r.question_intro));
-          cell.append(el("div", { class: "wx-row-question" },
-                          r.question_text || r.question));
-          return cell;
-        } },
-      { id: "kind", label: "Type" },
-      ...(flaggingOn()
-        ? [{ id: "flag", label: "Flag", width: "5%", plain: true,
-             render: flagCell }]
-        : [])
-    ],
-    rows: questions, pageSize: 10, clickable: true,
-    // Search also matches the variable name, scale id and content keywords
-    // ("reception" finds questions whose wording never uses the word).
-    searchFields: ["variable", "response_scale", "keywords"],
-    pageSizeOptions: [10, 25, 50, 100],
-    onRowClick: (r) => {
+  const tableCard = el("section", { class: "card wx-browse" });
+  tableCard.append(el("h2", { class: "wx-browse-title" }, "Browse Survey Questions"),
+    el("p", { class: "wx-browse-lede" },
+      "Browse all survey questions or use the filters below to narrow the list."));
+  const qTable = questionBrowser(questions, {
+    flagCell: flaggingOn() ? flagCell : null,
+    onPick: (r) => {
       currentKey = keyOf(r);
       setParams({ q: currentKey });   // keep the URL shareable
-      // The chart lives well above the table — scroll it into view so the
-      // click visibly loads the new question.
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      // The chart sits well above the list: bring it into view so the click
+      // visibly loads the new question.
+      resultSection.scrollIntoView({ behavior: "smooth", block: "start" });
       draw();
     }
   });
@@ -1140,17 +1115,36 @@ components.explore = async function (page, container) {
 
   const intro = pageHead(page,
     "Click a survey question in the table below to see the weighted distribution of responses, split by the group you choose.");
-  const bar = el("div", { class: "card wx-toolbar" });
-  const gWrap = groupingSelect(g => { grouping = g; draw(); }, grouping, "Split responses by");
+  // The way in for someone who arrives with a question in mind: pick a match
+  // and it loads exactly as a click in the table does, with the table paged
+  // to it so the two never disagree about which question is showing.
+  const search = questionSearch(questions, (r) => {
+    currentKey = keyOf(r);
+    setParams({ q: currentKey });
+    qTable.selectRow(x => keyOf(x) === currentKey);
+    draw();
+  });
+  // The comparison is the control that matters, so it stands alone; color
+  // and intervals sit behind "Chart options", open from the start only when
+  // a link has already set one of them, so a shared view shows its settings.
+  const bar = el("div", { class: "wx-result-controls" });
+  const resultSection = el("section", { class: "wx-result" });
+  const gWrap = groupingSelect(g => { grouping = g; draw(); }, grouping, "Compare responses by");
+  gWrap.classList.add("wx-compare");
   groupingSel = gWrap.querySelector("select");
   bar.append(gWrap);
-  bar.append(schemeSelect(scheme, (sc) => {
-    scheme = sc;
-    setParams({ scheme: sc === DEFAULT_SCHEME ? null : sc });
-    draw();
-  }));
-  bar.append(el("label", { class: "wx-ci-label", for: "ci-toggle" },
-    ciBox, " Show 95% confidence intervals"));
+  const options = el("details", { class: "wx-chart-options" });
+  if (showCI || scheme !== DEFAULT_SCHEME) options.open = true;
+  options.append(el("summary", {}, "Chart options"));
+  options.append(el("div", { class: "wx-chart-options-body" },
+    schemeSelect(scheme, (sc) => {
+      scheme = sc;
+      setParams({ scheme: sc === DEFAULT_SCHEME ? null : sc });
+      draw();
+    }),
+    el("label", { class: "wx-ci-label", for: "ci-toggle" },
+      ciBox, " Show 95% confidence intervals")));
+  bar.append(options);
   // The caption below the chart is the document's notes: how many answered,
   // that the percentages are weighted, which waves, the smallest group, and
   // the provenance with the variable code. A chart without them cannot be
@@ -1159,20 +1153,23 @@ components.explore = async function (page, container) {
   // of them loose in the toolbar each push themselves to the right edge and
   // end up at opposite ends of the row; the group takes the auto margin once
   // and the buttons sit together.
-  const actions = el("div", { class: "wx-toolbar-actions" });
-  bar.append(actions);
-  actions.append(pdfButton("Download chart (PDF)", () => pdfDocument({
-    title: currentQuestionText,
-    subtitle: [
-      currentSurveyLabel,
-      grouping === "All" ? "All respondents"
-        : "Split by " + ((CONFIG.groupings.find(x => x.id === grouping) || {}).label || grouping),
-      showCI ? "95% confidence intervals shown" : null
-    ].filter(Boolean).join("  ·  "),
-    canvas: chartSnapshot(canvas),
-    notesHTML: caption.innerHTML,
-    filename: `wxdash-${currentKey}.pdf`
-  })));
+  // At the foot of the chart, under the caption that says who answered and
+  // where the data come from: the R code is part of that account, and both
+  // downloads are things to take away rather than ways to change the view.
+  const actions = el("div", { class: "wx-toolbar-actions wx-result-downloads" });
+  chartCard.append(actions);
+  actions.append(pdfButton("Download chart (PNG)", () => chartPNG()));
+  // The same picture as the PNG, on a page cut to its shape: 11 inches wide
+  // and as tall as the picture needs, so nothing is letterboxed or cropped.
+  actions.append(pdfButton("Download chart (PDF)", () => {
+    const img = chartImage();
+    if (!img) return;
+    const w = 792, h = w * img.height / img.width;
+    const doc = new window.jspdf.jsPDF({
+      orientation: w > h ? "l" : "p", unit: "pt", format: [w, h] });
+    doc.addImage(img.canvas, "PNG", 0, 0, w, h, undefined, "FAST");
+    doc.save(exportName("pdf"));
+  }));
   // Beside the chart download, and a download rather than a viewer: someone
   // who wants the script wants it in their editor, not in a scrolling box.
   rcodeBtn = pdfButton("Download R code", async () => {
@@ -1188,11 +1185,245 @@ components.explore = async function (page, container) {
   rcodeBtn.style.display = "none";
   actions.append(rcodeBtn);
   container.append(el("div", { class: "page wx-explore-page" },
-    el("div", { class: "content" }, intro, bar, chartCard, tableCard,
+    el("div", { class: "content" }, intro, search,
+       resultSection,
+       tableCard,
        ...(flagPanel ? [flagPanel] : []))));
+  resultSection.append(resultHead, bar, chartCard);
   renderFlagPanel();
   await draw();
 };
+
+/* The question browser under the explore page's results: three menus
+ * (survey, topic, question type), a search within whatever they leave, a
+ * count, and the questions as rows rather than spreadsheet cells. The item
+ * leads each row and the stem it shares with its battery sits quietly above
+ * it; the survey and topic are small labels over both. Rows are whole-row
+ * links. Pagination stays, at a fixed ten, because there are over 900.
+ *
+ * Topics come from the question data and nothing else: `topic` is the one a
+ * row is labelled with, and `topics` lists every topic the question was given
+ * ("A | B"), which the menu matches against. Until the data carries them the
+ * menu says so and stays disabled rather than guessing from the wording. */
+function questionBrowser(rows, { onPick, flagCell = null, pageSize = 10 }) {
+  const surveyName = (h) => String(h || "").replace(/\s*\([A-Z]+\)$/, "");
+  const distinct = (key) => [...new Set(rows.map(r => r[key]).filter(Boolean))];
+  const surveys = distinct("hazard");
+  const topicsOf = (r) => String(r.topics || r.topic || "").split(" | ")
+    .filter(Boolean);
+  const topics = [...new Set(rows.flatMap(topicsOf))]
+    .sort((a, b) => a.localeCompare(b));
+  const kinds = distinct("kind");
+  const norm = (t) => String(t || "").toLowerCase();
+  const haystack = new Map(rows.map(r => [r, norm([r.question, r.variable,
+    r.response_scale, r.topics || r.topic, r.kind].filter(Boolean).join(" "))]));
+
+  let fSurvey = "", fTopic = "", fKind = "", q = "", page = 0, selected = null;
+  let filtered = rows.slice();
+
+  const root = el("div", { class: "wx-browse-body" });
+  const menu = (label, allText, values, show, onChange) => {
+    const sel = el("select", { class: "grouping", "aria-label": label,
+                               onchange: () => onChange(sel.value) });
+    sel.append(el("option", { value: "" }, allText));
+    for (const v of values) sel.append(el("option", { value: v }, show(v)));
+    return sel;
+  };
+  const surveySel = menu("Survey", "All surveys", surveys, surveyName,
+    v => { fSurvey = v; apply(); });
+  const topicSel = menu("Topic", "All topics", topics, v => v,
+    v => { fTopic = v; apply(); });
+  if (!topics.length) {
+    topicSel.disabled = true;
+    topicSel.title = "Topics are not in the question data yet.";
+  }
+  const kindSel = menu("Question type", "All question types", kinds, v => v,
+    v => { fKind = v; apply(); });
+  const find = el("input", { type: "search", class: "wx-browse-search",
+    placeholder: "Search within results...", "aria-label": "Search within results",
+    oninput: () => { q = find.value; apply(); } });
+  const count = el("span", { class: "wx-browse-count", "aria-live": "polite" });
+  root.append(el("div", { class: "wx-browse-filters" }, surveySel, topicSel, kindSel),
+              el("div", { class: "wx-browse-searchrow" }, find, count));
+
+  const list = el("ol", { class: "wx-browse-list" });
+  const prev = el("button", { class: "wx-browse-page", type: "button",
+    onclick: () => { page--; render(); } }, "‹ Previous");
+  const next = el("button", { class: "wx-browse-page", type: "button",
+    onclick: () => { page++; render(); } }, "Next ›");
+  const where = el("span", { class: "wx-browse-where" });
+  root.append(list, el("nav", { class: "wx-browse-pager", "aria-label": "Pages" },
+                        prev, where, next));
+
+  function apply() {
+    const words = norm(q).split(/\s+/).filter(Boolean);
+    filtered = rows.filter(r =>
+      (!fSurvey || r.hazard === fSurvey) &&
+      (!fTopic || topicsOf(r).includes(fTopic)) &&
+      (!fKind || r.kind === fKind) &&
+      words.every(w => haystack.get(r).includes(w)));
+    page = 0;
+    render();
+  }
+
+  function render() {
+    const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
+    page = Math.min(Math.max(0, page), pages - 1);
+    const n = filtered.length;
+    count.textContent = `${n.toLocaleString()} question${n === 1 ? "" : "s"}`;
+    list.textContent = "";
+    if (!n) list.append(el("li", { class: "wx-browse-none" },
+      "No questions match. Try another filter or fewer words."));
+    for (const r of filtered.slice(page * pageSize, (page + 1) * pageSize)) {
+      const li = el("li", { class: "wx-browse-row" + (r === selected ? " selected" : ""),
+        tabindex: "0", role: "button",
+        "aria-current": r === selected ? "true" : "false",
+        onclick: () => pick(r),
+        onkeydown: (e) => {
+          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(r); }
+        } });
+      const meta = el("div", { class: "wx-browse-meta" },
+        el("span", { class: "wx-browse-survey" }, surveyName(r.hazard)));
+      if (r.topic) meta.append(el("span", { class: "wx-browse-topic" }, r.topic));
+      const body = el("div", { class: "wx-browse-q" });
+      if (r.question_intro)
+        body.append(el("p", { class: "wx-browse-stem" }, r.question_intro));
+      const itemRow = el("div", { class: "wx-browse-itemrow" },
+        el("p", { class: "wx-browse-item" }, r.question_text || r.question));
+      // The variable name, for readers who know the data files and the R code
+      // by it. The question type is not shown on the row; it is found with
+      // the type menu or by typing it in the search.
+      if (r.variable) itemRow.append(el("code", { class: "wx-browse-var" }, r.variable));
+      if (flagCell) itemRow.append(flagCell(r));
+      body.append(itemRow);
+      li.append(meta, body);
+      list.append(li);
+    }
+    where.textContent = `Page ${page + 1} of ${pages}`;
+    prev.disabled = page === 0;
+    next.disabled = page >= pages - 1;
+  }
+
+  function pick(r) { selected = r; render(); onPick && onPick(r); }
+
+  // Select and page to the first row matching pred, for deep links and for
+  // the search above; a question the filters hide is still selected, and the
+  // list stays where it is.
+  root.selectRow = (pred) => {
+    const r = rows.find(pred);
+    if (!r) return;
+    selected = r;
+    const i = filtered.indexOf(r);
+    if (i >= 0) page = Math.floor(i / pageSize);
+    render();
+  };
+  root.selectFirst = () => root.selectRow(() => true);
+  root.rerender = render;
+  render();
+  return root;
+}
+
+/* The explore page's search: one large field over the full wording of every
+ * question, stem and item together, with matches listed as the reader types.
+ * Every word typed has to appear, in any order, so "tornado siren" finds
+ * questions using both words. Matches whose item itself contains the words
+ * come first, because the stem is shared by a whole battery and would
+ * otherwise bury the one item the reader meant. Each suggestion shows the
+ * item, the stem quietly above it where there is one, and the survey. */
+function questionSearch(questions, onPick) {
+  const LIMIT = 8;
+  const norm = (t) => String(t || "").toLowerCase();
+  const index = questions.map(r => ({
+    row: r, all: norm(r.question), item: norm(r.question_text || r.question)
+  }));
+
+  const wrap = el("section", { class: "wx-qsearch" });
+  const label = el("label", { class: "wx-qsearch-label", for: "wx-qsearch-input" },
+    "What do you want to know?");
+  const input = el("input", {
+    id: "wx-qsearch-input", class: "wx-qsearch-input", type: "search",
+    placeholder: "Search survey questions...", autocomplete: "off",
+    "aria-describedby": "wx-qsearch-hint",
+    role: "combobox", "aria-expanded": "false",
+    "aria-controls": "wx-qsearch-list", "aria-autocomplete": "list"
+  });
+  const list = el("ul", { id: "wx-qsearch-list", class: "wx-qsearch-list",
+                          role: "listbox", hidden: "" });
+  const field = el("div", { class: "wx-qsearch-field" }, input, list);
+  // Stays visible while typing, unlike a placeholder, and is not cut off on
+  // a narrow screen.
+  const hint = el("p", { id: "wx-qsearch-hint", class: "wx-qsearch-hint" },
+    "Search question text for words or phrases, e.g., risk, flood warning, " +
+    "social media");
+  wrap.append(label, field, hint);
+
+  let matches = [], active = -1;
+  const close = () => {
+    list.hidden = true; input.setAttribute("aria-expanded", "false");
+    input.removeAttribute("aria-activedescendant"); active = -1;
+  };
+  const setActive = (i) => {
+    active = i;
+    [...list.querySelectorAll(".wx-qsearch-opt")].forEach((li, j) => {
+      li.classList.toggle("active", j === i);
+      li.setAttribute("aria-selected", j === i ? "true" : "false");
+      if (j === i) {
+        input.setAttribute("aria-activedescendant", li.id);
+        li.scrollIntoView({ block: "nearest" });
+      }
+    });
+  };
+  const pick = (r) => { input.value = ""; close(); input.blur(); onPick(r); };
+
+  const render = () => {
+    const words = norm(input.value).split(/\s+/).filter(Boolean);
+    list.textContent = "";
+    if (!words.length) { close(); return; }
+    const hits = index.filter(x => words.every(w => x.all.includes(w)));
+    hits.sort((a, b) =>
+      (words.every(w => b.item.includes(w)) - words.every(w => a.item.includes(w))));
+    matches = hits.slice(0, LIMIT).map(x => x.row);
+    if (!matches.length) {
+      list.append(el("li", { class: "wx-qsearch-none" },
+        "No questions use those words. Try fewer or different ones."));
+    }
+    matches.forEach((r, i) => {
+      const li = el("li", { class: "wx-qsearch-opt", role: "option",
+                            id: `wx-qsearch-opt-${i}`, "aria-selected": "false" });
+      if (r.question_intro)
+        li.append(el("span", { class: "wx-qsearch-stem" }, r.question_intro));
+      li.append(el("span", { class: "wx-qsearch-item" }, r.question_text || r.question),
+                el("span", { class: "wx-qsearch-survey" }, r.hazard));
+      // mousedown rather than click, so the pick lands before the input's
+      // blur closes the list underneath it.
+      li.addEventListener("mousedown", (e) => { e.preventDefault(); pick(r); });
+      li.addEventListener("mousemove", () => { if (active !== i) setActive(i); });
+      list.append(li);
+    });
+    if (hits.length > LIMIT)
+      list.append(el("li", { class: "wx-qsearch-more" },
+        `Showing ${LIMIT} of ${hits.length.toLocaleString()} matches. Add a word to narrow them.`));
+    list.hidden = false; input.setAttribute("aria-expanded", "true");
+    active = -1;
+  };
+
+  input.addEventListener("input", render);
+  input.addEventListener("focus", () => { if (input.value.trim()) render(); });
+  input.addEventListener("blur", close);
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowDown" && matches.length) {
+      e.preventDefault(); if (list.hidden) render();
+      setActive(Math.min(active + 1, matches.length - 1));
+    } else if (e.key === "ArrowUp" && matches.length) {
+      e.preventDefault(); setActive(Math.max(active - 1, 0));
+    } else if (e.key === "Enter" && !list.hidden && matches.length) {
+      e.preventDefault(); pick(matches[Math.max(active, 0)]);
+    } else if (e.key === "Escape") {
+      close();
+    }
+  });
+  return wrap;
+}
 
 /* ----------------------------------------------- WxDash components ------ */
 /* Components for the WxDash bundle (compile_wxdash.R). They render only
@@ -2228,14 +2459,14 @@ function dotField(growth) {
   const heightOf = c => c.reduce((t, l) => t + l.dots, 0);
   const tallest = Math.ceil(Math.max(1, ...cols.map(heightOf)) / wide);
   const colW = wide * pitch, W = cols.length * colW + (cols.length - 1) * gapCols;
-  const H = tallest * pitch, labelH = 22;
+  const H = tallest * pitch, labelH = 30;
 
   const svg = document.createElementNS(NS, "svg");
   svg.setAttribute("viewBox", `0 0 ${W} ${H + labelH}`);
   svg.setAttribute("class", "wx-dotfield-svg");
   svg.setAttribute("role", "img");
-  svg.setAttribute("aria-label", growth.caption +
-    (years.length ? ` From ${years[0]} to ${years[years.length - 1]}.` : ""));
+  svg.setAttribute("aria-label",
+    [growth.title, growth.caption].filter(Boolean).join(". "));
   cols.forEach((col, ci) => {
     const g = document.createElementNS(NS, "g");
     g.setAttribute("class", "wx-dot-col");
@@ -2267,6 +2498,7 @@ function dotField(growth) {
   });
 
   const fig = el("figure", { class: "wx-dotfield" });
+  if (growth.title) fig.append(el("p", { class: "wx-dotfield-title" }, growth.title));
   fig.append(svg);
   const cap = el("figcaption", { class: "wx-dotfield-caption" });
   if (growth.caption) cap.append(el("span", {}, growth.caption));

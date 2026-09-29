@@ -101,13 +101,24 @@ Its judgment columns are independent and easy to confuse:
   (`RANDOM ORDER`) is **not** experimental; that would sweep in the core trend
   batteries.
 - `graphic_shown` — a graphic was displayed and the answer rests on it. Not
-  the same as the `graphics` keyword, which is a topic tag and includes
-  questions *about* maps where nothing was shown.
+  the same as a question *about* graphics: rating your understanding of maps
+  shows nothing.
 - `question_focus` — `weather` or `background`; `09` drops background items.
+- `topics` — what the question is about, from the fixed list in `topics.csv`
+  beside the sheet, whose deciding rules settle the boundaries. Usually one; a
+  second after `" | "` only where a question plainly spans two. Read off the
+  wording like the others, never inferred by rule, and read four times: a
+  first reading and three independent checkers, with every row they do not
+  all agree on decided by Joe (the skill's procedure). Two constraints are
+  checked by `09`: `Background` goes with `question_focus = background` and
+  nowhere else, and an item in a mapped measure is filed under that measure's
+  construct - reception under Getting weather information, comprehension
+  under Understanding, response under Protective actions, `risk_*` under Risk
+  perceptions - even where its wording alone would read otherwise
+  (`rec_area`).
 
-Watch two traps. `"graphics" in keywords` also matches `demographics`, so match
-keyword tokens exactly. And the option separator is `" | "`, so a pipe inside an
-option label makes `response_options` unsplittable.
+Watch one trap: the option separator is `" | "`, so a pipe inside an option
+label makes `response_options` unsplittable.
 
 The `.docx` instruments are committed beside the sheet, so a clone has the
 sources as well as the record read off them. They are about 12 MB of binaries,
@@ -167,11 +178,12 @@ that weather salience needs both items rather than one.
 **A question is a stem and an item, and they are set differently.** `08`
 records `question_intro` and `question_text` apart, and both are carried
 through beside the joined `question`. The front end sets the stem quiet, small
-and unbolded above the item, which carries the weight — in the chart heading
-and in each row of the question table. The stem is the same sentence on every
-item of a battery and the item is what changes, so without it a row of the risk
-battery reads "Tornadoes", which is not a question. Where a question has no
-item of its own — 148 of the 915 — the stem *is* the question, so it moves into
+and unbolded above the item, which carries the weight: over the chart, in
+each row of the question table and in the search suggestions. The stem is the
+same sentence on every item of a battery and the item is what changes, so
+without it a row of the risk battery reads "Tornadoes", which is not a
+question. Where a question has no item of its own
+— 148 of the 915 — the stem *is* the question, so it moves into
 `question_text` and nothing is left above it.
 
 `question` stays the one string anything needing a whole question uses: the
@@ -287,11 +299,10 @@ its own copy to history, and it cannot be taken back out without a rewrite.
 Weigh that before adding anything else large. The built site stays out of git
 as before.
 
-The map and chart PDFs are documents rather than screenshots: title, subtitle,
-plot, legends, then the page's own notes set in columns, with a footer. Their
-notes are lifted from the rendered DOM — `notesCard.innerHTML` for the map, the
-caption element for the chart — so an export cannot say something the page it
-came from does not. Three things make that layout hold: the note height is
+The map PDF is a document rather than a screenshot: title, subtitle, plot,
+legends, then the page's own notes set in columns, with a footer. Its notes
+are lifted from the rendered DOM, `notesCard.innerHTML`, so an export cannot
+say something the page it came from does not. Three things make that layout hold: the note height is
 measured before the plot is placed, so the plot takes what is left rather than
 pushing prose onto a second page; the snapshot is cropped to what was actually
 drawn, since the map container is a fixed frame the CONUS floats inside; and
@@ -300,13 +311,22 @@ second one lands under the gap between two maps instead of under its own. The
 scan sheet's PDF is a different animal — rows, not a plot — and is built by
 `scanPDF` with its own geometry.
 
-**Download R code** sits beside **Download chart (PDF)** on Explore Survey
-Questions, in a `.wx-toolbar-actions` group because `.wx-pdf-btn` takes
-`margin-left: auto` and two of them loose in the row end up at opposite ends of
-it. The scripts come from the data half, carried over like the numbers they
-rebuild, and assembly refuses to publish a site with fewer scripts than
-questions — a
-button that 404s looks to the page exactly like a network failure. It is a
+**The chart's PNG and PDF are one picture in two formats**, drawn once by
+`chartImage()`. The on-screen canvas is only as sharp as the window, so the
+chart is redrawn off screen at a fixed 1200px layout and four times the
+density, 4800px across, which holds up full-width on a slide, with
+slide-sized type, the survey, the stem, the item, and the caption's facts
+line and bars sentence read off the page, on the theme's own background. The PDF is that
+image on a page 11 inches wide cut to its height.
+
+**Download R code** sits beside the two chart downloads on Explore Survey
+Questions, as quiet links at the foot of the chart under its caption: the
+caption says who answered and where the data come from, and the script is
+part of that account. They are downloads, not view settings, so they stay out
+of "Chart options". The scripts come from the data half, carried over like the
+numbers they rebuild, and assembly refuses to publish a site with fewer
+scripts than questions: a link that 404s looks to the page exactly like a
+network failure. It is a
 download and not a panel: someone who wants the script wants it in their
 editor, not in a scrolling box.
 
@@ -340,6 +360,19 @@ appear higher up as they join; the column's own year is full strength, the
 years beneath it faded. Identity rather than an analytical figure, but every
 dot is real. Both move with each `--data` run, and the build stops if
 the per-survey counts do not add up to the total.
+
+Explore Survey Questions opens with a search over the full wording of every
+question, stem and item together (`questionSearch()`): every word typed must
+appear, matches in the item itself rank first, and a pick loads the question
+exactly as a click in the question browser does and pages the browser to it.
+
+The browser at the foot of the page (`questionBrowser()`) filters by survey,
+topic and question type, searches within what they leave, and lists ten
+questions a page as rows, not a spreadsheet. Each question carries `topic`,
+the one its row is labelled with, and `topics`, every topic it was given,
+which the Topic menu matches; both come from the sheet's `topics` column by
+way of `09_statistics.R`. The menu is disabled when the question data carries
+no topics, rather than guessing them from the wording.
 
 The quiz is the one place the builder authors claims about the data. Prompts
 are fixed, answers and reveal numbers are read off the distributions, and

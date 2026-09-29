@@ -768,7 +768,7 @@ landing_stats <- list(
   list(value = paste(nrow(hazards_data), "hazards"),
        label = paste(hazards_data$name, collapse = " · ")),
   list(value = paste(nrow(surveys_data), "surveys"),
-       label = "National samples across the United States")
+       label = "National surveys")
 )
 message("Landing: ", paste(map_chr(landing_stats, "value"), collapse = ", "))
 
@@ -886,22 +886,27 @@ config <- list(
   ),
   theme = list(default = "wxdash", allow_viewer_switch = TRUE),
   groupings = groupings_cfg,
+  # The note under each chart, in four parts: who and when as one line of
+  # facts, what the bars are, where the data come from, and the handles a
+  # reader needs to find the question again. Every {token} is filled from
+  # the question file, so no line states a figure the data does not carry.
   explore_caption = list(
-    answered = paste0("{n} US adults answered this question about ",
-                      "{hazard_phrase} {waves}. Bars show the weighted ",
-                      "percentage{split_clause} giving each answer."),
-    waves_one = "in the {years} wave",
-    waves_many = "across the {years} waves",
-    split_clause = " of each {group_phrase}",
-    smallest = " The smallest group, {smallest}, has {smallest_n} respondents.",
-    provenance = paste0("From the Extreme Weather and Society Survey, run ",
-                        "by ", INSTITUTE_LINK, ". Every wave is raked to ",
-                        "American Community Survey benchmarks for age, ",
-                        "gender, race, education, income and region, so the ",
-                        "percentages describe US adults rather than only the ",
-                        "people surveyed. This question is stored as ",
-                        "<code>{variable}</code>; the survey data is ",
-                        "available at ", ARCHIVE_LINK, ".")
+    meta = "{n} U.S. adults \u00b7 {survey} Survey \u00b7 {years}",
+    bars = "Bars show the weighted percentage selecting each response.",
+    bars_split = paste0("Bars show the weighted percentage of each ",
+                        "{group_phrase} selecting each response."),
+    smallest = paste0(" The smallest group, {smallest}, includes ",
+                      "{smallest_n} respondents."),
+    provenance = paste0(
+      "Results are from the Extreme Weather and Society Survey at the ",
+      "<a href=\"https://ippra.net\">University of Oklahoma\u2019s ",
+      "Institute for Public Policy Research and Analysis</a>. Survey weights ",
+      "adjust each wave to American Community Survey benchmarks for age, ",
+      "gender, race, education, income, and region."),
+    reference = paste0(
+      "Variable: <code>{variable}</code> \u00b7 Data: ",
+      "<a href=\"https://dataverse.harvard.edu/dataverse/wxsurvey\">",
+      "Extreme Weather and Society Survey Dataverse</a>")
   ),
   catalog = catalog,
   map = list(
@@ -936,10 +941,7 @@ config <- list(
       "poststratification (MRP), which combines the survey with US Census ",
       "population data.</p><p>Alert-day counts are different: they are ",
       "observed National Weather Service records, not estimates. Methods ",
-      "and publications are on the About page.</p>"),
-    weighted_pct = paste0("Percentages are weighted so results represent US ",
-                          "adults as a whole, not just the people who ",
-                          "happened to take the survey.")
+      "and publications are on the About page.</p>")
   ),
   pages = list(
     list(id = "home", component = "wx_landing", label = "Home",
@@ -952,8 +954,7 @@ config <- list(
                            "for Weather Risk Communication"),
            intro = paste0("Effective weather risk communication requires ",
                           "information about both the weather and the ",
-                          "people and communities receiving forecasts and ",
-                          "warnings."),
+                          "people receiving forecasts and warnings."),
            statement = list(
              paste0("We have tremendous amounts of data about the ",
                     "atmosphere."),
@@ -962,16 +963,19 @@ config <- list(
            description = paste0(
              "The Extreme Weather and Society Survey is a long-term effort ",
              "to help fill this gap. Through recurring national surveys and ",
-             "experiments across a range of weather hazards, the project ",
-             "collects consistent data on what people know, what they ",
+             "experiments, the project collects consistent data on what ",
+             "people know, what they ",
              "misunderstand, which sources they use and trust, and how they ",
              "interpret and respond to weather information.")),
          growth = list(years = seq(year_span[1], year_span[2]),
                        surveys = growth_data,
                        hazards = hazards_data$name,
                        per_dot = 50,
-                       caption = paste0("Each dot is 50 survey respondents, ",
-                                        "accumulated year by year.")),
+                       title = "A growing evidence base",
+                       caption = paste0("Each dot represents 50 survey ",
+                                        "respondents, accumulated across ",
+                                        "surveys from ", year_span[1], " to ",
+                                        year_span[2], ".")),
          stats = landing_stats,
          sections = list(
            list(columns = list(
@@ -998,22 +1002,22 @@ config <- list(
                     "the project to address emerging challenges."))))),
          explore = list(
            heading = "Explore the Data",
-           intro = paste0("The value of these data comes from putting them ",
-                          "to use. Explore the survey itself, examine ",
-                          "differences across communities, or see how well ",
-                          "your assumptions about the public match what the ",
-                          "data tell us."),
+           intro = paste0("Explore survey questions and results, examine ",
+                          "differences across communities, or test what you ",
+                          "know about the people receiving weather ",
+                          "information."),
            cards = list(
              list(page = "survey", label = "Explore Survey Questions",
-                  body = paste0("Browse survey questions and results across ",
+                  body = paste0("Browse questions and results across ",
                                 "hazards, years, demographic groups, and ",
                                 "other characteristics."),
                   cta = "Explore the Survey \u2192"),
              list(page = "map", label = "Explore Communities",
-                  body = paste0("Explore how knowledge, understanding, ",
-                                "trust, and response vary across ",
-                                "communities and National Weather Service ",
-                                "forecast offices."),
+                  body = paste0("See how people receive, understand, and ",
+                                "respond to warnings, and how they perceive ",
+                                "risk, across National Weather Service ",
+                                "forecast office areas, beside each area's ",
+                                "alert history."),
                   cta = "Explore Communities \u2192"),
              list(page = "quiz", label = "Test Your Knowledge",
                   body = paste0("How well do you know the people receiving ",
@@ -1022,15 +1026,19 @@ config <- list(
                   cta = "Take the Quiz \u2192")))),
     list(id = "survey", component = "explore",
          label = "Explore Survey Questions",
-         title = "Survey questions",
+         title = "Explore Survey Questions",
          questions = "data/questions.json", default_grouping = "All",
-         intro = paste0("Click a survey question in the table below to see ",
-                        "the weighted distribution of responses, split by ",
-                        "the group you choose. Questions come from four ",
-                        "yearly surveys — severe weather (WX), tropical ",
-                        "cyclones (TC), winter weather (WW), and flooding ",
-                        "(FL)."),
-         chart = list(x_label = "Response", y_label = "Respondents (%)"),
+         # The count is read, not typed: rounded down to the hundred below
+         # it, so "more than" stays true as questions are added or hidden.
+         intro = paste0("Explore what Americans know, believe, and do when ",
+                        "it comes to extreme weather. Browse more than ",
+                        floor((length(q_files) - 1) / 100) * 100, " survey ",
+                        "questions across severe weather, tropical weather, ",
+                        "winter weather, and flooding. Select any question ",
+                        "to see national results or compare responses ",
+                        "across different groups."),
+         # No title on the response axis: its labels are the answers.
+         chart = list(y_label = "Respondents (%)"),
          blurb = blurbs$survey),
     list(id = "map", component = "wx_map_explorer",
          label = "Explore Communities",
