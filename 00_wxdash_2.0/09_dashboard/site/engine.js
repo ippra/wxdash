@@ -10,9 +10,6 @@
  * question explorer), wx_map_explorer, wx_landing, wx_quiz, static_page.
  * Each receives (pageConfig, container) and renders itself from the files it
  * references.
- *
- * Forked 2026-08-14 from the ShinyRails shared engine (which continues to
- * serve S3OK); this copy serves WxDash alone and is maintained here.
  */
 
 "use strict";
@@ -20,8 +17,8 @@
 window.WX_ENGINE_LOADED = true; // watchdog diagnostics: proves this file executed
 
 const BUNDLE = (() => {
-  // Pre-rendered place-profile stubs live at <bundle>/cwa/XXX/ and set
-  // window.WX_BUNDLE = "../../" so fetches resolve to the bundle root.
+  // A page served from a subdirectory sets window.WX_BUNDLE (e.g. "../../")
+  // so fetches resolve to the bundle root; ?bundle= does the same.
   const p = window.WX_BUNDLE ||
     new URLSearchParams(location.search).get("bundle") || "./";
   return p.endsWith("/") ? p : p + "/";
@@ -32,8 +29,8 @@ const jsonCache = new Map();
 
 async function fetchJSON(rel) {
   if (jsonCache.has(rel)) return jsonCache.get(rel);
-  // Build stamp (set by the bundle's index.html) busts long-lived caches —
-  // the c.itation.net Rails static handler serves a 1-year max-age.
+  // Build stamp (set by the bundle's index.html) busts long-lived host
+  // caches on every deploy.
   const bust = window.WX_BUILD
     ? (rel.includes("?") ? "&" : "?") + "v=" + window.WX_BUILD : "";
   const res = await fetch(BUNDLE + rel + bust);
@@ -80,7 +77,6 @@ const naLabel = (v) => (v == null ? "NA" : v);
  * before switching. Every access is guarded — a browser set to block site data
  * throws on the accessor itself rather than returning empty. */
 const FLAGS_KEY = "wxdash-flags";
-const DISPOSITIONS = ["hide", "needs-context", "experiments-page"];
 const flaggingOn = () => new URLSearchParams(location.search).get("flag") === "1";
 
 function readFlags() {
@@ -93,12 +89,42 @@ function writeFlags(f) {
   try { localStorage.setItem(FLAGS_KEY, JSON.stringify(f)); } catch { /* no store */ }
 }
 
-// Same columns the build reads, so an export can be dropped straight in.
+// Same columns the build reads, so an export can be dropped straight in;
+// every row is `hide`, and a different disposition or a note is set in the
+// file itself.
 function flagsToCSV(flags) {
   const q = (v) => `"${String(v == null ? "" : v).replace(/"/g, '""')}"`;
   const rows = Object.entries(flags).map(([id, f]) =>
     [id, f.disposition || "hide", f.note || "", f.question || ""].map(q).join(","));
   return ["id,disposition,note,question", ...rows].join("\n") + "\n";
+}
+
+/* Saved questions ------------------------------------------------------------
+ * A reader's own list, for keeping track of questions while browsing: "Save"
+ * beside the question heading, and a panel at the foot of the explorer that
+ * appears once something is saved. Kept apart from the flags above, so saving
+ * a question to read later never feeds the hide list. In localStorage for
+ * the same reason the flags are, which makes it per-browser; the panel says
+ * so, and the download is how a list is kept. Guarded the same way. */
+const SAVED_KEY = "wxdash-saved";
+
+function readSaved() {
+  try {
+    const list = JSON.parse(localStorage.getItem(SAVED_KEY) || "[]");
+    return Array.isArray(list) ? list : [];
+  } catch { return []; }
+}
+
+function writeSaved(list) {
+  try { localStorage.setItem(SAVED_KEY, JSON.stringify(list)); } catch { /* no store */ }
+}
+
+// What a reader needs to find each question again in the released data.
+function savedToCSV(list) {
+  const q = (v) => `"${String(v == null ? "" : v).replace(/"/g, '""')}"`;
+  const rows = list.map(x =>
+    [x.survey, x.years, x.question, x.variable].map(q).join(","));
+  return ["survey,years,question,variable", ...rows].join("\n") + "\n";
 }
 
 /* A split-sample question nests its splits and summaries one level deeper,
@@ -153,7 +179,7 @@ function viridis(n) {
   return out;
 }
 
-// cividis (viridisLite option "cividis") — WxDash difference maps/scatter.
+// cividis (viridisLite option "cividis").
 const CIVIDIS_STOPS = [
   [0,32,76],[0,36,86],[0,40,97],[0,44,108],[0,48,115],[9,53,116],[26,57,117],
   [37,62,117],[46,66,117],[54,71,118],[61,75,118],[68,80,119],[74,84,120],
@@ -171,17 +197,16 @@ const GREYS_STOPS = [
   [115,115,115],[82,82,82],[37,37,37]
 ];
 
-// Drought-engine idea, scoped: in the greyscale accessibility theme the maps
-// repaint in greys (one-motion theme switch); every other theme keeps the
-// viridis/cividis data palettes (parity look + colorblind-safe). Charts are
-// untouched — this applies to choropleths/scatter ramps only.
+// In the greyscale accessibility theme the maps repaint in greys, so one
+// theme switch covers them; every other theme keeps the chosen color scheme.
+// Charts are untouched: this applies to choropleth ramps only.
 function dataStops(stops) {
   return document.documentElement.dataset.theme === "greyscale" ? GREYS_STOPS : stops;
 }
 
 // Continuous colour ramp over stop array; t clamped to [0,1]. Used by the
 // choropleth components (clamping is a deliberate deviation from R
-// colorNumeric, which paints out-of-domain values grey — see deviations).
+// colorNumeric, which paints out-of-domain values grey).
 function rampColor(stops, t) {
   t = Math.max(0, Math.min(1, t));
   const x = t * (stops.length - 1);
@@ -190,11 +215,12 @@ function rampColor(stops, t) {
   return `rgb(${c[0]},${c[1]},${c[2]})`;
 }
 
-/* ---- user-facing data-color schemes (Joe's demo, Aug 2026) --------------
- * The two explorer tabs open in blue and offer viridis and print-safe grey
- * as viewer choices; every other surface keeps the approved viridis look,
+/* ---- user-facing data-color schemes -------------------------------------
+ * The two explore pages open in blue and offer viridis and print-safe grey
+ * as viewer choices. Blue is the default without being first in the menu,
  * which is why the default lives here rather than in the scheme list order.
- * The greyscale accessibility theme still overrides ramps via dataStops(). */
+ * The greyscale accessibility theme still overrides map ramps via
+ * dataStops(). */
 const BLUES_STOPS = [
   [239,243,255],[198,219,239],[158,202,225],[107,174,214],
   [66,146,198],[33,113,181],[8,69,148]
@@ -231,7 +257,7 @@ function schemeSelect(current, onChange) {
   return wrap;
 }
 
-/* ---- PDF export (Joe's demo affordance; jsPDF vendored per bundle) ------ */
+/* ---- PDF export (jsPDF vendored with the site) -------------------------- */
 // Crop the flat backdrop off a snapshot, so what lands in a document is the
 // map rather than the map plus the empty frame around it. The frame is a
 // fixed-size container the CONUS floats in; left in, it shrinks the plot and
@@ -269,239 +295,156 @@ function trimCanvas(src, bg) {
   return out;
 }
 
-// Nearest ancestor with a background that actually paints, white if none does.
-function opaqueBackdrop(node) {
-  for (let n = node; n && n !== document.documentElement; n = n.parentElement) {
-    const bg = getComputedStyle(n).backgroundColor;
-    if (bg && bg !== "transparent" && !/rgba\(\s*0,\s*0,\s*0,\s*0\s*\)/.test(bg))
-      return bg;
-  }
-  return "#ffffff";
-}
+/* A figure to take away - a chart or a map - drawn once for both downloads,
+ * so the PNG and the PDF are the same picture in two formats, and drawn the
+ * same way on every page. A fixed 1200px layout at four times the pixel
+ * density, 4800px across, holds up full-width on a slide. Above the figure:
+ * a small label, an optional stem, the title. Below it: the page's own
+ * caption lines and a source line, so it still says what it shows once it
+ * has left the page. On the page's own background, so a dark theme exports
+ * legibly.
+ *
+ * `body` is { height, draw(ctx, x, y, width) }, drawn into a context already
+ * scaled to the figure's density. */
+const FIGURE = { S: 4, W: 1200, pad: 48 };
+// Every download names its source in the same first sentence; each page adds
+// one sentence on method.
+const FIGURE_SOURCE = "Source: Extreme Weather and Society Survey, University " +
+  "of Oklahoma Institute for Public Policy Research and Analysis.";
+function figureImage({ label, stem, title, body, lines = [], source }) {
+  const { S, W, pad } = FIGURE, inner = W - pad * 2;
+  const css = getComputedStyle(document.body);
+  const tok = (n, d) => css.getPropertyValue(n).trim() || d;
+  const bg = tok("--panel", "#ffffff"), ink = tok("--text", "#1f1d2b");
+  const muted = tok("--text-muted", "#5f5a73"), accent = tok("--accent", "#443a83");
+  const family = css.fontFamily, mono = tok("--mono", "monospace");
 
-// Composite every Leaflet canvas in the map element (basemap + choropleth
-// share the map-level canvas renderer; getBoundingClientRect resolves the
-// pane transforms). No tiles, no external images — canvas stays untainted.
-function mapSnapshot(mapEl) {
-  const r = mapEl.getBoundingClientRect();
-  const out = document.createElement("canvas");
-  out.width = Math.round(r.width * 2); out.height = Math.round(r.height * 2);
-  const ctx = out.getContext("2d");
-  // The map itself is transparent, so the paper color has to come from the
-  // first ancestor that paints one — filling with rgba(0,0,0,0) would leave
-  // the snapshot transparent and the PDF would render it black.
-  ctx.fillStyle = opaqueBackdrop(mapEl);
-  ctx.fillRect(0, 0, out.width, out.height);
-  mapEl.querySelectorAll("canvas").forEach(cv => {
-    const cr = cv.getBoundingClientRect();
-    // drawImage ignores CSS, so any opacity a pane carries has to be walked
-    // up and applied by hand or it is lost in the composite.
-    let alpha = 1, node = cv;
-    while (node && node !== mapEl) {
-      alpha *= parseFloat(getComputedStyle(node).opacity) || 1;
-      node = node.parentElement;
+  const measure = document.createElement("canvas").getContext("2d");
+  const wrapText = (text, font) => {
+    measure.font = font;
+    const words = String(text || "").split(/\s+/).filter(Boolean);
+    const out = []; let line = "";
+    for (const w of words) {
+      const t = line ? line + " " + w : w;
+      if (line && measure.measureText(t).width > inner) { out.push(line); line = w; }
+      else line = t;
     }
-    ctx.globalAlpha = alpha;
-    ctx.drawImage(cv, (cr.left - r.left) * 2, (cr.top - r.top) * 2, cr.width * 2, cr.height * 2);
-    ctx.globalAlpha = 1;
-  });
-  return trimCanvas(out, ctx.fillStyle);
-}
-// Two map snapshots on one canvas, in the order they sit on the page, so a
-// side-by-side comparison prints as the comparison it is.
-function mapPairSnapshot(elA, elB) {
-  const a = mapSnapshot(elA), b = mapSnapshot(elB);
-  const gap = 28;
-  const out = document.createElement("canvas");
-  out.width = a.width + gap + b.width;
-  out.height = Math.max(a.height, b.height);
-  const ctx = out.getContext("2d");
-  ctx.fillStyle = opaqueBackdrop(elA);
-  ctx.fillRect(0, 0, out.width, out.height);
-  // Trimmed snapshots can differ by a pixel or two in height; centring keeps
-  // the two coastlines on the same line.
-  ctx.drawImage(a, 0, (out.height - a.height) / 2);
-  ctx.drawImage(b, a.width + gap, (out.height - b.height) / 2);
-  return out;
-}
-
-// Page prose as a flat block list the PDF flow can set: the lede becomes a
-// heading, list items keep their bullet, everything else is a paragraph.
-// Reading it off the rendered page rather than re-authoring it is what keeps
-// a downloaded sheet saying the same thing as the screen it came from.
-function htmlBlocks(html) {
-  const root = document.createElement("div");
-  root.innerHTML = String(html || "");
-  const txt = (n) => (n.textContent || "").replace(/\s+/g, " ").trim();
-  const out = [];
-  (function walk(node) {
-    for (const n of node.children) {
-      const tag = n.tagName.toLowerCase();
-      if (tag === "ul" || tag === "ol") {
-        for (const li of n.children) { const t = txt(li); if (t) out.push({ type: "li", text: t }); }
-      } else if (tag === "div" || tag === "section") {
-        walk(n);
-      } else if (tag === "hr") {
-        continue;
-      } else {
-        const t = txt(n);
-        if (!t) continue;
-        const head = /^h[1-6]$/.test(tag) || n.classList.contains("wx-lede");
-        out.push({ type: head ? "h" : "p", text: t });
-      }
-    }
-  })(root);
-  return out;
-}
-
-/* A standalone one-or-more page document: header, the plot, its legends, and
- * the page's own notes set in columns underneath, with a footer on every
- * page. The notes are the point — a map or a chart lifted out of the site
- * with no statement of what was asked, how it was scored or where it came
- * from is not something anyone can hand to a third party. */
-function pdfDocument({ title, subtitle, canvas, legends, notesHTML, filename }) {
-  if (!window.jspdf) { alert("The PDF library did not load — try reloading the page."); return; }
-  const landscape = canvas.width >= canvas.height;
-  const doc = new window.jspdf.jsPDF({
-    orientation: landscape ? "l" : "p", unit: "pt", format: "letter" });
-  const pw = doc.internal.pageSize.getWidth(), ph = doc.internal.pageSize.getHeight();
-  const M = 44;
-  const INK = [46, 42, 87], BODY = [35, 33, 48], GREY = [110, 115, 122],
-        RULE = [214, 214, 224];
-  const legendList = (legends == null ? [] : [].concat(legends)).filter(Boolean);
-  const project = (CONFIG.project && CONFIG.project.nav_subtitle) || "WxDash";
-  const stamp = new Date().toLocaleDateString(undefined,
-    { year: "numeric", month: "long", day: "numeric" });
-
-  const footer = () => {
-    const y = ph - 26;
-    doc.setDrawColor(...RULE); doc.setLineWidth(0.5);
-    doc.line(M, y - 10, pw - M, y - 10);
-    doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(...GREY);
-    doc.text(project, M, y);
-    doc.text(`Downloaded ${stamp}`, pw - M, y, { align: "right" });
+    if (line) out.push(line);
+    return out;
   };
-
-  // --- header
-  doc.setFont("helvetica", "bold"); doc.setFontSize(14); doc.setTextColor(...INK);
-  const titleLines = doc.splitTextToSize(String(title || ""), pw - 2 * M);
-  doc.text(titleLines, M, M + 10);
-  let y = M + 10 + titleLines.length * 17;
-  if (subtitle) {
-    doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(...GREY);
-    const subLines = doc.splitTextToSize(String(subtitle), pw - 2 * M);
-    doc.text(subLines, M, y);
-    y += subLines.length * 11;
-  }
-  y += 6;
-  doc.setDrawColor(...RULE); doc.setLineWidth(0.5);
-  doc.line(M, y, pw - M, y);
-  y += 16;
-
-  // --- how much room the notes need, before the plot claims the page.
-  // Measured with the same wrapping the flow will use, so the plot can be
-  // sized to leave exactly enough and the document comes out one page.
-  const blocks = htmlBlocks(notesHTML);
-  const gap = 30;
-  const contentW = pw - 2 * M;
-  // Two columns only when there is enough prose to fill them — a short
-  // caption set in two columns leaves one of them empty. A lone column runs
-  // the full width of the page rather than a reading measure: the notes are
-  // the foot of a one-page document, and a narrow block of text under a
-  // full-width plot reads as an unfinished page.
-  const long = blocks.reduce((n, b) => n + b.text.length, 0) > 700;
-  const cols = long ? 2 : 1;
-  const colW = long ? (contentW - gap) / 2 : contentW;
-  const style = {
-    h:  { size: 9.5, font: "bold",   color: INK,  before: 4, after: 4, lead: 12, indent: 0 },
-    p:  { size: 8.5, font: "normal", color: BODY, before: 0, after: 7, lead: 11, indent: 0 },
-    li: { size: 8.5, font: "normal", color: BODY, before: 0, after: 4, lead: 11, indent: 11 }
+  const block = (text, size, weight, color, lead, gap, face = family) => {
+    if (!text) return null;
+    const font = `${weight} ${size}px ${face}`;
+    return { lines: wrapText(text, font), font, color, lead, gap };
   };
-  const measured = blocks.map(b => {
-    const st = style[b.type];
-    doc.setFont("helvetica", st.font); doc.setFontSize(st.size);
-    const lines = doc.splitTextToSize(b.text, colW - st.indent);
-    return { b, st, lines, height: st.before + lines.length * st.lead + st.after };
-  });
-  // Column breaks land on block boundaries, so the flow runs a little taller
-  // than an even split of the total.
-  const notesH = measured.length
-    ? measured.reduce((n, m) => n + m.height, 0) / cols * 1.12 : 0;
+  const head = [
+    block(label && String(label).toUpperCase(), 13, 600, accent, 18, 12, mono),
+    block(stem, 17, 400, muted, 25, 8),
+    block(title, 30, 700, ink, 38, 22)
+  ].filter(Boolean);
+  const foot = [
+    ...lines.map((l, i) => block(l.text, 15, l.strong ? 600 : 400,
+      l.strong ? ink : muted, 22, i === lines.length - 1 ? 6 : 4)),
+    block(source, 13, 400, muted, 19, 0)
+  ].filter(Boolean);
+  const heightOf = (bs) => bs.reduce((t, b) => t + b.lines.length * b.lead + b.gap, 0);
+  const H = pad + heightOf(head) + body.height + 22 + heightOf(foot) + pad;
 
-  // --- plot, sized to what the page has left once the notes are allowed for
-  const bottom = ph - 46;
-  const maxW = contentW;
-  const legendH = legendList.length ? 36 : 0;
-  const room = bottom - y - legendH - notesH - 16;
-  const maxH = Math.max(ph * 0.26, Math.min(ph * 0.52, room));
-  const scale = Math.min(maxW / canvas.width, maxH / canvas.height);
-  const w = canvas.width * scale, h = canvas.height * scale;
-  const imgX = M + (maxW - w) / 2;
-  doc.addImage(canvas.toDataURL("image/png"), "PNG", imgX, y, w, h);
-  y += h + 16;
-
-  // --- legends, each under the map it describes. Anchored to the image
-  // rather than the page margin: the plot is centred and, when two maps are
-  // composited, a second legend measured from the margin lands under the gap
-  // between them instead of under its own map.
-  legendList.forEach((lg, i) => {
-    const slot = w / legendList.length;
-    const lx = imgX + i * slot;
-    const lw = Math.min(200, slot - 24), steps = 55;
-    doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(...BODY);
-    doc.text(String(lg.title || ""), lx, y);
-    for (let k = 0; k < steps; k++) {
-      const c = rampColor(lg.stops, k / (steps - 1)).match(/\d+/g).map(Number);
-      doc.setFillColor(c[0], c[1], c[2]);
-      doc.rect(lx + (lw / steps) * k, y + 4, lw / steps + 0.5, 9, "F");
+  const out = document.createElement("canvas");
+  out.width = W * S; out.height = Math.ceil(H * S);
+  const ctx = out.getContext("2d");
+  ctx.scale(S, S);
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+  ctx.textBaseline = "alphabetic";
+  let y = pad;
+  const paint = (bs) => {
+    for (const b of bs) {
+      ctx.font = b.font; ctx.fillStyle = b.color;
+      for (const ln of b.lines) { y += b.lead; ctx.fillText(ln, pad, y - b.lead * 0.25); }
+      y += b.gap;
     }
-    // lg.fmt keeps 1-5 estimate ends readable ("1.5", not "2") while
-    // alert-day counts stay whole numbers.
-    const lf = lg.fmt || ((v) => String(Math.round(v)));
-    doc.setFontSize(7.5); doc.setTextColor(...GREY);
-    doc.text(lf(lg.domain[0]), lx, y + 22);
-    doc.text(lf((lg.domain[0] + lg.domain[1]) / 2), lx + lw / 2, y + 22, { align: "center" });
-    doc.text(lf(lg.domain[1]), lx + lw, y + 22, { align: "right" });
-  });
-  if (legendList.length) y += 36;
+  };
+  paint(head);
+  ctx.save(); body.draw(ctx, pad, y, inner, { ink, muted, accent, family, mono }); ctx.restore();
+  y += body.height + 22;
+  paint(foot);
+  return { canvas: out, width: W, height: H };
+}
 
-  // --- notes, flowed into the columns measured above
-  if (measured.length) {
-    let col = 0, top = y, cy = y;
-    const colX = () => M + col * (colW + gap);
-    const nextColumn = () => {
-      if (col === 0 && cols === 2) { col = 1; cy = top; return; }
-      footer(); doc.addPage(); col = 0; top = M; cy = M;
+// Saves a figure as a PNG, or as a PDF page 11 inches wide cut to the
+// figure's height so nothing is letterboxed or cropped.
+function saveFigure(img, name, kind) {
+  if (!img) return;
+  if (kind === "pdf") {
+    if (!window.jspdf) { alert("The PDF library did not load - try reloading the page."); return; }
+    const w = 792, h = w * img.height / img.width;
+    const doc = new window.jspdf.jsPDF({
+      orientation: w > h ? "l" : "p", unit: "pt", format: [w, h] });
+    doc.addImage(img.canvas, "PNG", 0, 0, w, h, undefined, "FAST");
+    doc.save(name);
+    return;
+  }
+  img.canvas.toBlob((blob) => {
+    if (!blob) return;
+    const url = URL.createObjectURL(blob);
+    const a = el("a", { href: url, download: name });
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }, "image/png");
+}
+
+/* A Leaflet map redrawn as vectors at the figure's density. Leaflet paints
+ * its canvas at screen resolution, which pixelates on a slide, so the paths
+ * are drawn again from the positions and styles Leaflet has already worked
+ * out: the same frame, colors, borders and outline as on screen, sharp at
+ * any size. Layers go in the order they were added, which is the order
+ * Leaflet stacks them. */
+function vectorMap(lmap, S, bg) {
+  const size = lmap.getSize();
+  const cv = document.createElement("canvas");
+  cv.width = Math.round(size.x * S); cv.height = Math.round(size.y * S);
+  const ctx = cv.getContext("2d");
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, cv.width, cv.height);
+  ctx.scale(S, S);
+  ctx.lineJoin = "round";
+  const layers = [];
+  lmap.eachLayer(l => { if (l instanceof L.Polyline) layers.push(l); });
+  layers.sort((a, b) => L.stamp(a) - L.stamp(b));
+  for (const l of layers) {
+    const o = l.options, isPoly = l instanceof L.Polygon;
+    ctx.beginPath();
+    const walk = (a) => {
+      if (!a.length) return;
+      if (a[0].lat !== undefined) {
+        a.forEach((p, i) => {
+          const q = lmap.latLngToContainerPoint(p);
+          if (i) ctx.lineTo(q.x, q.y); else ctx.moveTo(q.x, q.y);
+        });
+        if (isPoly) ctx.closePath();
+      } else a.forEach(walk);
     };
-    for (const { b, st, lines } of measured) {
-      doc.setFont("helvetica", st.font); doc.setFontSize(st.size);
-      // Never leave a heading stranded at the foot of a column.
-      const need = st.before + lines.length * st.lead +
-        (b.type === "h" ? style.p.lead : 0);
-      if (cy + need > bottom && !(cy === top)) nextColumn();
-      cy += st.before;
-      doc.setTextColor(...st.color);
-      for (const line of lines) {
-        if (cy + st.lead > bottom) { nextColumn(); doc.setFont("helvetica", st.font); doc.setFontSize(st.size); doc.setTextColor(...st.color); }
-        if (b.type === "li" && line === lines[0]) {
-          doc.text("•", colX(), cy + st.lead - 3);
-        }
-        doc.text(line, colX() + st.indent, cy + st.lead - 3);
-        cy += st.lead;
-      }
-      cy += st.after;
+    walk(l.getLatLngs());
+    if (isPoly && o.fill !== false) {
+      ctx.globalAlpha = o.fillOpacity == null ? 0.2 : o.fillOpacity;
+      ctx.fillStyle = o.fillColor || o.color;
+      ctx.fill("evenodd");
     }
+    if (o.stroke !== false && o.weight > 0) {
+      ctx.globalAlpha = o.opacity == null ? 1 : o.opacity;
+      ctx.strokeStyle = o.color; ctx.lineWidth = o.weight;
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
   }
-  footer();
-  doc.save(filename || "wxdash.pdf");
+  return trimCanvas(cv, bg);
 }
 
 function pdfButton(label, onClick) {
   return el("button", { class: "wx-pdf-btn", onclick: onClick }, label);
 }
 
-// Charts owned by the current page (WxDash pages can hold several); destroyed
-// on navigation alongside the legacy single activeChart.
+// Charts owned by the current page (a page can hold several); destroyed on
+// navigation alongside activeChart, the one renderGroupedBar keeps.
 let pageCharts = [];
 function trackChart(c) { pageCharts.push(c); return c; }
 
@@ -581,7 +524,7 @@ function groupingSelect(onChange, initial, labelText = "Select a grouping") {
    data (which preserves R's factor-level ordering from the compiler), unless
    an explicit categoryOrder is supplied by config. */
 let activeChart = null;
-function groupedBarChart(canvas, rows, { title = "", xLabel = "", yLabel = "", categoryOrder = null, showCI = false, horizontal = false, colors = null, legend = true, legendTitle = "Group", standalone = false, pixelRatio = null, labelSize = null }) {
+function groupedBarChart(canvas, rows, { title = "", xLabel = "", yLabel = "", categoryOrder = null, showCI = false, horizontal = false, colors = null, legend = true, legendTitle = "Group", standalone = false, pixelRatio = null, labelSize = null, highlight = null, altTitle = "" }) {
   const groupsSeen = [], catsSeen = [];
   for (const r of rows) {
     const g = naLabel(r.group), c = naLabel(r.category);
@@ -596,9 +539,25 @@ function groupedBarChart(canvas, rows, { title = "", xLabel = "", yLabel = "", c
   }
   const lookup = new Map(rows.map(r => [naLabel(r.group) + "\x1F" + naLabel(r.category), r]));
   colors = colors || viridis(groupsSeen.length);
+  // `highlight` ({ categories, group }) keeps the named bars at full color and
+  // fades the rest, so a chart can show which bars an answer is made of.
+  const lit = (g, c) => !highlight ||
+    ((!highlight.categories || highlight.categories.has(c)) &&
+     (!highlight.group || highlight.group === g));
+  // On a chart split by group a highlighted bar also takes an outline in the
+  // theme's ink: the group an answer names can have the palest color in the
+  // ramp, and fading the others alone would leave it no darker than them.
+  const ink = getComputedStyle(document.body).getPropertyValue("--text").trim() || "#000";
+  const outline = highlight && highlight.group && groupsSeen.length > 1;
   const datasets = groupsSeen.map((g, i) => ({
     label: g,
-    backgroundColor: colors[i],
+    backgroundColor: highlight
+      ? cats.map(c => lit(g, c) ? colors[i] : fadeColor(colors[i], outline ? 0.14 : 0.22))
+      : colors[i],
+    ...(outline && !showCI ? {
+      borderColor: cats.map(c => lit(g, c) ? ink : "rgba(0,0,0,0)"),
+      borderWidth: cats.map(c => lit(g, c) ? 1.5 : 0)
+    } : {}),
     data: cats.map(c => {
       const r = lookup.get(g + "\x1F" + c);
       return r ? r.value : null;
@@ -626,7 +585,7 @@ function groupedBarChart(canvas, rows, { title = "", xLabel = "", yLabel = "", c
       responsive: !standalone,
       maintainAspectRatio: false,
       ...(standalone ? { animation: false, devicePixelRatio: pixelRatio || 1 } : {}),
-      // horizontal (Joe's Aug-2026 explorer): categories run down the y-axis
+      // horizontal: categories run down the y-axis
       indexAxis: horizontal ? "y" : "x",
       interaction: { mode: "nearest", intersect: false, axis: horizontal ? "y" : "x" },
       layout: { padding: horizontal ? { right: 48 } : { top: 24 } },
@@ -636,7 +595,14 @@ function groupedBarChart(canvas, rows, { title = "", xLabel = "", yLabel = "", c
         // legend:false for single-group charts (quiz reveal) — a one-entry
         // "Group: All" legend is noise.
         legend: legend ? { position: "bottom",
-                           title: { display: !!legendTitle, text: legendTitle } }
+                           title: { display: !!legendTitle, text: legendTitle },
+                           // A highlight fades bars, not the key: each group
+                           // keeps its full color there.
+                           ...(highlight ? { labels: { generateLabels: (ch) =>
+                             Chart.defaults.plugins.legend.labels.generateLabels(ch)
+                               .map((it, i) => Object.assign(it, {
+                                 fillStyle: colors[i], strokeStyle: colors[i],
+                                 lineWidth: 0 })) } } : {}) }
           : { display: false },
         datalabels: showCI ? { display: false } : {
           anchor: "end", align: "end", offset: 0, clip: false,
@@ -659,38 +625,171 @@ function groupedBarChart(canvas, rows, { title = "", xLabel = "", yLabel = "", c
         }
       },
       scales: horizontal ? {   // xLabel/yLabel keep their meaning: category / value
-        y: { title: { display: !!xLabel, text: xLabel }, grid: { display: false } },
+        // Every category keeps its label: Chart.js drops alternate ones when
+        // they crowd, which leaves a bar with nothing to say what it is.
+        y: { title: { display: !!xLabel, text: xLabel }, grid: { display: false },
+             ticks: { autoSkip: false } },
         x: { title: { display: !!yLabel, text: yLabel }, beginAtZero: true, grace: "15%" }
       } : {
-        x: { title: { display: !!xLabel, text: xLabel }, grid: { display: false } },
+        x: { title: { display: !!xLabel, text: xLabel }, grid: { display: false },
+             ticks: { autoSkip: false } },
         y: { title: { display: !!yLabel, text: yLabel }, beginAtZero: true, grace: "15%" }
       }
     },
     plugins: [ChartDataLabels, ErrorBarsPlugin]   // ErrorBarsPlugin no-ops without errorLow
   });
-  if (!standalone) activeChart = chart;
+  if (!standalone) {
+    activeChart = chart;
+    // altTitle names what the chart answers (the question) for the spoken
+    // label, where the drawn chart has no title of its own.
+    chartAlt(canvas, { cats, groups: groupsSeen, lookup, valueLabel: yLabel,
+      title: altTitle || title, highlight: highlight ? lit : null });
+  }
   return chart;
+}
+
+/* Question wording with its survey placeholders made readable. The
+   instruments pipe text into questions ("[rand_evnt_snow]", "[lead_time: 15 |
+   30 | 60]", "rand_timeline"); a reader should see what was shown, not a
+   variable name. A split-sample question's own variable becomes the version
+   selected, in bold; a placeholder carrying its values becomes that list
+   ("[15, 30, or 60]", "[5 to 100]"); a known one takes its words from the
+   config; anything else reads "[varied between respondents]". Returns DOM
+   nodes, the plain text, and the variable names that varied (for the note). */
+function readableWording(text, id, armLabel = null, armId = null) {
+  const words = CONFIG.placeholders || {};
+  const armVar = (CONFIG.arm_variables || {})[id];
+  const nodes = [], varied = [];
+  let plain = "", last = 0, m;
+  const re = /\[([a-z][a-z0-9_]*)(?::\s*([^\]]*))?\]|\b(rand_[a-z0-9_]+)\b/g;
+  const push = (t) => { if (t) { nodes.push(t); plain += t; } };
+  const listOf = (spec) => {
+    // A value that depends on another placeholder ("2 and 6 if
+    // amount_format_rand1 = 4, or 10 and 14 if ...") keeps its alternatives
+    // and drops the conditions, which only name variables.
+    if (/\sif\s/.test(spec)) {
+      return spec.replace(/\s+if\s+[a-z][a-z0-9_]*\s*=\s*[^,\]]+/g, "").trim();
+    }
+    const range = spec.match(/^\s*(\d+)\s*:\s*(\d+)\s*$/);
+    if (range) return `${range[1]} to ${range[2]}`;
+    const items = spec.split(spec.includes("|") ? "|" : ",").map(x => x.trim()).filter(Boolean);
+    return items.length > 1
+      ? items.slice(0, -1).join(", ") + (items.length > 2 ? "," : "") + " or " + items[items.length - 1]
+      : items.join("");
+  };
+  const pickFor = (spec) => {
+    if (!/\sif\s/.test(spec)) return null;
+    const alts = [...spec.matchAll(
+      /(?:^|,)\s*(?:or\s+)?(.+?)\s+if\s+([a-z][a-z0-9_]*)\s*=\s*([^,]+)/g)];
+    const hit = alts.find(a => a[2] === armVar && a[3].trim() === String(armId));
+    return hit ? hit[1].trim() : null;
+  };
+  text = String(text || "");
+  while ((m = re.exec(text))) {
+    push(text.slice(last, m.index));
+    const name = m[1] || m[3];
+    if (armVar && name === armVar && armLabel != null) {
+      if (armLabel) { nodes.push(el("strong", {}, armLabel)); plain += armLabel; }
+    } else if (m[2] && armVar && armId != null && pickFor(m[2]) != null) {
+      // A value keyed to the version shown ("10 and 14 if
+      // amount_format_rand1 = 12") is the one that version read.
+      const pick = pickFor(m[2]);
+      nodes.push(el("strong", {}, pick)); plain += pick;
+    } else {
+      if (name !== armVar && !varied.includes(name)) varied.push(name);
+      push("[" + (m[2] ? listOf(m[2]) : (words[name] || words[".default"] || "varied")) + "]");
+    }
+    last = re.lastIndex;
+  }
+  push(text.slice(last));
+  return { nodes, text: plain, varied };
+}
+
+/* A question file with its response labels put into words, since options
+   carry placeholders as often as the wording does ("[amount_format_rand1: 4
+   or 12] inches"). Every chart reads its labels from here. */
+async function fetchQuestion(id) {
+  const v = await fetchJSON(`data/q/${id}.json`);
+  if (v && v.options) {
+    const varied = new Set();
+    v.options = v.options.map(o => {
+      const w = readableWording(String(o.label ?? ""), v.id);
+      w.varied.forEach(n => varied.add(n));
+      return { ...o, raw: o.label, label: w.text };
+    });
+    // Named in the note like the wording's own placeholders.
+    v.options_varied = [...varied];
+  }
+  return v;
+}
+
+/* A chart drawn on a canvas says nothing to a screen reader, so every bar
+   chart on the page carries a text alternative: a short spoken label on the
+   canvas and, beside it, a table of the same numbers that is hidden on
+   screen. Nothing is computed here - the table repeats the bars' own labels.
+   Redrawing the chart replaces its table. */
+function chartAlt(canvas, { cats, groups, lookup, valueLabel, title, highlight }) {
+  const clean = (t) => String(t).replace(/\n/g, " ");
+  const multi = groups.length > 1;
+  canvas.setAttribute("role", "img");
+  // In sentences, so a title ending in its own punctuation reads cleanly.
+  const sentence = (t) => { t = clean(t).trim(); return /[.?!]$/.test(t) ? t : t + "."; };
+  canvas.setAttribute("aria-label", ["Bar chart.",
+    title ? sentence(title) : "",
+    valueLabel ? sentence("Values: " + valueLabel) : "",
+    `${cats.length} categories${multi ? `, ${groups.length} groups` : ""}.`,
+    "The values are in the table that follows."].filter(Boolean).join(" "));
+  if (canvas._altTable) canvas._altTable.remove();
+  const cell = (g, c) => {
+    const r = lookup.get(g + "\x1F" + c);
+    const v = r ? (r.label != null ? String(r.label) : String(r.value)) : "\u2014";
+    return highlight && r && highlight(g, c) ? v + " (highlighted)" : v;
+  };
+  const table = el("table", { class: "wx-sr-only" },
+    el("caption", {}, clean(title || valueLabel || "Chart values")),
+    el("thead", {}, el("tr", {},
+      el("th", { scope: "col" }, "Category"),
+      ...(multi ? groups.map(g => el("th", { scope: "col" }, clean(g)))
+                : [el("th", { scope: "col" }, clean(valueLabel || "Value"))]))),
+    el("tbody", {}, ...cats.map(c => el("tr", {},
+      el("th", { scope: "row" }, clean(c)),
+      ...groups.map(g => el("td", {}, cell(g, c)))))));
+  canvas.insertAdjacentElement("afterend", table);
+  canvas._altTable = table;
+}
+
+// A color at reduced opacity, for bars a highlight leaves in the background.
+function fadeColor(color, alpha) {
+  const c = String(color || "").trim();
+  const hex = c.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+  if (hex) {
+    let h = hex[1];
+    if (h.length === 3) h = h.split("").map(x => x + x).join("");
+    const n = parseInt(h, 16);
+    return `rgba(${n >> 16 & 255}, ${n >> 8 & 255}, ${n & 255}, ${alpha})`;
+  }
+  const rgb = c.match(/^rgba?\(([^)]+)\)$/i);
+  if (rgb) {
+    const [r, g, b] = rgb[1].split(",").map(x => x.trim());
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+  return c;
 }
 
 /* ------------------------------------------------------------ components -- */
 
 const components = {};
 
-/* Explore: question table + grouping dropdown + distribution chart.
- * Two layouts:
- *  - default: the S3OK/Shiny welcome-sidebar layout (approved, deployed).
- *  - page.layout === "toolbar": Joe's Aug-2026 explorer redesign (WxDash) —
- *    no sidebar; intro line → control bar (Split by + CI toggle) → the
- *    selected question as a heading → full-width chart → caption → table.
+/* Explore: a search over every question, the selected question as a
+ * heading, the split control (color and intervals under "Chart options"),
+ * the full-width chart card with its caption and downloads, and the question
+ * browser below.
  *
- * 2.0 content mode (WxDash, Aug 2026 — Joe's static-site behavior in our
- * formatting) is DATA-driven, not config-driven: when a question file carries
- * `options` (instrument value labels) and `summaries` (per-split respondent
- * counts) and the bundle config carries `explore_caption` templates, bars are
- * labeled with the instrument's own response labels and the caption rewrites
- * itself for the selected split ("… the weighted percentage of each age group
- * giving each answer. The smallest group, X, has N respondents."). S3OK's
- * bundle has none of those fields, so it renders exactly as before. */
+ * Bars carry the instrument's own response labels, from the question file's
+ * `options`, and its `summaries` (per-split respondent counts) fill the
+ * `explore_caption` templates in config, so the caption rewrites itself
+ * for the selected split ("… the weighted percentage of each age group
+ * giving each answer. The smallest group, X, has N respondents."). */
 
 // SVG/Chart.js tick labels don't wrap on their own; response labels are
 // sentences ("I would trust forecasts generated by machine learning…"), so
@@ -707,6 +806,18 @@ function wrapTickLabel(text, width = 26, maxLines = 3) {
   if (lines.length < maxLines && line) lines.push(line);
   else if (line) lines[maxLines - 1] += "…";
   return lines.join("\n");
+}
+
+/* Tick labels for a question's options. The chart keys bars by label, so
+   two options that read the same once cut (formats that differ only in a
+   last sentence) would share one bar and the other response would vanish;
+   those are wrapped in full instead of cut. */
+function tickLabeller(labels) {
+  const cut = labels.map(l => wrapTickLabel(l));
+  const clash = new Set(cut.filter((c, i) => cut.indexOf(c) !== i));
+  const map = new Map(labels.map((l, i) =>
+    [l, clash.has(cut[i]) ? wrapTickLabel(l, 26, Infinity) : cut[i]]));
+  return (l) => map.get(l) ?? wrapTickLabel(l);
 }
 
 components.explore = async function (page, container) {
@@ -739,6 +850,9 @@ components.explore = async function (page, container) {
   // because it is the same sentence on every item in the battery and the item
   // is what changes.
   const qIntro = el("p", { class: "wx-question-intro wx-result-stem" }, "");
+  // Text a version showed ahead of the question, for experiments where the
+  // question itself reads the same in every version.
+  const qShown = el("div", { class: "wx-arm-shown" });
   const qHead = el("h2", { class: "wx-question-head wx-result-item" }, "");
   // The version menu, inside the chart card rather than the toolbar above it:
   // it belongs to this question, not to the page, and it disappears with the
@@ -748,6 +862,72 @@ components.explore = async function (page, container) {
     ? el("button", { class: "wx-flag-btn", type: "button" }, "\u2691 Flag")
     : null;
   const flagPanel = flaggingOn() ? el("div", { class: "card wx-flag-panel" }) : null;
+  const saveBtn = el("button", { class: "wx-save-btn", type: "button" }, "\u2606 Save question");
+  const savedPanel = el("section", { class: "card wx-saved" });
+  let currentSave = null;   // the question on screen, as a saved entry
+
+  function syncSaveBtn() {
+    const on = readSaved().some(x => x.id === currentKey);
+    saveBtn.textContent = on ? "\u2605 Saved" : "\u2606 Save question";
+    saveBtn.classList.toggle("is-on", on);
+    saveBtn.setAttribute("aria-pressed", on ? "true" : "false");
+  }
+
+  saveBtn.onclick = () => {
+    if (!currentSave) return;
+    const list = readSaved();
+    const at = list.findIndex(x => x.id === currentSave.id);
+    if (at >= 0) list.splice(at, 1); else list.push(currentSave);
+    writeSaved(list);
+    syncSaveBtn();
+    renderSaved();
+  };
+
+  function renderSaved() {
+    const list = readSaved();
+    savedPanel.textContent = "";
+    savedPanel.style.display = list.length ? "" : "none";
+    if (!list.length) return;
+    savedPanel.append(
+      el("h2", { class: "wx-saved-title" }, `Saved questions (${list.length})`),
+      el("p", { class: "wx-saved-lede" },
+        "Saved in this browser only. Download the list to keep it."));
+    const ul = el("ul", { class: "wx-saved-list" });
+    for (const x of list) {
+      // A question taken off the list since it was saved still shows, so the
+      // reader knows what they had, but it no longer opens.
+      const listed = questions.some(r => keyOf(r) === x.id);
+      const text = [
+        el("span", { class: "wx-saved-meta" },
+          [x.survey, x.years].filter(Boolean).join(" \u00b7 ")),
+        el("span", { class: "wx-saved-q" }, x.question)];
+      const open = listed
+        ? el("button", { class: "wx-saved-open", type: "button", onclick: () => {
+            currentKey = x.id;
+            setParams({ q: currentKey });
+            qTable.selectRow(r => keyOf(r) === currentKey);
+            resultSection.scrollIntoView({ behavior: "smooth", block: "start" });
+            draw();
+          } }, ...text)
+        : el("div", { class: "wx-saved-open is-gone" }, ...text);
+      const drop = el("button", { class: "wx-saved-drop", type: "button",
+        "aria-label": "Remove from saved questions", title: "Remove",
+        onclick: () => {
+          writeSaved(readSaved().filter(y => y.id !== x.id));
+          syncSaveBtn();
+          renderSaved();
+        } }, "\u00d7");
+      ul.append(el("li", { class: "wx-saved-row" }, open, drop));
+    }
+    savedPanel.append(ul, el("div", { class: "wx-saved-actions" },
+      pdfButton("Download list (CSV)", () => {
+        const url = URL.createObjectURL(
+          new Blob([savedToCSV(readSaved())], { type: "text/csv" }));
+        const a = el("a", { href: url, download: "wxdash_saved_questions.csv" });
+        document.body.append(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      })));
+  }
 
   function renderFlagPanel() {
     if (!flagPanel) return;
@@ -763,17 +943,6 @@ components.explore = async function (page, container) {
     for (const id of ids) {
       const f = flags[id];
       const row = el("div", { class: "wx-flag-row" });
-      const sel = el("select", { onchange: () => {
-        const all = readFlags();
-        if (all[id]) { all[id].disposition = sel.value; writeFlags(all); }
-      } });
-      for (const d of DISPOSITIONS) sel.append(el("option", { value: d }, d));
-      sel.value = f.disposition || "hide";
-      const note = el("input", { type: "text", placeholder: "why?",
-        value: f.note || "", oninput: () => {
-          const all = readFlags();
-          if (all[id]) { all[id].note = note.value; writeFlags(all); }
-        } });
       row.append(
         el("button", { class: "wx-flag-drop", type: "button", onclick: () => {
           const all = readFlags(); delete all[id]; writeFlags(all);
@@ -781,7 +950,8 @@ components.explore = async function (page, container) {
           syncFlagBtn();
           if (qTable && qTable.rerender) qTable.rerender();
         } }, "\u00d7"),
-        el("code", { class: "wx-flag-id" }, id), sel, note);
+        el("code", { class: "wx-flag-id" }, id),
+        el("span", { class: "wx-flag-question" }, f.question || ""));
       flagPanel.append(row);
     }
     const csv = () => flagsToCSV(readFlags());
@@ -844,7 +1014,7 @@ components.explore = async function (page, container) {
   ciBox.onchange = () => { showCI = ciBox.checked; setParams({ ci: showCI ? "1" : null }); draw(); };
   const headRow = el("div", { class: "wx-question-headrow" }, qHead);
   if (flagBtn) headRow.append(flagBtn);
-  resultHead.append(qSurvey, qIntro, headRow, armBox);
+  resultHead.append(qSurvey, qShown, qIntro, headRow, armBox);
   chartCard.append(wrap, caption);
 
   function renderArmPicker(v, armKey) {
@@ -867,32 +1037,20 @@ components.explore = async function (page, container) {
               "estimated on its own — pooling them would average across the " +
               "difference being tested."));
   }
-  // The R that rebuilds this exact chart is generated by 10 — the script that
-  // computed the numbers — and downloaded from the toolbar. Assigned with the
-  // toolbar below; declared here so draw() can hide it for a bundle whose
-  // question files carry no scripts.
+  // The R that rebuilds this exact chart is generated by 09_statistics.R, the
+  // script that computed the numbers, and downloaded from the foot of the
+  // chart. Assigned with the downloads below; declared here so draw() can
+  // hide it for a bundle whose question files carry no scripts.
   let lastCodeArgs = null;
   let rcodeBtn = null;
   let lastChart = null;   // what draw() last drew, for the PNG to redraw
 
-  /* The chart as a picture to take away, drawn once for both downloads so
-   * the PNG and the PDF are the same thing in two formats. The on-screen
-   * canvas is only as sharp as the window it sits in, so the chart is redrawn
-   * off screen at a fixed 1200px layout and four times the pixel density -
-   * 4800px across - which holds up full-width on a slide. It carries the
-   * survey, the question, and the caption's facts line and bars sentence, so
-   * it still says what it shows once it has left the page, on the page's own
-   * background so a dark theme exports legibly. */
+  /* The chart as a figure (figureImage): redrawn off screen at the figure's
+   * density with slide-sized type, under the survey, stem and item, over the
+   * caption's facts line and bars sentence. */
   function chartImage() {
     if (!lastChart) return null;
-    const S = 4, W = 1200, pad = 48, inner = W - pad * 2;
-    const css = getComputedStyle(document.body);
-    const tok = (n, d) => css.getPropertyValue(n).trim() || d;
-    const bg = tok("--panel", "#ffffff"), ink = tok("--text", "#1f1d2b");
-    const muted = tok("--text-muted", "#5f5a73"), accent = tok("--accent", "#443a83");
-    const family = css.fontFamily;
-    const mono = tok("--mono", "monospace");
-
+    const inner = FIGURE.W - FIGURE.pad * 2;
     // The chart keeps the proportions it has on screen.
     const ratio = wrap.clientHeight / Math.max(1, wrap.clientWidth);
     const chartH = Math.round(Math.max(460, Math.min(1400, inner * ratio * 1.1)));
@@ -907,62 +1065,20 @@ components.explore = async function (page, container) {
     let chart;
     try {
       chart = groupedBarChart(cv, lastChart.rows,
-        { ...lastChart.opts, standalone: true, pixelRatio: S, labelSize: 14 });
+        { ...lastChart.opts, standalone: true, pixelRatio: FIGURE.S, labelSize: 14 });
     } finally { Chart.defaults.font.size = saved; }
-
-    const measure = document.createElement("canvas").getContext("2d");
-    const wrapText = (text, font, width) => {
-      measure.font = font;
-      const words = String(text || "").split(/\s+/).filter(Boolean);
-      const lines = []; let line = "";
-      for (const w of words) {
-        const t = line ? line + " " + w : w;
-        if (line && measure.measureText(t).width > width) { lines.push(line); line = w; }
-        else line = t;
-      }
-      if (line) lines.push(line);
-      return lines;
-    };
-    const blocks = [];
-    const add = (text, size, weight, color, lead, gap, face = family, upper = false) => {
-      if (!text) return;
-      const font = `${weight} ${size}px ${face}`;
-      const t = upper ? String(text).toUpperCase() : text;
-      blocks.push({ lines: wrapText(t, font, inner), font, color, lead, gap });
-    };
-    add(lastChart.survey, 13, 600, accent, 18, 12, mono, true);
-    add(lastChart.stem, 17, 400, muted, 25, 8);
-    add(lastChart.item, 30, 700, ink, 38, 22);
-    const head = blocks.splice(0);
     const capLine = (cls) => (caption.querySelector(cls) || {}).textContent || "";
-    add(capLine(".wx-caption-meta"), 15, 600, ink, 22, 4);
-    add(capLine(".wx-caption-bars"), 15, 400, muted, 22, 6);
-    add("Source: Extreme Weather and Society Survey, University of Oklahoma " +
-        "Institute for Public Policy Research and Analysis.", 13, 400, muted, 19, 0);
-    const foot = blocks.splice(0);
-    const heightOf = (bs) => bs.reduce((t, b) => t + b.lines.length * b.lead + b.gap, 0);
-    const H = pad + heightOf(head) + chartH + 22 + heightOf(foot) + pad;
-
-    const out = document.createElement("canvas");
-    out.width = W * S; out.height = Math.ceil(H * S);
-    const ctx = out.getContext("2d");
-    ctx.scale(S, S);
-    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
-    ctx.textBaseline = "alphabetic";
-    let y = pad;
-    const paint = (bs) => {
-      for (const b of bs) {
-        ctx.font = b.font; ctx.fillStyle = b.color;
-        for (const ln of b.lines) { y += b.lead; ctx.fillText(ln, pad, y - b.lead * 0.25); }
-        y += b.gap;
-      }
-    };
-    paint(head);
-    ctx.drawImage(cv, pad, y, inner, chartH);
-    y += chartH + 22;
-    paint(foot);
+    const img = figureImage({
+      label: lastChart.survey, stem: lastChart.stem, title: lastChart.item,
+      body: { height: chartH,
+              draw: (ctx, x, y, w) => ctx.drawImage(cv, x, y, w, chartH) },
+      lines: [{ text: capLine(".wx-caption-meta"), strong: true },
+              { text: capLine(".wx-caption-bars") }],
+      source: FIGURE_SOURCE + " Survey weights adjust each wave to American " +
+              "Community Survey benchmarks."
+    });
     chart.destroy(); host.remove();
-    return { canvas: out, width: W, height: H };
+    return img;
   }
 
   const exportName = (ext) => {
@@ -970,24 +1086,11 @@ components.explore = async function (page, container) {
     return `wxdash-${currentKey}${g && g !== "All" ? "-" + g : ""}.${ext}`;
   };
 
-  function chartPNG() {
-    const img = chartImage();
-    if (!img) return;
-    const name = exportName("png");
-    img.canvas.toBlob((blob) => {
-      if (!blob) return;
-      const url = URL.createObjectURL(blob);
-      const a = el("a", { href: url, download: name });
-      document.body.append(a); a.click(); a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-    }, "image/png");
-  }
-
   /* The scripts live in their own file, fetched the first time a reader asks
    * for one and kept after: one question carries thirteen splits, and code
-   * nobody wanted has no business loading with the chart. 10 writes one
-   * concrete script per split, so this is a lookup — the engine composes
-   * nothing. */
+   * nobody wanted has no business loading with the chart. 09_statistics.R
+   * writes one concrete script per split, so this is a lookup: the engine
+   * composes nothing. */
   const rcodeCache = new Map();
 
   async function rcodeFor(id, g, armKey) {
@@ -1019,7 +1122,7 @@ components.explore = async function (page, container) {
   // The note under the chart (templates in config.explore_caption): a line
   // of facts, what the bars are for the chosen split, where the data come
   // from, then the variable and the data link.
-  function renderCaption2(v, g, summaries) {
+  function renderCaption2(v, g, summaries, varied = []) {
     const tpl = CONFIG.explore_caption;
     const s = summaries && summaries[g];
     caption.textContent = "";
@@ -1033,15 +1136,27 @@ components.explore = async function (page, container) {
       : fillTpl(tpl.bars_split, { group_phrase: (gcfg && gcfg.phrase) || "group" });
     if (g !== "All") bars += fillTpl(tpl.smallest, {
       smallest: s.smallest, smallest_n: Number(s.smallest_n).toLocaleString() });
+    // A split-sample question says its versions were randomized, and one
+    // whose wording carries other piped-in text says that varied; the
+    // survey variables behind either are named in the reference line.
+    const armVar = (CONFIG.arm_variables || {})[v.id];
+    if (v.arms) bars += tpl.randomized || "";
+    else if (varied.length) bars += tpl.varied || "";
     caption.append(el("p", { class: "wx-caption-bars" }, bars));
     caption.append(el("p", { class: "wx-caption-provenance", html: tpl.provenance }));
+    const others = varied.filter(x => x !== armVar)
+      .filter((x, i, a) => a.indexOf(x) === i);
+    const refExtra =
+      (v.arms && armVar ? fillTpl(tpl.randomization || "", { names: esc(armVar) }) : "") +
+      (others.length ? fillTpl(tpl.piped || "", { names: others.map(esc).join(", ") }) : "");
     caption.append(el("p", { class: "wx-caption-ref",
-      html: fillTpl(tpl.reference, { variable: esc(v.variable) }) }));
+      html: fillTpl(tpl.reference, { variable: esc(v.variable),
+        randomization: refExtra }) }));
   }
 
   async function draw() {
     if (!currentKey) return;
-    const v = await fetchJSON(`data/q/${currentKey}.json`);
+    const v = await fetchQuestion(currentKey);
     // A split-sample question nests its splits one level deeper, under the
     // version. `arms` being present is what says so — there is no pooled
     // option, because pooling averages across the treatment.
@@ -1060,28 +1175,71 @@ components.explore = async function (page, container) {
     };
     currentQuestionText = v.question || currentKey;
     qSurvey.textContent = String(v.hazard || "").replace(/\s*\([A-Z]+\)$/, "");
-    qIntro.textContent = v.question_intro || "";
+    // Placeholders in the wording read as the version shown (in bold) or in
+    // plain words, never as survey variable names.
+    // The roster's wording where it has one, which may be empty (a version
+    // that added nothing); otherwise the survey's own value where it is the
+    // text respondents read ("flooding event"), and the label where the value
+    // is a code (a number, a time, or a name with underscores).
+    const arm = v.arms ? (v.arms.find(a => a.id === armKey) || {}) : {};
+    const worded = (CONFIG.arm_wording || {})[(CONFIG.arm_variables || {})[v.id]];
+    const armId = String(arm.id ?? "");
+    const armLabel = !armId ? null
+      : worded ? (worded[armId] ?? "")
+      : /[a-z]/i.test(armId) && !/_/.test(armId) ? armId : (arm.label || "");
+    // Options carry placeholders too; on a version, they read its numbers.
+    if (armId && v.options) {
+      const varied = new Set();
+      v.options = v.options.map(o => {
+        const w = readableWording(String(o.raw ?? o.label), v.id, armLabel, armId);
+        w.varied.forEach(n => varied.add(n));
+        return { ...o, label: w.text };
+      });
+      v.options_varied = [...varied];
+    }
+    const wi = readableWording(v.question_intro || "", v.id, armLabel);
+    const wt = readableWording(v.question_text || v.question || currentKey, v.id, armLabel);
+    const shown = ((CONFIG.arm_shown || {})[(CONFIG.arm_variables || {})[v.id]] || {})[armId];
+    qShown.textContent = "";
+    if (shown) {
+      qShown.append(el("p", { class: "wx-arm-shown-label" }, CONFIG.arm_shown_label || ""),
+        el("blockquote", { class: "wx-quiz-quote" }, shown));
+    }
+    qShown.style.display = shown ? "" : "none";
+    qIntro.textContent = ""; qIntro.append(...wi.nodes);
     qIntro.style.display = v.question_intro ? "" : "none";
-    qHead.textContent = v.question_text || v.question || currentKey;
-    renderCaption2(v, g, summaries);
+    qHead.textContent = ""; qHead.append(...wt.nodes);
+    renderCaption2(v, g, summaries,
+      [...new Set(wi.varied.concat(wt.varied, v.options_varied || []))]);
     syncFlagBtn();
+    currentSave = {
+      id: currentKey,
+      survey: qSurvey.textContent + " Survey",
+      years: (summaries && summaries.All && summaries.All.years) || "",
+      question: readableWording(v.question || "", v.id).text,
+      variable: v.variable || ""
+    };
+    syncSaveBtn();
     lastCodeArgs = [currentKey, g, armKey];
     if (rcodeBtn) rcodeBtn.style.display = v.has_r_code ? "" : "none";
+    const tick = tickLabeller((v.options || []).map(o => o.label));
     const rows = (splits[g] || []).map(r => ({
-      group: r.group, category: wrapTickLabel(labelFor(r.resp)),
+      group: r.group, category: tick(labelFor(r.resp)),
       value: r.p, label: Math.round(r.p) + "%", low: r.p_low, upp: r.p_upp
     }));
     // Horizontal bars need vertical room proportional to bar count —
     // grow the canvas instead of cramming (long scales × many groups).
     const nCats = new Set(rows.map(r => naLabel(r.category))).size;
     const nGroups = new Set(rows.map(r => naLabel(r.group))).size;
-    wrap.style.height =
-      Math.max(380, Math.min(1000, 110 + nCats * Math.max(44, nGroups * 20))) + "px";
+    const tickLines = Math.max(1, ...rows.map(r => String(r.category).split("\n").length));
+    wrap.style.height = Math.max(380, Math.min(1000,
+      110 + nCats * Math.max(44, nGroups * 20, tickLines * 18))) + "px";
     // One series needs no key; several are keyed by what they split on, so
     // the legend reads "Age" rather than "Group".
     const gLabel = (CONFIG.groupings.find(x => x.id === g) || {}).label;
     const chartOpts = {
       title: "",
+      altTitle: v.question || v.question_text || "",
       xLabel: page.chart.x_label, yLabel: page.chart.y_label,
       showCI,
       legend: nGroups > 1, legendTitle: gLabel || "Group",
@@ -1158,18 +1316,12 @@ components.explore = async function (page, container) {
   // downloads are things to take away rather than ways to change the view.
   const actions = el("div", { class: "wx-toolbar-actions wx-result-downloads" });
   chartCard.append(actions);
-  actions.append(pdfButton("Download chart (PNG)", () => chartPNG()));
+  actions.append(pdfButton("Download chart (PNG)",
+    () => saveFigure(chartImage(), exportName("png"), "png")));
   // The same picture as the PNG, on a page cut to its shape: 11 inches wide
   // and as tall as the picture needs, so nothing is letterboxed or cropped.
-  actions.append(pdfButton("Download chart (PDF)", () => {
-    const img = chartImage();
-    if (!img) return;
-    const w = 792, h = w * img.height / img.width;
-    const doc = new window.jspdf.jsPDF({
-      orientation: w > h ? "l" : "p", unit: "pt", format: [w, h] });
-    doc.addImage(img.canvas, "PNG", 0, 0, w, h, undefined, "FAST");
-    doc.save(exportName("pdf"));
-  }));
+  actions.append(pdfButton("Download chart (PDF)",
+    () => saveFigure(chartImage(), exportName("pdf"), "pdf")));
   // Beside the chart download, and a download rather than a viewer: someone
   // who wants the script wants it in their editor, not in a scrolling box.
   rcodeBtn = pdfButton("Download R code", async () => {
@@ -1184,13 +1336,25 @@ components.explore = async function (page, container) {
   // script, so it has nothing to offer before one is chosen.
   rcodeBtn.style.display = "none";
   actions.append(rcodeBtn);
+  // Beside the downloads: saving is another way of taking the question away.
+  // Explained on hover and on keyboard focus, and read out as the button's
+  // description, so it needs no second control.
+  saveBtn.setAttribute("aria-describedby", "wx-save-tip");
+  actions.append(el("span", { class: "wx-save-wrap" }, saveBtn,
+    el("span", { class: "wx-hover-tip", id: "wx-save-tip", role: "tooltip" },
+      "Save questions you want to revisit. You can reopen them or download " +
+      "your saved list as a CSV at the bottom of this page. Saved questions " +
+      "are stored only in this browser and may be removed if you clear your " +
+      "browsing data.")));
   container.append(el("div", { class: "page wx-explore-page" },
     el("div", { class: "content" }, intro, search,
        resultSection,
        tableCard,
+       savedPanel,
        ...(flagPanel ? [flagPanel] : []))));
   resultSection.append(resultHead, bar, chartCard);
   renderFlagPanel();
+  renderSaved();
   await draw();
 };
 
@@ -1275,8 +1439,10 @@ function questionBrowser(rows, { onPick, flagCell = null, pageSize = 10 }) {
     if (!n) list.append(el("li", { class: "wx-browse-none" },
       "No questions match. Try another filter or fewer words."));
     for (const r of filtered.slice(page * pageSize, (page + 1) * pageSize)) {
-      const li = el("li", { class: "wx-browse-row" + (r === selected ? " selected" : ""),
-        tabindex: "0", role: "button",
+      // The list item stays a list item; the control inside it is the
+      // button, so the list reads as a list to a screen reader.
+      const li = el("li", { class: "wx-browse-row" + (r === selected ? " selected" : "") });
+      const hit = el("div", { class: "wx-browse-hit", tabindex: "0", role: "button",
         "aria-current": r === selected ? "true" : "false",
         onclick: () => pick(r),
         onkeydown: (e) => {
@@ -1287,16 +1453,17 @@ function questionBrowser(rows, { onPick, flagCell = null, pageSize = 10 }) {
       if (r.topic) meta.append(el("span", { class: "wx-browse-topic" }, r.topic));
       const body = el("div", { class: "wx-browse-q" });
       if (r.question_intro)
-        body.append(el("p", { class: "wx-browse-stem" }, r.question_intro));
+        body.append(el("p", { class: "wx-browse-stem" },
+          readableWording(r.question_intro, r.id).text));
       const itemRow = el("div", { class: "wx-browse-itemrow" },
-        el("p", { class: "wx-browse-item" }, r.question_text || r.question));
-      // The variable name, for readers who know the data files and the R code
-      // by it. The question type is not shown on the row; it is found with
-      // the type menu or by typing it in the search.
-      if (r.variable) itemRow.append(el("code", { class: "wx-browse-var" }, r.variable));
+        el("p", { class: "wx-browse-item" },
+          readableWording(r.question_text || r.question, r.id).text));
+      // Neither the variable name nor the question type is shown on the row;
+      // both are found by typing them in the search, and the type has a menu.
       if (flagCell) itemRow.append(flagCell(r));
       body.append(itemRow);
-      li.append(meta, body);
+      hit.append(meta, body);
+      li.append(hit);
       list.append(li);
     }
     where.textContent = `Page ${page + 1} of ${pages}`;
@@ -1391,8 +1558,10 @@ function questionSearch(questions, onPick) {
       const li = el("li", { class: "wx-qsearch-opt", role: "option",
                             id: `wx-qsearch-opt-${i}`, "aria-selected": "false" });
       if (r.question_intro)
-        li.append(el("span", { class: "wx-qsearch-stem" }, r.question_intro));
-      li.append(el("span", { class: "wx-qsearch-item" }, r.question_text || r.question),
+        li.append(el("span", { class: "wx-qsearch-stem" },
+          readableWording(r.question_intro, r.id).text));
+      li.append(el("span", { class: "wx-qsearch-item" },
+          readableWording(r.question_text || r.question, r.id).text),
                 el("span", { class: "wx-qsearch-survey" }, r.hazard));
       // mousedown rather than click, so the pick lands before the input's
       // blur closes the list underneath it.
@@ -1426,18 +1595,17 @@ function questionSearch(questions, onPick) {
 }
 
 /* ----------------------------------------------- WxDash components ------ */
-/* Components for the WxDash bundle (compile_wxdash.R). They render only
- * precomputed values: APP percentiles, place-vs-place percentiles, srvyr
- * distributions and CIs all come from the bundle — the engine never computes
- * statistics (platform parity guarantee). */
+/* Components for the WxDash bundle (09_build_dashboard.R). They render only
+ * precomputed values: ranks, percentiles, medians, srvyr distributions and
+ * CIs all come from the bundle, and the engine never computes statistics. */
 
-// Measure catalog helpers (config.catalog rows from the compiler).
+// Measure catalog helpers (config.catalog rows from the builder).
 const catalogByCode = () => new Map(CONFIG.catalog.map(c => [c.code, c]));
 
 /* ---- methodology affordances --------------------------------------------
- * "What does this number mean?" popovers replace sidebar prose walls. All
- * text is compiler-authored in config.explainers (templated with {tokens}),
- * so the engine stays generic. Panels open BELOW their trigger. */
+ * "What does this number mean?" popovers rather than walls of sidebar prose.
+ * All text is authored by the builder in config.explainers (templated with
+ * {tokens}), so the engine stays generic. Panels open BELOW their trigger. */
 
 function fillTpl(s, vals) {
   return String(s || "").replace(/\{(\w+)\}/g, (_, k) => (vals && vals[k] != null) ? vals[k] : "");
@@ -1504,10 +1672,10 @@ function gradientLegend(title, domain, stops, fmt = (v) => String(Math.round(v))
 }
 
 // Tile-free basemap: neutral canvas + state outlines (self-contained bundle,
-// no third-party requests — basemap choice is an open design decision).
+// no third-party requests).
 async function baseMap(mapEl, opts = {}) {
   const map = L.map(mapEl, {
-    renderer: L.canvas(),                       // ~3k county polygons: canvas, not SVG
+    renderer: L.canvas(),                       // one canvas, not an SVG node per polygon
     attributionControl: false,
     ...opts
   });
@@ -1555,7 +1723,7 @@ function choroLayer(geo, { idProp, valueOf, color, popupHTML, onSelect, onHover,
   let selected = null;
   const outline = (id) => ({ weight: 4, color: inkOn(color(valueOf(id))) });
   // A neutral hairline rather than white: white borders vanish at the pale
-  // end of a ramp now that the map has no background of its own, taking the
+  // end of a ramp because the map has no background of its own, taking the
   // shape of the lightest areas with them.
   const hairline = cssVar("--map-hairline", "rgba(35, 33, 48, 0.28)");
   const layer = L.geoJSON(geo, {
@@ -1567,7 +1735,7 @@ function choroLayer(geo, { idProp, valueOf, color, popupHTML, onSelect, onHover,
     onEachFeature: (f, lyr) => {
       const id = f.properties[idProp];
       lyr.bindPopup(() => popupHTML(id, f.properties));
-      // Hover-to-read (Joe's map page): sticky tooltip with the value.
+      // Hover-to-read: sticky tooltip with the value.
       if (tooltipHTML) lyr.bindTooltip(() => tooltipHTML(id, f.properties),
         { sticky: true, direction: "top", opacity: 0.96 });
       lyr.on("mouseover", () => {
@@ -1619,7 +1787,7 @@ function choroLayer(geo, { idProp, valueOf, color, popupHTML, onSelect, onHover,
   return layer;
 }
 
-/* ---- 2.0 map-story helpers (Joe's app.js narrative machinery, ported) ---- */
+/* ---- map-story helpers ------------------------------------------------- */
 
 function ordinal(n) {
   const mod100 = n % 100;
@@ -1699,122 +1867,12 @@ function plainText(html) {
   return (d.textContent || "").replace(/\s+/g, " ").trim();
 }
 
-/* The scan sheet as a vector PDF (Joe's 09 overview sheet): rows drawn with
- * jsPDF primitives rather than snapshotted, so labels and numbers stay
- * selectable and the marks stay sharp at any zoom. Paginates on row count —
- * a longer catalog spills onto a second page rather than shrinking to fit,
- * which is what keeps the sheet the same size whichever area it is for. */
-function scanPDF({ title, subtitle, sections, note, filename }) {
-  if (!window.jspdf) { alert("The PDF library did not load — try reloading the page."); return; }
-  const doc = new window.jspdf.jsPDF({ orientation: "p", unit: "pt", format: "letter" });
-  const pw = doc.internal.pageSize.getWidth(), ph = doc.internal.pageSize.getHeight();
-  const margin = 40;
-  // Fixed inks rather than the theme's: a sheet is printed, and the dark
-  // theme's paper colors would come out as ink on white.
-  const INK = [46, 42, 87], BODY = [35, 33, 48], GREY = [110, 115, 122],
-        TICK = [184, 190, 197], BAND = [244, 246, 248], DOT = [68, 58, 131];
-  const SW = 200;                                    // strip width
-  const X = { label: margin, lo: 200, strip: 205, hi: 412, value: 508, pct: pw - margin };
-  // Sized so the whole catalog and its footnote land on one letter page —
-  // a sheet that spills is a sheet nobody prints double-sided correctly.
-  const rowH = 14, sectionH = 16;
-  let y = margin;
-
-  const columnHeads = () => {
-    doc.setFont("helvetica", "bold"); doc.setFontSize(7.2); doc.setTextColor(...GREY);
-    doc.text("LOWEST AREA TO HIGHEST AREA", X.strip + SW / 2, y, { align: "center" });
-    doc.text("ESTIMATE", X.value, y, { align: "right" });
-    doc.text("PERCENTILE", X.pct, y, { align: "right" });
-    doc.setFont("helvetica", "normal");
-    y += 9;
-  };
-  const room = (need) => {
-    if (y + need <= ph - margin) return;
-    doc.addPage(); y = margin; columnHeads();
-  };
-
-  doc.setFont("helvetica", "bold"); doc.setFontSize(16); doc.setTextColor(...INK);
-  doc.text(String(title), margin, y + 6);
-  y += 22;
-  doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(...GREY);
-  doc.text(String(subtitle), margin, y);
-  y += 16;
-
-  // The key is drawn rather than spelled out: the marks are the only thing
-  // explaining what a row means, and a character key cannot show a triangle.
-  doc.setFontSize(8);
-  let kx = margin;
-  const keyMark = (draw, label) => {
-    draw(kx + 3);
-    doc.setTextColor(...GREY);
-    doc.text(label, kx + 10, y + 3);
-    kx += 10 + doc.getTextWidth(label) + 18;
-  };
-  keyMark((x) => { doc.setDrawColor(...TICK); doc.setLineWidth(0.8);
-                   doc.line(x, y - 3, x, y + 4); }, "each area");
-  keyMark((x) => { doc.setFillColor(...GREY);
-                   doc.triangle(x - 3, y + 4, x + 3, y + 4, x, y, "F"); }, "median");
-  keyMark((x) => { doc.setFillColor(...DOT); doc.circle(x, y, 2.6, "F"); }, "this area");
-  y += 14;
-  columnHeads();
-
-  for (const s of sections) {
-    room(sectionH + rowH);
-    doc.setFillColor(...INK);
-    doc.rect(margin, y, pw - 2 * margin, sectionH - 3, "F");
-    doc.setFont("helvetica", "bold"); doc.setFontSize(8);
-    doc.setTextColor(255, 255, 255);
-    doc.text(String(s.group).toUpperCase(), margin + 6, y + sectionH - 8);
-    if (s.unit) doc.text(String(s.unit).toUpperCase(), pw - margin - 6,
-                         y + sectionH - 8, { align: "right" });
-    y += sectionH;
-
-    s.rows.forEach((r, i) => {
-      room(rowH);
-      if (i % 2) { doc.setFillColor(...BAND); doc.rect(margin, y, pw - 2 * margin, rowH, "F"); }
-      const midY = y + rowH / 2;
-      doc.setFont("helvetica", "normal"); doc.setFontSize(8.4); doc.setTextColor(...BODY);
-      doc.text(doc.splitTextToSize(r.label, X.lo - X.label - 10)[0], X.label, midY + 3);
-      doc.setFontSize(7); doc.setTextColor(...GREY);
-      doc.text(r.loText, X.lo, midY + 3, { align: "right" });
-      doc.text(r.hiText, X.hi, midY + 3);
-
-      const span = r.hi - r.lo;
-      const at = (v) => span === 0 ? X.strip + SW / 2
-        : X.strip + 4 + (v - r.lo) / span * (SW - 8);
-      doc.setDrawColor(...TICK); doc.setLineWidth(0.5);
-      for (const v of r.values) doc.line(at(v), midY - 4, at(v), midY + 4);
-      const mid = at(r.median);
-      doc.setFillColor(...GREY);
-      doc.triangle(mid - 3, midY + 7, mid + 3, midY + 7, mid, midY + 3, "F");
-      doc.setFillColor(...DOT);
-      doc.circle(at(r.here), midY, 2.6, "F");
-
-      doc.setFont("helvetica", "bold"); doc.setFontSize(8.8); doc.setTextColor(...INK);
-      doc.text(r.valueText, X.value, midY + 3, { align: "right" });
-      doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(...GREY);
-      doc.text(r.pctText, X.pct, midY + 3, { align: "right" });
-      y += rowH;
-    });
-  }
-
-  if (note) {
-    doc.setFont("helvetica", "normal"); doc.setFontSize(7); doc.setTextColor(...GREY);
-    const lines = doc.splitTextToSize(String(note), pw - 2 * margin);
-    room(lines.length * 9 + 12);
-    y += 11;
-    doc.text(lines, margin, y, { lineHeightFactor: 1.3 });
-  }
-  doc.save(filename || "wxdash-overview.pdf");
-}
-
-/* Map Explorer — 2.0 (Joe's estimates + alert layers, our layout): top
- * toolbar, fixed-frame full-width CWA map, hover tooltips, click popup with
- * the full place story (value, rank, percentile, median, strip plot — Joe's
- * popup-only pattern, user ruling 2026-08-13), per-measure notes below.
- * Comparison = ONE thing, the NWS alert-day history, drawn as a second map
- * beside the first (replaces the 1.0 SVI comparison, user ruling 2026-08-13;
- * side by side rather than crossfaded, user ruling 2026-08-18). */
+/* Map Explorer: estimates and alert layers. Controls across the top, a
+ * fixed-frame full-width CWA map, hover tooltips, a click popup with the
+ * full place story (value, rank, percentile, median, strip plot), and
+ * per-measure notes below. Comparison is ONE thing, the NWS alert-day
+ * history the measure's model is fitted on, drawn as a second map beside the
+ * first so both pictures are on screen at once. */
 components.wx_map_explorer = async function (page, container) {
   const cats = CONFIG.catalog;
   const byCode = catalogByCode();
@@ -1828,27 +1886,33 @@ components.wx_map_explorer = async function (page, container) {
   const M = (code) => cwaValues.measures[code];
   const isAlert = (code) => byCode.get(code).kind === "alert";
   // Estimates print as "3.42 out of 5"; alert counts as whole days — never
-  // "342.00 days" (Joe's formatValue/formatRange split).
+  // "342.00 days".
   const fmtVal = (code) => (v) => isAlert(code)
     ? Math.round(v).toLocaleString() : Number(v).toFixed(2);
   const fmtRange = (code) => (v) => isAlert(code)
     ? Math.round(v).toLocaleString() : Number(v).toFixed(1);
 
   // Comparison state: one alert layer, drawn as a second map beside the
-  // first (Joe's ruling, Aug 2026 — a crossfade shows one picture at a time
-  // and asks the reader to hold the other in memory). ?compare= deep-links it.
+  // first, so the reader compares two pictures rather than holding one in
+  // memory. ?compare= deep-links it.
   const alertCats = cats.filter(c => c.kind === "alert");
   let compare = alertCats.some(c => c.code === getParam("compare"))
     ? getParam("compare") : "";
-  setParams({ mix: null });   // retires the crossfade's parameter on old links
+  setParams({ mix: null });   // drops ?mix=, which nothing reads, from shared links
 
   // --- top control bar (controls across the top, full-width map below)
-  const lead = pageHead(page, page.sidebar_lead);
-  const aboutHtml = explain("about_estimates");
-  if (aboutHtml) lead.querySelector(".wx-explore-intro")
-    .append(" ", infoTip(aboutHtml, { label: "About the estimates" }));
+  const lead = pageHead(page);
+  // What is on the map, named above the controls the way the survey page
+  // names its question: a small label, then the measure. The same label and
+  // title the map's download carries.
+  const mapHead = el("div", { class: "wx-result-head" });
+  const mapKind = el("p", { class: "wx-result-survey" });
+  const mapTitle = el("h2", { class: "wx-question-head wx-result-item" });
+  mapHead.append(mapKind, mapTitle);
 
-  const bar = el("div", { class: "card wx-toolbar wx-map-toolbar" });
+  // The controls sit on the page, not in a card, as they do above the survey
+  // chart; the map is the one card.
+  const bar = el("div", { class: "wx-result-controls wx-map-toolbar" });
   const measureSel = el("select", { class: "grouping", id: "measure-sel", onchange: () => {
     measure = measureSel.value; setParams({ measure });
     // A live comparison follows the measure to ITS paired alert history
@@ -1870,7 +1934,7 @@ components.wx_map_explorer = async function (page, container) {
   measureSel.value = measure;
   const measureWrap = el("div");
   measureWrap.append(el("label", { class: "field-label", for: "measure-sel" },
-    "Select a measure to explore"), measureSel);
+    "What do you want to explore?"), measureSel);
 
   const compareWrap = el("div");
   const compareSel = el("select", { class: "grouping", id: "compare-sel", onchange: async () => {
@@ -1879,7 +1943,9 @@ components.wx_map_explorer = async function (page, container) {
     await redraw();
   } });
   compareWrap.append(el("label", { class: "field-label", for: "compare-sel" },
-    "Compare with alert history"), compareSel);
+    "Compare with alert history"), compareSel,
+    el("p", { class: "wx-field-hint" },
+      "Optional: compare community estimates with local alert history"));
   // Rebuilt per measure: the paired alert layer is marked, and measures
   // without one (NRI-modeled: drought, hail, lightning) say so.
   function syncCompare() {
@@ -1897,34 +1963,39 @@ components.wx_map_explorer = async function (page, container) {
   }
   syncCompare();
 
-  bar.append(measureWrap, compareWrap);
-  bar.append(schemeSelect(scheme, async (sc) => {
-    scheme = sc;
-    setParams({ scheme: sc === DEFAULT_SCHEME ? null : sc });
-    await redraw();
-  }));
-  // The notes card below the maps is the document's notes: what was asked,
-  // how it was scored, how the colors are stretched, where it came from —
-  // and, while comparing, the same for the alert history beside it.
-  bar.append(pdfButton("Download map (PDF)", () => {
-    const cat = byCode.get(measure);
-    const cmp = compare ? byCode.get(compare) : null;
-    pdfDocument({
-      title: (cat ? cat.label : measure) +
-        (cmp ? " and " + cmp.label : ""),
-      subtitle: `NWS County Warning Area ` +
-        (isAlert(measure) ? "alert days" : "estimates") +
-        `  ·  ${N} areas of the contiguous United States`,
-      canvas: cmp ? mapPairSnapshot(mapEl, mapElB) : mapSnapshot(mapEl),
-      notesHTML: notesCard.innerHTML,
-      filename: `wxdash-map-${measure}${cmp ? "-vs-" + compare : ""}.pdf`,
-      legends: cmp ? [lastLegend, lastLegendB] : lastLegend
-    });
-  }));
-  const clearBtn = el("button", { class: "wx-clear-btn wx-toolbar-clear",
+  // A forecast office can be chosen from a list as well as from the map,
+  // so everything the map does is reachable from the keyboard. It follows
+  // the map: a click there shows here, and Clear empties it.
+  const placeWrap = el("div");
+  const placeSel = el("select", { class: "grouping", id: "place-sel", onchange: () => {
+    if (!placeSel.value) { clearPlace(); return; }
+    if (activeLayer) activeLayer.selectById(placeSel.value, map, false, true);
+  } });
+  placeSel.append(el("option", { value: "" }, "None selected"),
+    ...Object.entries(cwaValues.places)
+      .sort((a, b) => a[1].label.localeCompare(b[1].label))
+      .map(([code, p]) => el("option", { value: code }, p.label)));
+  placeWrap.append(el("label", { class: "field-label", for: "place-sel" },
+    "Forecast office"), placeSel);
+
+  bar.append(measureWrap, compareWrap, placeWrap);
+  // Color is a setting, not a question, so it folds away as it does under
+  // the survey chart: open from the start only when a link has set it.
+  const colors = el("details", { class: "wx-chart-options wx-map-options" });
+  if (scheme !== DEFAULT_SCHEME) colors.open = true;
+  colors.append(el("summary", {}, "Map options"),
+    el("div", { class: "wx-chart-options-body" },
+      schemeSelect(scheme, async (sc) => {
+        scheme = sc;
+        setParams({ scheme: sc === DEFAULT_SCHEME ? null : sc });
+        await redraw();
+      })));
+  bar.append(el("div", { class: "wx-map-options-wrap" }, colors));
+  // On the map, where the area was picked, not among the settings; shown
+  // only while an area is selected. Placed on the map card below.
+  const clearBtn = el("button", { class: "wx-clear-btn wx-map-clear",
     type: "button", onclick: () => clearPlace() }, "Clear selection");
   clearBtn.style.display = "none";
-  bar.append(clearBtn);
 
   // --- full-width map card + per-measure notes card below
   // One pane normally; two side by side while comparing. Each pane carries
@@ -1941,15 +2012,116 @@ components.wx_map_explorer = async function (page, container) {
   const mapEl = paneA.mapEl, mapElB = paneB.mapEl;
   const legendHolder = paneA.legend, legendHolderB = paneB.legend;
   const pairEl = el("div", { class: "wx-map-pair" }, paneA.el, paneB.el);
-  card.append(pairEl);
+  const mapAlt = el("div", { class: "wx-sr-only" });
+  card.append(clearBtn, pairEl,
+    el("p", { class: "wx-field-hint wx-map-hint" },
+      "Hover an area to see its value; click it to see every measure for " +
+      "that community."));
+
+  /* The map as a figure (figureImage), the same picture and resolution as a
+   * chart on Explore Survey Questions: the one or two maps redrawn as
+   * vectors, each with its legend, over the note's opening sentence and the
+   * sources. Taken from the maps as they stand, so it shows whatever frame,
+   * colors and selection are on screen. */
+  function mapImage() {
+    const bg = getComputedStyle(document.body).getPropertyValue("--panel").trim() || "#ffffff";
+    const cat = byCode.get(measure), cmp = compare ? byCode.get(compare) : null;
+    const inner = FIGURE.W - FIGURE.pad * 2, gap = 28;
+    const views = [{ lmap: map, title: cat.label, legend: lastLegend }];
+    if (cmp && mapB) views.push({ lmap: mapB, title: cmp.label, legend: lastLegendB });
+    const colW = (inner - gap * (views.length - 1)) / views.length;
+    for (const v of views) {
+      v.img = vectorMap(v.lmap, FIGURE.S, bg);
+      v.h = colW * v.img.height / v.img.width;
+    }
+    const titleH = views.length > 1 ? 26 : 0, legendH = 56;
+    const mapH = Math.max(...views.map(v => v.h));
+    const drawLegend = (ctx, leg, x, y, w, t) => {
+      if (!leg) return;
+      ctx.font = `600 12px ${t.family}`; ctx.fillStyle = t.muted;
+      ctx.fillText(leg.title.replace(" \u2014 ", " \u00b7 "), x, y + 12);
+      const grad = ctx.createLinearGradient(x, 0, x + w, 0);
+      for (let i = 0; i <= 10; i++) grad.addColorStop(i / 10, rampColor(leg.stops, i / 10));
+      ctx.fillStyle = grad; ctx.fillRect(x, y + 20, w, 10);
+      ctx.font = `400 12px ${t.family}`; ctx.fillStyle = t.muted;
+      const [lo, hi] = leg.domain, f = leg.fmt || ((v) => String(v));
+      ctx.textAlign = "left"; ctx.fillText(f(lo), x, y + 46);
+      ctx.textAlign = "center"; ctx.fillText(f((lo + hi) / 2), x + w / 2, y + 46);
+      ctx.textAlign = "right"; ctx.fillText(f(hi), x + w, y + 46);
+      ctx.textAlign = "left";
+    };
+    const alerts = isAlert(measure) || !!cmp;
+    // The question respondents were asked, from the measure's own notes, in
+    // the slot the chart gives its stem. Alert histories were not asked.
+    let asked = "";
+    const mine = notesCard.querySelector(".wx-note-half") || notesCard;
+    for (const p of mine.querySelectorAll("p")) {
+      const t = p.textContent;
+      if (/^Respondents were asked:/.test(t)) {
+        asked = t.replace(/^Respondents were asked:\s*/, "").replace(/^[\u201c"]|[\u201d"]$/g, "");
+        break;
+      }
+    }
+    return figureImage({
+      label: isAlert(measure) ? "Alert history" : "Community estimates",
+      stem: asked,
+      title: cat.label + (cmp ? " and " + cmp.label.charAt(0).toLowerCase() +
+                                cmp.label.slice(1) : ""),
+      body: {
+        height: titleH + mapH + 14 + legendH,
+        draw: (ctx, x, y, w, t) => views.forEach((v, i) => {
+          const vx = x + i * (colW + gap);
+          if (titleH) {
+            ctx.font = `600 12px ${t.mono}`; ctx.fillStyle = t.ink;
+            ctx.fillText(v.title.toUpperCase(), vx, y + 14);
+          }
+          ctx.drawImage(v.img, vx, y + titleH + (mapH - v.h) / 2, colW, v.h);
+          drawLegend(ctx, v.legend, vx, y + titleH + mapH + 14, Math.min(360, colW), t);
+        })
+      },
+      // A facts line of the chart's form - the count first, then the scope -
+      // over a sentence saying what the colors show, as the chart's second
+      // line says what the bars are. Built from the phrases the popups use,
+      // so the picture and the page describe a measure in the same words.
+      lines: [{ text: `${N} National Weather Service forecast office areas \u00b7 ` +
+                      "contiguous United States", strong: true },
+              ...[measure, compare].filter(Boolean).map(code => {
+                const quantity = fillTpl(CONFIG.map.quantities[constructOf(code)],
+                  { hazard: hazardOfLabel(byCode.get(code).label) });
+                const says = isAlert(code)
+                  ? `colors show the number of days with ${quantity} in each area` +
+                    (M(code).span ? ` between ${M(code).span}` : "") + "."
+                  : `colors show each area's estimate of ${quantity}, on a 1 to 5 scale.`;
+                return { text: cmp ? `${byCode.get(code).label}: ${says}`
+                                   : says.charAt(0).toUpperCase() + says.slice(1) };
+              })],
+      // An alert history alone owes nothing to the survey, so it names only
+      // its own source.
+      source: isAlert(measure) && !cmp
+        ? "Source: National Weather Service alert records from the Iowa " +
+          "Environmental Mesonet."
+        : FIGURE_SOURCE + " Community estimates combine the survey with US " +
+          "Census population data." +
+          (alerts ? " Alert days are National Weather Service records from " +
+                    "the Iowa Environmental Mesonet." : "")
+    });
+  }
+  const mapName = (ext) =>
+    `wxdash-map-${measure}${compare ? "-vs-" + compare : ""}.${ext}`;
+  // At the foot of the map, as under a chart on Explore Survey Questions.
+  card.append(el("div", { class: "wx-toolbar-actions wx-result-downloads" },
+    pdfButton("Download map (PNG)", () => saveFigure(mapImage(), mapName("png"), "png")),
+    pdfButton("Download map (PDF)", () => saveFigure(mapImage(), mapName("pdf"), "pdf"))));
   const notesCard = el("div", { class: "card wx-map-notes" });
   const scanCard = el("div", { class: "card wx-scan-card" });
   // Notes first, then the scan sheet: what the map is showing has to be read
   // before one area's standing on it means anything.
   container.append(el("div", { class: "page wx-explore-page wx-map-page" },
-    el("div", { class: "content" }, lead, bar, card, notesCard, scanCard)));
+    el("div", { class: "content" }, lead,
+       el("section", { class: "wx-result" }, mapHead, bar, card),
+       notesCard, scanCard)));
 
-  // Fixed-frame map (Joe's design): the page scrolls normally over it — no
+  // Fixed-frame map: the page scrolls normally over it, with no
   // scroll-wheel zoom trap, no drag, no zoom buttons. CONUS fills the frame.
   const CONUS = [[24.5, -125], [49.5, -66.9]];
   const FIXED_FRAME = {
@@ -1987,8 +2159,8 @@ components.wx_map_explorer = async function (page, container) {
   let lastLegend = null;    // domain/stops/title of each view, for the PDF
   let lastLegendB = null;
 
-  // --- scan sheet: every measure for one area, under the map (Joe's 09 CWA
-  // overview sheet, on the page). It computes nothing — values, medians and
+  // --- scan sheet: every measure for one area, under the map. It computes
+  // nothing: values, medians and
   // percentiles are the ones cwa_values.json already carries, so a row and
   // the popup above it cannot disagree.
   const scanCfg = (CONFIG.map && CONFIG.map.scan) || {};
@@ -1997,6 +2169,7 @@ components.wx_map_explorer = async function (page, container) {
 
   function clearPlace() {
     place = "";
+    placeSel.value = "";
     setParams({ place: null });
     if (activeLayer) activeLayer.clearSelection();
     if (compareLayer) compareLayer.clearSelection();
@@ -2037,28 +2210,96 @@ components.wx_map_explorer = async function (page, container) {
     });
   }
 
-  function downloadScan() {
+  /* The overview sheet as a figure (figureImage), the same picture and
+   * resolution as the chart and map downloads: the key, the column heads and
+   * every row redrawn at the figure's density with the marks the page uses,
+   * under the area's name and over the sheet's own lede and note. */
+  function scanImage() {
     const label = (cwaValues.places[place] || {}).label || place;
-    scanPDF({
+    const sections = scanSections();
+    const rowH = 26, groupH = 30, keyH = 30, headH = 22;
+    const nRows = sections.reduce((t, s) => t + s.rows.length, 0);
+    const css = getComputedStyle(document.body);
+    const tickColor = css.getPropertyValue("--map-line").trim() || "#b8bec5";
+    const bg = css.getPropertyValue("--panel").trim() || "#ffffff";
+    const draw = (ctx, x, y, w, t) => {
+      const SW = 420;
+      const X = { label: x, lo: x + 380, strip: x + 392, hi: x + 392 + SW + 12,
+                  value: x + w - 130, pct: x + w };
+      const text = (str, px, py, font, color, align = "left") => {
+        ctx.font = font; ctx.fillStyle = color; ctx.textAlign = align;
+        ctx.fillText(str, px, py); ctx.textAlign = "left";
+      };
+      const tick = (px, cy, h) => {
+        ctx.strokeStyle = tickColor; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(px, cy - h); ctx.lineTo(px, cy + h); ctx.stroke();
+      };
+      const tri = (px, top) => {
+        ctx.fillStyle = t.muted; ctx.beginPath();
+        ctx.moveTo(px - 4, top + 6); ctx.lineTo(px + 4, top + 6); ctx.lineTo(px, top);
+        ctx.closePath(); ctx.fill();
+      };
+      const dot = (px, cy) => {
+        ctx.fillStyle = t.accent; ctx.strokeStyle = bg; ctx.lineWidth = 1.4;
+        ctx.beginPath(); ctx.arc(px, cy, 5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      };
+      // The key, drawn rather than spelled out.
+      let kx = x; const ky = y + 14;
+      const keyItem = (mark, words) => {
+        mark(kx + 5); text(words, kx + 16, ky + 4, `400 13px ${t.family}`, t.muted);
+        ctx.font = `400 13px ${t.family}`; kx += 16 + ctx.measureText(words).width + 26;
+      };
+      keyItem(px => tick(px, ky, 6), `each of the ${N} areas`);
+      keyItem(px => tri(px, ky - 3), "median");
+      keyItem(px => dot(px, ky), "this area");
+      let cy = y + keyH;
+      const head = `600 11px ${t.mono}`;
+      text("LOWEST AREA TO HIGHEST AREA", X.strip + SW / 2, cy + 12, head, t.muted, "center");
+      text("ESTIMATE", X.value, cy + 12, head, t.muted, "right");
+      text("PERCENTILE", X.pct, cy + 12, head, t.muted, "right");
+      cy += headH;
+      for (const sec of sections) {
+        ctx.fillStyle = t.ink; ctx.fillRect(x, cy, w, groupH - 6);
+        text(String(sec.group).toUpperCase(), x + 10, cy + 16, `700 12px ${t.family}`, bg);
+        if (sec.unit) text(String(sec.unit).toUpperCase(), x + w - 10, cy + 16,
+                           `700 12px ${t.family}`, bg, "right");
+        cy += groupH;
+        sec.rows.forEach((cat, i) => {
+          const r = scanRow(cat), mid = cy + rowH / 2;
+          if (i % 2) {
+            ctx.globalAlpha = 0.05; ctx.fillStyle = t.ink; ctx.fillRect(x, cy, w, rowH);
+            ctx.globalAlpha = 1;
+          }
+          text(cat.label, X.label + 6, mid + 5, `400 14px ${t.family}`, t.ink);
+          text(fmtRange(cat.code)(r.lo), X.lo, mid + 4, `400 12px ${t.family}`, t.muted, "right");
+          text(fmtRange(cat.code)(r.hi), X.hi, mid + 4, `400 12px ${t.family}`, t.muted);
+          const span = r.hi - r.lo;
+          const at = (v) => span === 0 ? X.strip + SW / 2
+            : X.strip + 6 + (v - r.lo) / span * (SW - 12);
+          for (const v of r.values) tick(at(v), mid, 6);
+          tri(at(r.median), mid + 4);
+          dot(at(r.here), mid);
+          text(fmtVal(cat.code)(r.here), X.value, mid + 5, `700 14px ${t.family}`, t.ink, "right");
+          text(ordinal(r.pct), X.pct, mid + 5, `400 13px ${t.family}`, t.muted, "right");
+          cy += rowH;
+        });
+      }
+    };
+    return figureImage({
+      label: "Community overview",
+      stem: `County Warning Area ${place} · ${cats.length} measures`,
       title: label,
-      subtitle: `County Warning Area overview · ${place} · ` +
-        `${CONFIG.project.nav_subtitle || CONFIG.project.nav_title || ""}`,
-      sections: scanSections().map(s => ({
-        group: s.group, unit: s.unit,
-        rows: s.rows.map(cat => {
-          const r = scanRow(cat);
-          return {
-            label: cat.label, values: r.values, here: r.here,
-            median: r.median, lo: r.lo, hi: r.hi,
-            loText: fmtRange(cat.code)(r.lo), hiText: fmtRange(cat.code)(r.hi),
-            valueText: fmtVal(cat.code)(r.here), pctText: ordinal(r.pct)
-          };
-        })
-      })),
-      note: [scanCfg.lede, scanCfg.note].filter(Boolean).map(plainText).join(" "),
-      filename: `wxdash-overview-${place.toLowerCase()}.pdf`
+      body: { height: keyH + headH + sections.length * groupH + nRows * rowH, draw },
+      lines: [{ text: `${N} National Weather Service forecast office areas · ` +
+                      "contiguous United States", strong: true },
+              ...[scanCfg.lede, scanCfg.note].filter(Boolean)
+                .map(h => ({ text: plainText(h) }))],
+      source: FIGURE_SOURCE + " Community estimates combine the survey with US " +
+              "Census population data. Alert days are National Weather Service " +
+              "records from the Iowa Environmental Mesonet."
     });
   }
+  const scanName = (ext) => `wxdash-overview-${place.toLowerCase()}.${ext}`;
 
   const KEY_MARKS = [
     ['<svg width="9" height="12"><path d="M4.5 1v10" stroke="var(--map-line,#b8bec5)"/></svg>',
@@ -2077,12 +2318,9 @@ components.wx_map_explorer = async function (page, container) {
     const label = (cwaValues.places[place] || {}).label || place;
 
     scanCard.append(el("div", { class: "wx-scan-head" },
-      el("div", {},
-        el("h3", { class: "wx-scan-title" }, label),
-        el("p", { class: "wx-scan-sub" },
-          `County Warning Area overview · ${place} · ${cats.length} measures`)),
+      el("h3", { class: "wx-scan-sub wx-scan-heading" },
+        `Community overview \u00b7 ${label} \u00b7 ${cats.length} measures`),
       el("div", { class: "wx-scan-actions" },
-        pdfButton("Download overview (PDF)", downloadScan),
         el("button", { class: "wx-clear-btn", type: "button",
           onclick: () => clearPlace() }, "Clear"))));
 
@@ -2135,6 +2373,10 @@ components.wx_map_explorer = async function (page, container) {
     }
     scanCard.append(table);
     if (scanCfg.note) scanCard.append(el("div", { class: "wx-scan-note", html: scanCfg.note }));
+    // At the foot of the sheet, as under the chart and the map.
+    scanCard.append(el("div", { class: "wx-toolbar-actions wx-result-downloads" },
+      pdfButton("Download overview (PNG)", () => saveFigure(scanImage(), scanName("png"), "png")),
+      pdfButton("Download overview (PDF)", () => saveFigure(scanImage(), scanName("pdf"), "pdf"))));
     fitStrips();
   }
 
@@ -2178,9 +2420,9 @@ components.wx_map_explorer = async function (page, container) {
     scanCard.scrollIntoView({ behavior: "smooth", block: "start" });
   });
 
-  // The popup's one-paragraph place story (Joe's narrative(), templates from
-  // config.map.popup). rank/pct/median are compiler-precomputed — the engine
-  // only assembles the sentence.
+  // The popup's one-paragraph place story (templates from config.map.popup).
+  // rank/pct/median are precomputed by the builder; the engine only assembles
+  // the sentence.
   function popupStory(id, code) {
     const cat = byCode.get(code);
     const m = M(code);
@@ -2192,7 +2434,7 @@ components.wx_map_explorer = async function (page, container) {
     const quantity = fillTpl(CONFIG.map.quantities[constructOf(code)],
       { hazard: hazardOfLabel(cat.label) });
     // Naming the quantity lets the sentence work at any rank — a comparative
-    // would be false in the middle of the distribution (Joe's design note).
+    // would be false in the middle of the distribution.
     let standing;
     if (rank === 1) standing = `has the highest ${noun} of the ${N}`;
     else if (rank === N) standing = `has the lowest ${noun} of the ${N}`;
@@ -2210,6 +2452,7 @@ components.wx_map_explorer = async function (page, container) {
   let syncing = false;
   function selectPlace(id) {
     place = String(id);
+    placeSel.value = place;
     setParams({ place });
     renderScan();
     if (syncing) return;
@@ -2220,7 +2463,7 @@ components.wx_map_explorer = async function (page, container) {
   }
 
   // One choropleth, built the same way for either pane. Colors stretch over
-  // the measure's own observed range (Joe's 2.0 design): on a shared 1-5
+  // the measure's own observed range: on a shared 1-5
   // scale the warning measures would all come out one flat mid tone.
   function buildChoro(code, targetMap, stops, twin) {
     const cat = byCode.get(code);
@@ -2289,6 +2532,10 @@ components.wx_map_explorer = async function (page, container) {
     refit(mapB);
 
     paneA.title.textContent = cat.label;
+    mapKind.textContent = isAlert(measure) ? "Alert history" : "Community estimates";
+    mapTitle.textContent = cat.label + (compareCat
+      ? " and " + compareCat.label.charAt(0).toLowerCase() + compareCat.label.slice(1)
+      : "");
     paneB.title.textContent = compareCat ? compareCat.label : "";
 
     if (activeLayer) map.removeLayer(activeLayer);
@@ -2297,6 +2544,27 @@ components.wx_map_explorer = async function (page, container) {
     if (compareLayer) { mapB.removeLayer(compareLayer); compareLayer = null; }
     if (compare) compareLayer = buildChoro(compare, mapB, compareStops,
                                            () => activeLayer);
+
+    // The map's text alternative: a spoken label, and every office's value
+    // in a table hidden on screen, rebuilt with each measure.
+    pairEl.setAttribute("role", "region");
+    pairEl.setAttribute("aria-label", mapTitle.textContent +
+      ": map of National Weather Service forecast offices. The values are " +
+      "in the table that follows.");
+    const codes = [measure].concat(compare ? [compare] : []);
+    mapAlt.textContent = "";
+    mapAlt.append(el("table", {},
+      el("caption", {}, mapTitle.textContent),
+      el("thead", {}, el("tr", {}, el("th", { scope: "col" }, "Forecast office"),
+        ...codes.map(c => el("th", { scope: "col" }, byCode.get(c).label)))),
+      el("tbody", {}, ...Object.entries(cwaValues.places)
+        .sort((a, b) => a[1].label.localeCompare(b[1].label))
+        .map(([id, p]) => el("tr", {}, el("th", { scope: "row" }, p.label),
+          ...codes.map(c => {
+            const v = M(c).values[id];
+            return el("td", {}, v == null ? "no data" : fmtVal(c)(v));
+          }))))));
+    if (!mapAlt.isConnected) pairEl.after(mapAlt);
 
     lastLegend = drawLegend(legendHolder, measure, stops, !compare);
     lastLegendB = compare
@@ -2334,8 +2602,8 @@ components.wx_map_explorer = async function (page, container) {
 /* Landing page — the program before its results, in seven steps down the
  * page: identity and title, a one-sentence introduction, the data gap as the
  * loudest thing on it, what the project is, its scale, why it matters, and
- * the three ways into the data. No chart: a teaser plot invited a reader to
- * judge the whole project on whichever question happened to be on it.
+ * the three ways into the data. No chart: a teaser plot invites a reader to
+ * judge the whole project on whichever question happens to be on it.
  * Hierarchy comes from type, whitespace, rules and one tinted band rather
  * than from boxes; the explore cards are the only cards, because they are
  * the only things on the page to click. Every word is authored in the
@@ -2368,7 +2636,8 @@ components.wx_landing = async function (page, container) {
     words.append(stmt);
   }
   if (h.description)
-    words.append(el("p", { class: "wx-landing-desc" }, h.description));
+    words.append(el("p", { class: "wx-landing-desc" }, h.description,
+      ...(h.description_close ? [" ", el("strong", {}, h.description_close)] : [])));
   top.append(words);
   if (page.growth) top.append(dotField(page.growth));
   hero.append(top);
@@ -2514,68 +2783,107 @@ function dotField(growth) {
   return fig;
 }
 
-/* Test Your Knowledge — Joe's quiz (Aug 2026): each question is guess the
- * national result, then guess the subgroup, then a deep link into the
- * dashboard to see why. Content + answer keys are compiler-authored
- * (config.pages[quiz].questions) and derived from bundle data.
- *
- * Visual pass (Aug 2026): answering reveals the REAL distribution as a chart
- * drawn from the same data/q/ file the explorer uses (part 1 = national,
- * follow-up = the compiler's subgroup split), a segmented progress bar
- * tracks ✓/✗, and every reveal + the finale recap deep-link into the survey
- * explorer — Joe's ask: people should be able to exit the quiz at any point
- * to dive into whatever piqued their interest. */
+/* Test Your Knowledge: each question asks for a national result, usually
+ * followed by a subgroup, and answering reveals the REAL distribution as a
+ * chart drawn from the same data/q/ file the explorer uses (part 1 =
+ * national, follow-up = the builder's subgroup split). Prompts and answer
+ * keys are authored by the builder (config.pages[quiz].questions) and derived
+ * from bundle data. A segmented progress bar tracks ✓/✗, and every reveal and
+ * the finale recap deep-link into the survey explorer, so a reader can leave
+ * the quiz at any point to follow whatever caught their interest. */
 components.wx_quiz = async function (page, container) {
   const quiz = page.questions || [];
-  // Prompts number straight through 1..N (Matthew: "1 of 5" was confusing
-  // when ten prompts get asked); follow-ups keep their label.
-  const partsOf = (q) => [q.part1, q.part2].filter(Boolean);
+  // Questions are numbered, prompts are not: a follow-up is depth on the
+  // question it follows, so it carries that question's number, and a
+  // question may have a follow-up or not without moving the count.
+  // A question has one part or more: part1, an optional part2, and any
+  // further parts in `more` (a series asked region by region, say).
+  const partsOf = (q) => [q.part1, q.part2, ...(q.more || [])].filter(Boolean);
+  // A part may accept several options (`accept`) where the data cannot
+  // separate them; otherwise only `answer` is right.
+  const isRight = (pp, i) => pp.accept ? pp.accept.includes(i) : i === pp.answer;
   const totalPrompts = quiz.reduce((t, q) => t + partsOf(q).length, 0);
-  const promptsBefore = quiz.map((_, i) =>
-    quiz.slice(0, i).reduce((t, q) => t + partsOf(q).length, 0));
-  let idx = 0, score = 0, answered = 0;
-  const results = quiz.map(() => []);   // per-question ✓/✗, feeds progress + recap
-  const card = el("div", { class: "card wx-quiz-card" });
-  // Title only: the quiz's intro is the first card's opening line, and
-  // printing it above the card as well would say it twice.
-  container.append(el("div", { class: "page wx-quiz-page" },
-    el("div", { class: "content" }, pageHead({ title: page.title }), card)));
+  // Where the reader is, and each prompt's chosen option. Going back
+  // revisits a prompt as it was answered rather than asking it again, so
+  // the score counts first answers only.
+  let idx = 0, part = 0;
+  const choices = quiz.map(() => []);
+  // A community part stores its own verdict with the guess, since what is
+  // right depends on the office picked.
+  const results = () => quiz.map((q, i) => partsOf(q)
+    .map((pp, j) => choices[i][j] === undefined ? undefined
+      : pp.kind === "community" ? choices[i][j].right
+      : isRight(pp, choices[i][j]))
+    .filter(r => r !== undefined));
+  const tally = () => {
+    const flat = results().flat();
+    return { answered: flat.length, score: flat.filter(Boolean).length };
+  };
+  // The same skeleton as the explore pages: title and introduction, then
+  // each question as a small label over a large heading, its answers on the
+  // page, and the chart that answers it as the one card.
+  const card = el("section", { class: "wx-result wx-quiz" });
+  container.append(el("div", { class: "page wx-explore-page wx-quiz-page" },
+    el("div", { class: "content" }, pageHead(page), card)));
 
-  // One segment per prompt; ✓/✗ glyphs carry the state (greyscale theme —
-  // never color alone), the outlined segment is where you are.
+  // One group per question, one segment in it per prompt, so a follow-up
+  // reads as part of its question. ✓/✗ glyphs carry the state (greyscale
+  // theme, never color alone); the outlined segment is where you are.
   const progress = el("div", { class: "wx-quiz-progress" });
   function drawProgress() {
     progress.textContent = "";
+    const t = tally();
     progress.setAttribute("aria-label",
-      `${answered} of ${totalPrompts} answered, ${score} right`);
-    const flat = results.flat();
-    for (let i = 0; i < totalPrompts; i++) {
-      const seg = el("span", { class: "wx-quiz-seg" });
-      if (i < flat.length) {
-        seg.classList.add(flat[i] ? "correct" : "wrong");
-        seg.textContent = flat[i] ? "✓" : "✗";
-      } else if (i === flat.length) seg.classList.add("current");
-      progress.append(seg);
-    }
+      `${t.answered} of ${totalPrompts} answered, ${t.score} right`);
+    // One row per section, read top to bottom: the section's name, then a
+    // segment for every prompt in it, grouped by question. A segment opens
+    // its question or part, answered or not; a section name opens the
+    // section's first question.
+    const go = (i, j) => {
+      idx = i; renderQ(j);
+      card.scrollIntoView({ behavior: "smooth", block: "start" });
+    };
+    let row = null;
+    quiz.forEach((q, i) => {
+      if (!row || quiz[i - 1].theme !== q.theme) {
+        row = el("div", { class: "wx-quiz-theme-row" });
+        // The section being answered is named in the accent, since the
+        // rows are what say where the reader is.
+        const here = quiz[idx] && quiz[idx].theme === q.theme;
+        progress.append(
+          el("button", { class: "wx-quiz-theme-label" + (here ? " current" : ""),
+            type: "button", onclick: () => go(i, 0) }, q.theme || ""),
+          row);
+      }
+      const group = el("span", { class: "wx-quiz-seg-group" });
+      partsOf(q).forEach((pp, j) => {
+        const what = j ? (pp.tag ? ` \u00b7 ${pp.tag}` : " \u00b7 follow-up") : "";
+        const seg = el("button", { class: "wx-quiz-seg", type: "button",
+          title: `Question ${i + 1}${what}`,
+          "aria-label": `Go to question ${i + 1}${what.replace(" \u00b7", ",")}`,
+          onclick: () => go(i, j) });
+        const c = choices[i][j];
+        if (c !== undefined) {
+          const r = pp.kind === "community" ? c.right : isRight(pp, c);
+          seg.classList.add(r ? "correct" : "wrong");
+          seg.textContent = r ? "\u2713" : "\u2717";
+        }
+        if (i === idx && j === part) seg.classList.add("current");
+        group.append(seg);
+      });
+      row.append(group);
+    });
   }
 
-  // Wrong-answer lead-ins rotate, never repeating back-to-back (Matthew: a
-  // flat "Not quite" on every miss reads robotic). Keep them friendly, in
-  // the "not quite" register — earlier blunter drafts read snarky — and
-  // free of factual claims ("so close!" could be false); the reveal
-  // sentence carries the data, these only soften the miss.
-  const WRONG_LEADS = ["Not quite — ", "Good guess, but not quite — ",
-    "Not exactly — ", "A tricky one — ", "This one surprises many people — "];
-  let lastLead = -1;
-  function wrongLead() {
-    let i;
-    do { i = Math.floor(Math.random() * WRONG_LEADS.length); }
-    while (i === lastLead);
-    lastLead = i;
-    return WRONG_LEADS[i];
-  }
+  // The verdict names the result outright on a miss, so the reader learns
+  // the answer before reading why; `result` comes from the builder, computed
+  // from the same numbers as the answer key.
+  // A part may word its own miss ("65+ has the highest reported
+  // understanding"); otherwise the result is named plainly.
+  const verdict = (right, pp) => right ? "You got it."
+    : pp.miss || `The survey result is ${pp.result || pp.options[pp.answer]}`;
 
-  // Explorer deep link. grouping=null keeps the compiler's split (the
+  // Explorer deep link. grouping=null keeps the builder's split (the
   // follow-up's subject); part 1 passes "All" for the national view.
   function exploreLink(q, grouping, label) {
     if (!q.explore) return null;
@@ -2586,32 +2894,63 @@ components.wx_quiz = async function (page, container) {
       label || q.explore.label || "See the data");
   }
 
-  function renderQ() {
+  // One step back through the prompts: a follow-up goes to its question,
+  // a question to the last prompt of the one before, the score page to the
+  // last prompt of all.
+  const hasPrevious = () => idx > 0 || part > 0;
+  function goPrevious() {
+    if (part > 0) part--;
+    else { idx--; part = partsOf(quiz[idx]).length - 1; }
+    renderQ(part);
+    card.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  const previousButton = () => el("button", { class: "wx-quiz-again",
+    onclick: goPrevious }, "\u2190 Previous Question");
+
+  function renderQ(startPart = 0) {
     card.textContent = "";
+    part = startPart;
     card.append(progress);
     drawProgress();
     if (idx >= quiz.length) {
-      card.append(el("p", { class: "wx-eyebrow" }, "Done"));
-      card.append(el("h2", { class: "wx-quiz-q wx-quiz-score" },
-        `You got ${score} of ${answered} right.`));
-      card.append(el("p", { class: "wx-note" },
-        "Every answer lives in the dashboard — the interesting part is why. Keep exploring."));
+      const t = tally();
+      card.append(el("div", { class: "wx-result-head" },
+        el("p", { class: "wx-result-survey" }, "Your score"),
+        el("h2", { class: "wx-question-head wx-result-item" },
+          `You got ${t.score} of ${t.answered} right.`)));
+      card.append(el("p", { class: "wx-quiz-lede" },
+        "Every answer lives in the dashboard, and the interesting part is " +
+        "why. Keep exploring."));
       // Recap: one row per question, marks + topic + its explorer deep link.
       const topicOf = (q) => {
         const s = q.part1.prompt;
         return s.length > 76 ? s.slice(0, 76).replace(/\s+\S*$/, "") + "…" : s;
       };
-      card.append(el("div", { class: "wx-quiz-recap" },
-        ...quiz.map((q, i) => el("div", { class: "wx-quiz-recap-row" },
+      // Grouped under each theme with its own count, so the recap shows
+      // which part of the warning chain the reader's instincts missed.
+      const r = results();
+      const recap = el("div", { class: "card wx-result-chart wx-quiz-recap" });
+      quiz.forEach((q, i) => {
+        if (q.theme && (i === 0 || quiz[i - 1].theme !== q.theme)) {
+          const mine = quiz.map((x, j) => x.theme === q.theme ? r[j] : [])
+            .flat();
+          recap.append(el("p", { class: "wx-quiz-recap-theme" },
+            `${q.theme} \u00b7 ${mine.filter(Boolean).length} of ` +
+            `${mine.length} right`));
+        }
+        recap.append(el("div", { class: "wx-quiz-recap-row" },
           el("span", { class: "wx-quiz-recap-marks" },
-            results[i].map(ok => ok ? "✓" : "✗").join(" ")),
+            r[i].map(ok => ok ? "✓" : "✗").join(" ")),
           el("span", { class: "wx-quiz-recap-topic" }, topicOf(q)),
-          exploreLink(q, null, "explore ↗")))));
+          exploreLink(q, null, "explore ↗")));
+      });
+      card.append(recap);
       card.append(el("div", { class: "wx-quiz-nav" },
+        previousButton(),
         el("a", { class: "wx-cta-button", href: "#survey" }, "Explore the survey questions"),
         el("button", { class: "wx-quiz-again", onclick: () => {
-          idx = 0; score = 0; answered = 0;
-          results.forEach(r => { r.length = 0; });
+          idx = 0;
+          choices.forEach(c => { c.length = 0; });
           renderQ();
         } }, "Start over")));
       return;
@@ -2620,110 +2959,337 @@ components.wx_quiz = async function (page, container) {
     // Prefetch the question's data file so the reveal chart is instant;
     // null (missing id or fetch failure) just means no chart renders.
     const dataPromise = (q.explore && q.explore.params && q.explore.params.q)
-      ? fetchJSON(`data/q/${q.explore.params.q}.json`).catch(() => null)
+      ? fetchQuestion(q.explore.params.q).catch(() => null)
       : Promise.resolve(null);
-    if (idx === 0 && answered === 0 && page.intro)
-      card.append(el("p", { class: "wx-note wx-quiz-intro" }, page.intro));
-    const eyebrow = el("p", { class: "wx-eyebrow" });
-    card.append(eyebrow);
     const parts = partsOf(q);
-    let part = 0;
     const zone = el("div");
     card.append(zone);
 
     // The real data behind the prompt just answered: national split for
-    // part 1, the compiler's subgroup split for the follow-up — the same
+    // part 1, the builder's subgroup split for the follow-up: the same
     // rows/orientation the explorer will show when they click through.
-    // Exception: a part carrying compiler-emitted `chart` rows (a prompt
+    // Exception: a part carrying builder-emitted `chart` rows (a prompt
     // that compares several survey variables, so no single data/q file
     // matches) charts those rows instead.
+    // The survey page's colors: its default scheme, or whichever one a
+    // reader has picked there (?scheme= is shared across the site).
+    const quizColors = (rows) => schemeSeriesColors(urlScheme(),
+      new Set(rows.map(r => naLabel(r.group))).size);
     function revealChart(pp) {
-      const grouping = part === 0 ? "All"
+      // A part that names its own survey item charts that item's file, at
+      // the split its own link names.
+      const own = pp.explore && pp.explore.params;
+      const grouping = own ? (own.grouping || "All")
+        : part === 0 ? "All"
         : ((q.explore && q.explore.params && q.explore.params.grouping) || "All");
+      const itemData = own && own.q
+        ? fetchQuestion(own.q).catch(() => null)
+        : dataPromise;
       const grouped = !pp.chart && grouping !== "All";
-      const panel = el("div", { class: "wx-quiz-chart" });
-      panel.append(el("p", { class: "wx-eyebrow" }, "What the survey says"));
+      // The answer as the page's one card, like the explore pages' figures:
+      // the chart, a line saying what it shows, and the way into the
+      // explorer at its foot where they put their downloads.
+      const panel = el("div", { class: "card wx-result-chart wx-quiz-chart" });
       const wrap = el("div", {
         class: "wx-quiz-chartwrap" + (grouped ? " grouped" : "") });
       const canvas = el("canvas");
       wrap.append(canvas);
-      const cap = el("p", { class: "wx-caption" });
-      panel.append(wrap, cap);
+      // The same note the survey page puts under its chart: a line of facts,
+      // then what the bars are, from the same templates and question file.
+      const cap = el("div", { class: "wx-caption wx-explore-caption wx-quiz-cap" });
+      const foot = el("div", { class: "wx-toolbar-actions wx-result-downloads" });
+      // The survey question as respondents read it, above the chart: the
+      // quiz prompt paraphrases, and the chart answers the question itself.
+      const asked = el("div", { class: "wx-quiz-asked" });
+      const setAsked = (stem, items) => {
+        asked.append(el("p", { class: "wx-quiz-asked-label" }, "Survey question"));
+        if (stem) asked.append(el("p", { class: "wx-quiz-asked-stem" }, stem));
+        if (items.length === 1)
+          asked.append(el("p", { class: "wx-quiz-asked-item" }, items[0]));
+        else if (items.length)
+          asked.append(el("ul", { class: "wx-quiz-asked-items" },
+            ...items.map(t => el("li", {}, t))));
+      };
+      panel.append(asked, wrap, cap, foot);
+      // A part may chart a different survey item from its question (a
+      // follow-up asked of another hazard); its link then goes there.
+      const toExplorer = (g) => {
+        const a = exploreLink(pp.explore ? { explore: pp.explore } : q, g,
+          "Open in the survey explorer \u2192");
+        if (a) { a.classList.add("wx-foot-link"); foot.append(a); }
+        else foot.remove();
+      };
       if (pp.chart) {
-        cap.append("Weighted survey estimates — ",
-          exploreLink(q, "All", "open in the survey explorer"), ".");
+        // Where the options are what respondents compared, the builder sends
+        // them as a table, which replaces the list of question stems.
+        if (pp.asked && pp.asked.table) {
+          const t = pp.asked.table;
+          asked.append(el("p", { class: "wx-quiz-asked-label" }, "Survey question"));
+          if (pp.asked.stem) asked.append(el("p", { class: "wx-quiz-asked-stem" }, pp.asked.stem));
+          if (t.lead) asked.append(el("p", { class: "wx-quiz-asked-stem" }, t.lead));
+          asked.append(el("table", { class: "wx-quiz-asked-table" },
+            el("thead", {}, el("tr", {}, ...t.head.map(h => el("th", {}, h)))),
+            el("tbody", {}, ...t.rows.map(r => el("tr", {},
+              ...r.map((c, k) => el(k ? "td" : "th", {}, c)))))));
+        } else if (pp.asked) setAsked(pp.asked.stem, [].concat(pp.asked.items || []));
+        // A follow-up's chart is its group values, with the survey page's
+        // note written by the builder; a comparison across questions has
+        // no one sample to describe.
+        if (pp.caption) {
+          cap.append(el("p", { class: "wx-caption-meta" }, pp.caption.meta),
+            el("p", { class: "wx-caption-bars" }, pp.caption.bars));
+        } else cap.append(el("p", { class: "wx-caption-bars" },
+          "Bars show weighted survey estimates."));
+        toExplorer(pp.grouping || (part === 0 ? "All" : null));
+        const hl = pp.highlight || {};
+        // Rows in more than one group (two scenarios side by side) get a
+        // legend to say which is which.
+        const nGroups = new Set(pp.chart.rows.map(r => naLabel(r.group))).size;
+        const nCats = new Set(pp.chart.rows.map(r => naLabel(r.category))).size;
+        wrap.style.height = Math.max(250, 60 + nCats * (nGroups * 20 + 14) +
+          (nGroups > 1 ? 50 : 0)) + "px";
         groupedBarChart(canvas, pp.chart.rows,
-          { yLabel: pp.chart.y_label, horizontal: true, legend: false });
+          { yLabel: pp.chart.y_label, altTitle: pp.prompt, horizontal: true, legend: nGroups > 1,
+            legendTitle: pp.chart.legend_title || "",
+            colors: quizColors(pp.chart.rows),
+            highlight: hl.category ? { categories: new Set([].concat(hl.category)) } : null });
+        if (hl.category && !pp.caption) cap.append(el("p", { class: "wx-caption-hl" },
+          `The highlighted bar is the answer: ${hl.category}.`));
         return panel;
       }
-      dataPromise.then(v => {
+      itemData.then(v => {
         if (!v || !v.splits) { panel.remove(); return; }
-        const { splits: pSplits } = questionSlice(v);
+        const { splits: pSplits, summaries } = questionSlice(v);
+        setAsked(v.question_intro || "", [v.question_text || v.question || ""]);
         const g = (pSplits[grouping] && pSplits[grouping].length) ? grouping : "All";
+        const tick = tickLabeller((v.options || []).map(o => o.label));
         const labelFor = (resp) => {
           const hit = (v.options || []).find(o => String(o.value) === String(resp));
-          return hit ? wrapTickLabel(hit.label) : String(resp);
+          return hit ? tick(hit.label) : String(resp);
         };
         const rows = (pSplits[g] || []).map(r => ({
           group: r.group, category: labelFor(r.resp), value: r.p,
           label: Math.round(r.p) + "%"
         }));
         if (!rows.length) { panel.remove(); return; }
+        // Room for the labels: long options wrap to several lines, and a
+        // fixed height would squeeze their bars thin.
+        if (g === "All") {
+          const lines = Math.max(...rows.map(r => String(r.category).split("\n").length));
+          const nCats = new Set(rows.map(r => r.category)).size;
+          wrap.style.height = Math.max(250, 70 + nCats * Math.max(34, lines * 18)) + "px";
+        }
         const gLabel = (CONFIG.groupings.find(x => x.id === g) || {}).label;
-        cap.append(g === "All"
-          ? "Weighted national distribution — " : `Split by ${gLabel} — `,
-          exploreLink(q, g === "All" ? "All" : null, "open in the survey explorer"), ".");
-        groupedBarChart(canvas, rows, { yLabel: "Respondents (%)",
-          horizontal: true, legend: g !== "All" });
+        // The bars the answer is made of: the response codes it adds up, for
+        // the group it names. A group the fallback split does not carry is
+        // dropped rather than fading every bar.
+        const hl = pp.highlight || {};
+        const hlCats = hl.resp ? new Set(hl.resp.map(c => labelFor(c))) : null;
+        const hlGroup = hl.group && rows.some(r => r.group === hl.group) ? hl.group : null;
+        const highlight = (hlCats || hlGroup) ? { categories: hlCats, group: hlGroup } : null;
+        const tpl = CONFIG.explore_caption, sm = summaries && summaries[g];
+        if (tpl && sm) {
+          const survey = String(v.hazard || "").replace(/\s*\([A-Z]+\)$/, "");
+          cap.append(el("p", { class: "wx-caption-meta" }, fillTpl(tpl.meta, {
+            n: Number(sm.n).toLocaleString(), survey,
+            years: String(sm.years || "").replace(/-/g, "\u2013") })));
+          const gcfg = CONFIG.groupings.find(x => x.id === g);
+          let bars = g === "All" ? tpl.bars : fillTpl(tpl.bars_split,
+            { group_phrase: (gcfg && gcfg.phrase) || "group" });
+          if (g !== "All") bars += fillTpl(tpl.smallest, { smallest: sm.smallest,
+            smallest_n: Number(sm.smallest_n).toLocaleString() });
+          // A part may say in its own words what the highlight marks; it
+          // then replaces the generated "Highlighted:" line.
+          if (pp.chart_note) bars += " " + pp.chart_note;
+          cap.append(el("p", { class: "wx-caption-bars" }, bars));
+        }
+        toExplorer(g === "All" ? "All" : null);
+        groupedBarChart(canvas, rows, { yLabel: "Respondents (%)", altTitle: pp.prompt,
+          horizontal: true, legend: g !== "All", legendTitle: gLabel || "Group",
+          colors: quizColors(rows), highlight });
+        if (highlight && !pp.chart_note) {
+          const names = hl.resp ? hl.resp.map(c => {
+            const o = (v.options || []).find(x => String(x.value) === String(c));
+            return o ? `\u201c${o.label}\u201d` : String(c);
+          }) : [];
+          const list = names.length > 1
+            ? names.slice(0, -1).join(", ") + " and " + names[names.length - 1]
+            : names[0];
+          const text = !names.length
+            ? `Highlighted: the ${hlGroup} bars, the group the answer names.`
+            : `Highlighted: ${list}${hlGroup ? " for " + hlGroup : ""}, the ` +
+              `${names.length > 1 ? "responses" : "response"} the answer is based on.`;
+          cap.append(el("p", { class: "wx-caption-hl" }, text));
+        }
       });
       return panel;
     }
 
+    // The community question: pick a forecast office, then guess its
+    // top-rated hazard. The estimates come from the Communities page's own
+    // file and are only put in order here; hazards within `tie` of the top
+    // all count as right. The guess is locked once made, like any answer.
+    function renderCommunity(pp, step) {
+      const nav = el("div", { class: "wx-quiz-nav" });
+      if (hasPrevious()) nav.append(previousButton());
+      const pick = el("select", { class: "wx-quiz-place" });
+      const guessZone = el("div");
+      const out = el("div");
+      step.append(pick, guessZone, out, nav);
+      fetchJSON("data/map/cwa_values.json").then(cv => {
+        const places = Object.entries(cv.places || {})
+          .sort((a, b) => a[1].label.localeCompare(b[1].label));
+        pick.append(el("option", { value: "" }, pp.choose || "Choose"),
+          ...places.map(([code, p]) => el("option", { value: code }, p.label)));
+        const lc = (m) => m.label.toLowerCase();
+        const cap1 = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+        const fmt = (x) => x.toFixed(2);
+        const rank = (code) => pp.measures
+          .map(m => ({ ...m, v: ((cv.measures[m.code] || {}).values || {})[code] }))
+          .filter(m => typeof m.v === "number")
+          .sort((a, b) => b.v - a.v);
+        const nextButton = () => el("button", { class: "wx-cta-button", onclick: () => {
+          idx++; renderQ();
+          card.scrollIntoView({ behavior: "smooth", block: "start" });
+        } }, idx + 1 < quiz.length ? "Next Question \u2192" : "See Your Score \u2192");
+        // The options for an office, then, once guessed, the verdict, the
+        // reveal and the chart.
+        const showGuess = (code) => {
+          guessZone.textContent = ""; out.textContent = "";
+          if (!code) return;
+          const vals = rank(code);
+          if (!vals.length) return;
+          const tied = vals.filter(m => vals[0].v - m.v < pp.tie);
+          const opts = el("div", { class: "wx-quiz-opts wx-quiz-opts-grid" });
+          guessZone.append(opts);
+          const settle = (g) => {
+            const right = tied.some(m => m.code === g);
+            choices[idx][part] = { code, guess: g, right };
+            pick.disabled = true;
+            drawProgress();
+            opts.querySelectorAll("button").forEach(bb => {
+              bb.disabled = true;
+              if (tied.some(m => m.code === bb.dataset.code)) {
+                bb.classList.add("correct"); bb.prepend("\u2713 ");
+              } else if (bb.dataset.code === g) {
+                bb.classList.add("wrong"); bb.prepend("\u2717 ");
+              }
+            });
+            const place = cv.places[code].label;
+            const list = tied.map(m => `${lc(m)} (${fmt(m.v)})`);
+            const joined = list.length > 2
+              ? list.slice(0, -1).join(", ") + ", and " + list[list.length - 1]
+              : list.join(" and ");
+            const names = tied.map(lc);
+            const namesJoined = names.length > 2
+              ? names.slice(0, -1).join(", ") + ", and " + names[names.length - 1]
+              : names.join(" and ");
+            const text = tied.length > 1
+              ? fillTpl(pp.reveal_tied, { place, tied: joined,
+                  either: tied.length === 2 ? "either" : "any of them" })
+              : fillTpl(pp.reveal_one, { place, top: lc(vals[0]), value: fmt(vals[0].v),
+                  second: lc(vals[1]), second_value: fmt(vals[1].v) });
+            const miss = tied.length > 1
+              ? fillTpl(pp.miss_tied, { place, Tied: cap1(namesJoined) })
+              : fillTpl(pp.miss_one, { place, Top: cap1(lc(vals[0])) });
+            out.append(el("div", { class: "wx-quiz-reveal" + (right ? " is-right" : ""),
+              role: "status" },
+              el("p", { class: "wx-quiz-verdict" }, right ? "You got it." : miss),
+              el("p", { class: "wx-quiz-answer" }, text)));
+            const panel = el("div", { class: "card wx-result-chart wx-quiz-chart" });
+            const wrap = el("div", { class: "wx-quiz-chartwrap" });
+            const canvas = el("canvas");
+            wrap.append(canvas);
+            wrap.style.height = Math.max(250, 60 + vals.length * 34) + "px";
+            const rows = vals.map(m => ({ group: "All", category: m.label,
+              value: m.v, label: fmt(m.v) }));
+            panel.append(wrap,
+              el("div", { class: "wx-caption wx-explore-caption wx-quiz-cap" },
+                el("p", { class: "wx-caption-meta" }, fillTpl(pp.meta, { place })),
+                el("p", { class: "wx-caption-bars" }, pp.bars)),
+              el("div", { class: "wx-toolbar-actions wx-result-downloads" },
+                el("a", { class: "wx-quiz-explore wx-foot-link", href: "#map",
+                  onclick: () => setParams({ place: code, measure: vals[0].code }) },
+                  fillTpl(pp.map_link, { place }))));
+            out.append(panel);
+            groupedBarChart(canvas, rows, { yLabel: "Perceived risk (1\u20135)",
+              altTitle: fillTpl(pp.meta, { place }),
+              horizontal: true, legend: false, colors: quizColors(rows),
+              highlight: { categories: new Set(tied.map(m => m.label)) } });
+            if (!nav.querySelector(".wx-cta-button")) nav.append(nextButton());
+          };
+          pp.measures.forEach(m => opts.append(el("button", { class: "wx-quiz-opt",
+            "data-code": m.code, onclick: () => settle(m.code) }, m.label)));
+          const had = choices[idx][part];
+          if (had && had.code === code) settle(had.guess);
+        };
+        pick.addEventListener("change", () => showGuess(pick.value));
+        const had = choices[idx][part];
+        if (had) { pick.value = had.code; showGuess(had.code); }
+      });
+    }
+
     function renderPart() {
-      eyebrow.textContent =
-        `Question ${promptsBefore[idx] + part + 1} of ${totalPrompts}` +
-        (part > 0 ? " — follow-up" : "");
+      drawProgress();
       zone.textContent = "";
       const pp = parts[part];
       const step = el("div", { class: "wx-quiz-step" });
       zone.append(step);
-      step.append(el("h3", { class: "wx-quiz-q" }, pp.prompt));
+      // A long prompt comes in layers: a quiet setup, the text respondents
+      // read as a quotation, then the question itself as the heading.
+      if (pp.setup) step.append(el("p", { class: "wx-quiz-setup" }, pp.setup));
+      if (pp.quote) step.append(el("blockquote", { class: "wx-quiz-quote" }, pp.quote));
+      (pp.quotes || []).forEach(qt => step.append(el("blockquote",
+        { class: "wx-quiz-quote" }, el("strong", {}, qt.label + ": "), qt.text)));
+      step.append(el("h2", { class: "wx-question-head wx-result-item wx-quiz-q" },
+        pp.prompt));
+      if (pp.kind === "community") { renderCommunity(pp, step); return; }
       const opts = el("div", { class: "wx-quiz-opts" });
+      // Until the prompt is answered the only way on is back.
+      const nav = el("div", { class: "wx-quiz-nav" });
+      if (hasPrevious()) nav.append(previousButton());
+      const show = (i) => {
+        const right = isRight(pp, i);
+        drawProgress();
+        opts.querySelectorAll("button").forEach((bb, j) => {
+          bb.disabled = true;
+          if (isRight(pp, j)) { bb.classList.add("correct"); bb.prepend("✓ "); }
+          else if (j === i) { bb.classList.add("wrong"); bb.prepend("✗ "); }
+        });
+        // The answer as a callout: the verdict on its own line, then what
+        // the survey says, set larger than anything around it but the
+        // question.
+        const fb = el("div", { class: "wx-quiz-reveal" + (right ? " is-right" : ""),
+                               role: "status" },
+          el("p", { class: "wx-quiz-verdict" }, verdict(right, pp)),
+          el("p", { class: "wx-quiz-answer" }, pp.reveal));
+        if (part + 1 < parts.length) {
+          nav.append(el("button", { class: "wx-cta-button", onclick: () => {
+            part++; renderPart();
+          } }, parts[part + 1].lead || "Try a Follow-Up \u2192"));
+        } else {
+          nav.append(el("button", { class: "wx-cta-button", onclick: () => {
+            idx++; renderQ();
+            card.scrollIntoView({ behavior: "smooth", block: "start" });
+          } }, idx + 1 < quiz.length ? "Next Question \u2192" : "See Your Score \u2192"));
+        }
+        nav.before(fb, revealChart(pp));
+      };
       pp.options.forEach((o, i) => {
         opts.append(el("button", { class: "wx-quiz-opt", onclick: () => {
-          answered++;
-          const right = i === pp.answer;
-          if (right) score++;
-          results[idx].push(right);
-          drawProgress();
-          opts.querySelectorAll("button").forEach((bb, j) => {
-            bb.disabled = true;
-            if (j === pp.answer) { bb.classList.add("correct"); bb.prepend("✓ "); }
-            else if (j === i) { bb.classList.add("wrong"); bb.prepend("✗ "); }
-          });
-          const fb = el("div", { class: "wx-quiz-reveal", role: "status" },
-            el("p", {}, (right ? "Right. " : wrongLead()) + pp.reveal));
-          const nav = el("div", { class: "wx-quiz-nav" });
-          if (part + 1 < parts.length) {
-            nav.append(el("button", { class: "wx-cta-button", onclick: () => {
-              part++; renderPart();
-            } }, "Follow-up question"));
-          } else {
-            nav.append(el("button", { class: "wx-cta-button", onclick: () => {
-              idx++; renderQ(); window.scrollTo({ top: 0, behavior: "smooth" });
-            } }, idx + 1 < quiz.length ? "Next question" : "Finish"));
-          }
-          step.append(fb, revealChart(pp), nav);
+          choices[idx][part] = i;
+          show(i);
         } }, o));
       });
-      step.append(opts);
+      step.append(opts, nav);
+      if (choices[idx][part] !== undefined) show(choices[idx][part]);
     }
     renderPart();
   }
   renderQ();
 };
 
-/* Static page (About) — compiler-authored HTML from config, under the same
+/* Static page (About): builder-authored HTML from config, under the same
  * head every other page carries, so it opens with its title rather than with
  * a heading buried in the card. */
 components.static_page = async function (page, container) {
@@ -2740,8 +3306,9 @@ components.static_page = async function (page, container) {
 function pageHead(page, fallback) {
   const wrap = el("div", { class: "wx-page-head" });
   if (page.title) wrap.append(el("h1", { class: "wx-page-title" }, page.title));
-  const text = page.intro || fallback || "";
-  if (text) wrap.append(el("p", { class: "wx-explore-intro" }, text));
+  // An intro given as a list is set as that many paragraphs.
+  for (const text of [].concat(page.intro || fallback || []))
+    wrap.append(el("p", { class: "wx-explore-intro" }, text));
   return wrap;
 }
 
@@ -2781,8 +3348,9 @@ async function renderPage() {
   }
 }
 
-/* ---- viewer theme switcher (user-approved roster, 2026-07-07) ----------- */
-// Themes restyle chrome only; chart data colors stay viridis in all of them.
+/* ---- viewer theme switcher ---------------------------------------------- */
+// Themes restyle chrome; data colors come from the color scheme, except that
+// the greyscale theme repaints map ramps in greys (dataStops).
 const THEMES = [
   { id: "wxdash", label: "WxDash", swatch: "#443A83" },
   { id: "wxops", label: "Ops (dark)", swatch: "#0f172a" },
@@ -2844,7 +3412,7 @@ async function boot() {
     .forEach(g => { g.classList.remove("open");
       g.querySelector(".nav-group-btn").setAttribute("aria-expanded", "false"); });
   for (const p of CONFIG.pages) {
-    if (p.hidden) continue; // e.g. the place-profile page (reached via stubs/search)
+    if (p.hidden) continue; // a page reached by link rather than from the menu
     if (!p.nav_group) { nav.append(el("a", { href: "#" + p.id }, p.label)); continue; }
     if (!navGroups.has(p.nav_group)) {
       const wrap = el("div", { class: "nav-group" });
@@ -2893,7 +3461,8 @@ async function boot() {
   if (CONFIG.footer && !document.getElementById("site-footer")) {
     const f = CONFIG.footer;
     const brand = el("div", { class: "foot-brand" },
-      el("span", { class: "brand-name" }, CONFIG.project.nav_title || CONFIG.project.title));
+      el("span", { class: "brand-name" },
+         f.name || CONFIG.project.nav_title || CONFIG.project.title));
     if (f.tagline) brand.append(el("p", { class: "foot-tag" }, f.tagline));
     const cols = el("div", { class: "foot-inner" }, brand);
     if (f.links_html) cols.append(el("nav", { class: "foot-links", html: f.links_html }));

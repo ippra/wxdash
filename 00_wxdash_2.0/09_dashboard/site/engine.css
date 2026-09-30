@@ -1,7 +1,7 @@
 /* engine.css — WxDash styles.
    Design tokens up top; the wxdash (light, default), wxops (dark) and
    greyscale (high-contrast accessibility) themes override them on
-   html[data-theme]. Forked 2026-08-14 from the ShinyRails shared engine. */
+   html[data-theme]. */
 
 :root {
   --bg: #faf9f7;                /* warm paper */
@@ -24,14 +24,8 @@
   --font-display: Charter, "Bitstream Charter", Cambria, Georgia, serif;
 }
 
-/* Prairie — warm Oklahoma earth: wheat paper, terracotta accent */
-
-/* Waters — cool teal: fits the water/climate mission */
-
-/* Civic — navy + gold: formal / official-facing */
-
 /* Greyscale — high-contrast accessibility (B&W print, color-vision needs).
-   Chrome only: chart data colors remain viridis (colorblind-safe by design). */
+   Restyles chrome; the engine's dataStops() repaints map ramps in greys. */
 html[data-theme="greyscale"] {
   --bg: #ffffff;
   --panel: #ffffff;
@@ -207,10 +201,10 @@ table.data tbody tr.selected { background: var(--row-selected); }
   .page { flex-direction: column; }
 }
 
-/* ================= WxDash additions (2026-08-04) ======================== */
+/* ================= WxDash themes and components ========================= */
 
-/* WxDash theme (light default) — the old app's viridis #443A83 purple as
-   brand anchor, refined: cool-violet paper, midnight display ink, monospace
+/* WxDash theme (light default): viridis #443A83 purple as brand anchor,
+   cool-violet paper, midnight display ink, monospace
    for station codes/values (NWS station-identifier vernacular), and a viridis
    spectrum strip under the navbar tying chrome to the data palette. */
 html[data-theme="wxdash"] {
@@ -237,9 +231,8 @@ html[data-theme="wxdash"] {
 }
 
 /* WxOps theme (dark) — for the weather enterprise: forecasters and emergency
-   managers working dark radar rooms. Drought-Dashboard "operations" lineage:
-   deep slate chrome, luminous viridis-teal accent (sampled from the data
-   ramp itself). Data colors stay viridis — they glow on dark. */
+   managers working dark radar rooms: deep slate chrome, luminous
+   viridis-teal accent (sampled from the data ramp itself). */
 html[data-theme="wxops"] {
   --bg: #0b1220;
   --panel: #0f172a;
@@ -315,7 +308,7 @@ html[data-theme="wxops"] #navbar { position: sticky; border-bottom: none; }
 }
 /* A section heading, marked with a short accent rule rather than by size
    alone: the About page is one column of prose and needs somewhere for the
-   eye to stop. The same eyebrow the fusion dashboard's About page uses. */
+   eye to stop. */
 .wx-static h3 {
   margin: 0 0 12px; font-size: 13px; font-weight: 700; letter-spacing: .08em;
   text-transform: uppercase; color: var(--accent);
@@ -330,6 +323,16 @@ html[data-theme="wxops"] #navbar { position: sticky; border-bottom: none; }
 .wx-static li { margin-bottom: 6px; }
 /* The opening paragraph says what the platform is for, so it is set larger
    than what follows rather than being one paragraph among several. */
+/* Publications: a year heading, then each entry as its title (the link)
+   over its citation, one format throughout and no cards. */
+.wx-pub-year {
+  margin: 22px 0 8px; font-family: var(--mono, monospace); font-size: 12px;
+  font-weight: 700; letter-spacing: 0.06em; color: var(--text-muted);
+}
+.wx-pub { margin: 0 0 14px; }
+.wx-pub-title { display: block; font-weight: 600; font-size: 16px; line-height: 1.4; }
+.wx-pub-cite { display: block; margin-top: 3px; font-size: 14px; line-height: 1.5; color: var(--text-muted); }
+.wx-about-contact { line-height: 1.6; }
 .wx-about-lede {
   font-size: 16.5px; line-height: 1.6; color: var(--text); margin: 0 0 14px;
 }
@@ -362,7 +365,7 @@ html[data-theme="wxops"] #navbar { position: sticky; border-bottom: none; }
 }
 .wx-about-note-body { margin: 0; font-size: 14px; line-height: 1.6; }
 
-/* ============ WxDash design pass (2026-08-06): landing + typography ====== */
+/* ============ Landing + typography ====================================== */
 
 /* Station codes and data values read in monospace — the NWS station-
    identifier vernacular (OUN, APP 61.4) as the typographic signature. */
@@ -374,7 +377,7 @@ html[data-theme="wxops"] #navbar { position: sticky; border-bottom: none; }
   color: var(--text-muted); margin: 0 0 10px;
 }
 
-/* ---------- landing hero: live CWA choropleth backdrop + search console -- */
+/* ---------- landing hero ------------------------------------------------ */
 .wx-hero {
   position: relative; overflow: hidden;
   min-height: 480px;
@@ -384,8 +387,6 @@ html[data-theme="wxops"] #navbar { position: sticky; border-bottom: none; }
   box-shadow: var(--shadow);
   display: flex; align-items: center;
 }
-/* Leaflet adds .leaflet-container to this same element — compound selector,
-   or its default #ddd canvas shows through as a grey slab. */
 .wx-hero-content {
   position: relative; z-index: 500;
   max-width: 640px; padding: 48px 20px 48px 44px;
@@ -426,6 +427,7 @@ html[data-theme="wxops"] #navbar { position: sticky; border-bottom: none; }
    masthead's rule is drawn in; yellow is left off, because a 2px dot of it
    vanishes on the light page. */
 .wx-haz-1 { fill: var(--haz-1, #443a83); background: var(--haz-1, #443a83); }
+
 .wx-haz-2 { fill: var(--haz-2, #2a788e); background: var(--haz-2, #2a788e); }
 .wx-haz-3 { fill: var(--haz-3, #22a884); background: var(--haz-3, #22a884); }
 .wx-haz-4 { fill: var(--haz-4, #7ad151); background: var(--haz-4, #7ad151); }
@@ -576,9 +578,9 @@ html[data-theme="wxops"] {
 .wx-cta-button:hover { filter: brightness(1.12); }
 .wx-cta-button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 
-/* ---------- toolbar explorer layout (Joe's Aug-2026 redesign) ------------
-   Intro line, control bar, question heading, full-width chart,
-   response-key caption, question table below. Opt-in via page.layout. */
+/* ---------- explorer layout ----------------------------------------------
+   Title and introduction, search, question heading, controls, the
+   full-width chart card with its caption, and the question browser below. */
 .wx-explore-intro { color: var(--text-muted); font-size: 14px; margin: 0 2px; }
 .wx-page-head { margin: 0 2px 4px; }
 /* The survey explorer opens as a public data resource rather than an
@@ -646,6 +648,7 @@ html[data-theme="wxops"] {
 }
 .wx-page-head:empty { display: none; }
 .wx-page-head .wx-explore-intro { margin: 0; }
+.wx-page-head .wx-explore-intro + .wx-explore-intro { margin-top: 12px; }
 /* Sized against the card headlines rather than the hero: this sits inside the
    page, above a paragraph, not on a title screen. */
 .wx-page-title {
@@ -711,19 +714,65 @@ html[data-theme="wxops"] {
 .wx-flag-cell:focus-visible { outline: 3px solid var(--accent); outline-offset: 1px; }
 
 .wx-flag-panel { margin-top: 18px; }
+/* Saved questions: a link beside the downloads, and a panel that appears
+   only once something is saved. */
+/* Set like the download links it sits beside, without their arrow. */
+.wx-save-btn {
+  border: 0; background: none; padding: 2px 0; cursor: pointer;
+  font: inherit; font-size: 13px; font-weight: 600; line-height: normal;
+  color: var(--accent);
+  text-decoration: underline; text-decoration-color: transparent;
+  text-underline-offset: 3px;
+}
+.wx-save-btn:hover { text-decoration-color: currentColor; }
+.wx-save-wrap { position: relative; display: inline-flex; }
+.wx-hover-tip {
+  display: none; position: absolute; top: calc(100% + 8px); left: 0;
+  z-index: 1300; width: min(320px, 82vw);
+  background: var(--panel); border: 1px solid var(--panel-border);
+  border-radius: 8px; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
+  padding: 10px 12px; font-size: 12.5px; font-weight: 400; line-height: 1.5;
+  color: var(--text); text-align: left;
+}
+.wx-save-wrap:hover .wx-hover-tip,
+.wx-save-btn:focus-visible + .wx-hover-tip { display: block; }
+.wx-save-btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.wx-saved { margin-top: 18px; }
+.wx-saved-title { font-size: 18px; margin: 0 0 4px; }
+.wx-saved-lede { margin: 0 0 12px; font-size: 13.5px; color: var(--text-muted); }
+.wx-saved-list { list-style: none; margin: 0; padding: 0; }
+.wx-saved-row {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 10px 0; border-top: 1px solid var(--control-border);
+}
+.wx-saved-open {
+  flex: 1; min-width: 0; text-align: left; font: inherit; color: var(--text);
+  background: none; border: 0; padding: 0; cursor: pointer;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.wx-saved-open:hover .wx-saved-q { color: var(--accent); }
+.wx-saved-open:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.wx-saved-open.is-gone { cursor: default; color: var(--text-muted); }
+.wx-saved-meta {
+  font-size: 11.5px; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--text-muted);
+}
+.wx-saved-q { font-size: 14.5px; line-height: 1.45; }
+.wx-saved-drop {
+  flex: none; width: 26px; height: 26px; line-height: 1; cursor: pointer;
+  border: 1px solid var(--control-border); border-radius: 6px;
+  background: var(--control-bg); color: var(--text-muted);
+}
+.wx-saved-drop:hover { color: var(--accent); border-color: var(--accent); }
+.wx-saved-actions { margin-top: 12px; }
+.wx-saved-actions .wx-pdf-btn { margin-left: 0; }
 .wx-flag-empty { color: var(--text-muted); font-size: 13.5px; }
 .wx-flag-row {
   display: flex; align-items: center; gap: 8px;
   padding: 4px 0; font-size: 13px;
 }
 .wx-flag-id { flex: 0 0 260px; font-size: 12px; color: var(--text-muted); }
-.wx-flag-row select { flex: 0 0 150px; }
-.wx-flag-row input { flex: 1; }
-.wx-flag-row select, .wx-flag-row input {
-  border: 1px solid var(--control-border); border-radius: 6px;
-  background: var(--control-bg); color: var(--text);
-  padding: 4px 8px; font-size: 13px; font-family: inherit;
-}
+.wx-flag-question { flex: 1; min-width: 0; }
 .wx-flag-drop {
   flex: none; width: 24px; height: 24px; line-height: 1;
   border: 1px solid var(--control-border); border-radius: 6px;
@@ -762,14 +811,21 @@ html[data-theme="wxops"] {
 /* The variable and data link close the provenance paragraph rather than
    standing apart from it. */
 .wx-explore-caption .wx-caption-provenance { margin-bottom: 0; }
-.wx-caption-ref { opacity: 0.85; }
+/* The methodology under the chart is reference, read once: a step smaller
+   and lighter than the facts line and bars sentence above it. */
+.wx-explore-caption .wx-caption-provenance,
+.wx-explore-caption .wx-caption-ref { font-size: 11px; color: var(--text-muted); }
+.wx-explore-caption .wx-caption-ref code { font-size: 10px; }
+/* Small print keeps full contrast: fading it with opacity takes it below
+   WCAG AA (3.0:1 at 11px), so it is set in the muted text color instead. */
+.wx-caption-ref { color: var(--text-muted); }
 .wx-caption-ref a { color: var(--accent); }
 .wx-caption-ref code { font-family: var(--mono, monospace); font-size: 11px; }
 .wx-explore-caption p { margin: 0 0 8px; }
 .wx-explore-caption p:last-child { margin-bottom: 0; }
 /* The caption's second paragraph is provenance boilerplate — one step
    quieter than the survey-line above it, so the numbers stay in front. */
-.wx-caption-provenance { opacity: 0.85; }
+.wx-caption-provenance { color: var(--text-muted); }
 .wx-caption-provenance a, .wx-explore-caption a { color: var(--accent); }
 .wx-caption-provenance code { font-family: var(--mono, monospace); font-size: 11px; }
 
@@ -793,6 +849,10 @@ html[data-theme="wxops"] {
   font-size: 14.5px; line-height: 1.55; margin: 0 0 8px; max-width: 80ch;
 }
 .wx-result-head .wx-arm-pick { margin: 14px 0 0; }
+.wx-arm-shown-label {
+  margin: 0 0 6px; font-size: 13px; color: var(--text-muted);
+}
+.wx-result-head .wx-arm-shown .wx-quiz-quote { font-size: 14.5px; margin-bottom: 14px; }
 /* Controls: the comparison stands alone; the rest folds away. */
 .wx-result-controls {
   display: flex; align-items: flex-end; gap: 14px 28px; flex-wrap: wrap;
@@ -826,11 +886,33 @@ html[data-theme="wxops"] {
   display: flex; align-items: flex-end; gap: 12px 24px; flex-wrap: wrap;
 }
 .wx-chart-options-body .grouping { width: auto; min-width: 200px; font-size: 13.5px; }
+/* The map's options toggle, like the survey chart's. */
+.wx-map-options-wrap { align-self: flex-end; }
+/* A hint under a menu. On the map bar the controls line up by their labels,
+   not their bottoms, so the hint hangs below without pushing its menu out of
+   line with the others. */
+.wx-field-hint { margin: 6px 2px 0; font-size: 12px; color: var(--text-muted); }
+/* On the map the controls line up by their labels, so the compare hint can
+   hang below its menu; the toggle is nudged down to sit level with the
+   menus. */
+.wx-map-toolbar { align-items: flex-start; }
+.wx-map-toolbar .wx-map-options-wrap { align-self: flex-start; margin-top: 18px; }
+.wx-map-toolbar .grouping { width: auto; min-width: 280px; font-size: 15px; }
+.wx-map-toolbar .wx-chart-options-body .grouping { min-width: 200px; font-size: 13.5px; }
+.wx-map-options > summary { padding: 9px 2px; }
+/* The menu's own label repeats "Map options"; it stays for screen readers
+   but not on screen, so the open menu lines up with the others. */
+.wx-map-options .field-label {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap;
+}
 /* The chart gets room of its own: generous padding, no shadow. */
 .wx-result-chart { padding: 28px 30px 22px; box-shadow: none; }
 @media (max-width: 700px) {
   .wx-result-head .wx-question-head.wx-result-item { font-size: 21px; }
   .wx-compare, .wx-compare .grouping { width: 100%; min-width: 0; }
+  .wx-map-toolbar > div, .wx-map-toolbar .grouping { width: 100%; min-width: 0; }
+  .wx-map-toolbar .wx-map-options-wrap { margin-top: 0; }
   .wx-result-chart { padding: 18px 14px 16px; }
 }
 
@@ -846,6 +928,10 @@ html[data-theme="wxops"] {
   font-size: 13px; font-weight: 600; color: var(--accent);
   text-decoration: underline; text-decoration-color: transparent;
   text-underline-offset: 3px;
+}
+/* The map card has no padding of its own, so the links bring theirs. */
+.wx-map-card .wx-toolbar-actions.wx-result-downloads {
+  margin: 4px 18px 0; padding: 12px 0 16px;
 }
 .wx-result-downloads .wx-pdf-btn:hover {
   color: var(--accent); text-decoration-color: currentColor;
@@ -885,7 +971,8 @@ html[data-theme="wxops"] {
   cursor: pointer; border-radius: 4px;
 }
 .wx-browse-row:hover { background: var(--row-hover); }
-.wx-browse-row:focus-visible { outline: 3px solid var(--accent); outline-offset: -3px; }
+.wx-browse-hit { outline: none; }
+.wx-browse-row:has(.wx-browse-hit:focus-visible) { outline: 3px solid var(--accent); outline-offset: -3px; }
 .wx-browse-row.selected { background: var(--row-hover); box-shadow: inset 3px 0 0 var(--accent); }
 .wx-browse-meta {
   display: flex; gap: 18px; margin-bottom: 5px;
@@ -901,10 +988,6 @@ html[data-theme="wxops"] {
 .wx-browse-item {
   flex: 1; margin: 0; font-size: 15px; line-height: 1.4; font-weight: 600;
   color: var(--text);
-}
-.wx-browse-var {
-  flex: none; font-family: var(--mono, monospace); font-size: 12px;
-  color: var(--text-muted);
 }
 .wx-browse-none { padding: 18px 10px; font-size: 14px; color: var(--text-muted); }
 .wx-browse-pager {
@@ -924,7 +1007,7 @@ html[data-theme="wxops"] {
   .wx-browse-count { margin-left: 0; }
 }
 
-/* PDF download — quiet outline button, right end of the toolbar. */
+/* Download button: a quiet outline button at the right end of its row. */
 .wx-pdf-btn {
   margin-left: auto; align-self: flex-end;
   border: 1px solid var(--control-border); border-radius: 6px;
@@ -934,8 +1017,8 @@ html[data-theme="wxops"] {
 .wx-pdf-btn:hover { border-color: var(--accent); color: var(--accent); }
 .wx-pdf-btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 
-/* Chart PDF and R code sit together at the right of the toolbar. .wx-pdf-btn
-   carries margin-left:auto, so two of them loose in the row each push
+/* Downloads sit together in one group. .wx-pdf-btn carries
+   margin-left:auto, so two of them loose in the row each push
    themselves to the right edge and end up at opposite ends of it; the group
    takes the auto margin once instead. */
 .wx-toolbar-actions {
@@ -944,21 +1027,16 @@ html[data-theme="wxops"] {
 }
 .wx-toolbar-actions .wx-pdf-btn { margin-left: 0; }
 
-/* Map explorer, Joe's Aug-2026 layout: controls across the top, map full
+/* Map explorer: controls across the top, map full
    width below. The toolbar needs a stacking context above Leaflet's panes
    (≤700) so the place-search dropdown overlays the map. */
 .wx-map-toolbar { position: relative; z-index: 800; }
 .wx-map-toolbar .wx-toolbar-search { flex: 1 1 240px; max-width: 340px; }
 .wx-toolbar-search .wx-map-fullwidth .wx-map { height: clamp(460px, 72vh, 880px); }
 
-/* Full-bleed breakout: the map page escapes #app's 1500px column and takes
-   most of the viewport; a ResizeObserver in the engine re-frames CONUS as
-   the width changes. 48px total gutter also clears the scrollbar, so no
-   horizontal overflow. */
-.wx-map-page { width: calc(100vw - 48px); margin-left: calc(50% - (100vw - 48px) / 2); }
-@media (max-width: 700px) {
-  .wx-map-page { width: calc(100vw - 24px); margin-left: calc(50% - (100vw - 24px) / 2); }
-}
+/* The map page sits in the same column as every other page, so titles,
+   controls and cards line up across the site; a ResizeObserver in the
+   engine re-frames CONUS as the column's width changes. */
 
 /* Control labels across the wxdash toolbars pick up the station-code mono
    vernacular — the theme's typographic signature, applied where people
@@ -972,17 +1050,20 @@ html[data-theme="wxops"] {
 }
 .wx-toolbar .grouping { font-size: 14.5px; }
 
-/* Per-measure notes under the map (Joe's caption block), set like it was
-   typeset: a lede line, the survey items in the left reading column, the
-   methodology and provenance in the right. The prose runs the full width of
-   its column rather than to a reading measure — Joe's call, so the block
-   fills the page it is given. */
+/* Per-measure notes under the map, set like typeset copy: a lede line, the
+   survey items in the left reading column, the methodology and provenance in
+   the right. The prose runs the full width of its column rather than to a
+   reading measure, so the block fills the page it is given. */
 .wx-map-notes { padding: 24px 28px 26px; line-height: 1.6; font-size: 14px; }
 .wx-map-notes .wx-lede {
   font-family: var(--font-display);
   font-size: 19px; font-weight: 650; letter-spacing: -0.01em; line-height: 1.35;
   color: var(--display-ink, var(--text));
   margin: 0 0 6px;
+}
+/* One sentence under the heading saying what the map shows. */
+.wx-map-notes .wx-note-intro {
+  margin: 0 0 4px; font-size: 15px; line-height: 1.55; color: var(--text-muted);
 }
 .wx-note-cols {
   display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
@@ -1046,6 +1127,11 @@ html[data-theme="wxops"] {
   letter-spacing: 0.12em; text-transform: uppercase;
   color: var(--text-muted); margin: 5px 0 0;
 }
+/* The sheet's one heading: what it is, which area, how many measures. */
+.wx-scan-heading {
+  font-size: 13px; letter-spacing: 0.1em; margin: 0;
+  color: var(--display-ink, var(--text));
+}
 .wx-scan-actions { margin-left: auto; display: flex; gap: 14px; align-items: center; }
 .wx-scan-actions .wx-pdf-btn { margin-left: 0; align-self: center; }
 .wx-clear-btn {
@@ -1055,9 +1141,13 @@ html[data-theme="wxops"] {
 }
 .wx-clear-btn:hover { color: var(--accent); }
 .wx-clear-btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
-/* In the toolbar it sits on the same baseline as the PDF button beside it,
-   which is nudged off the bottom edge to line up with the labelled selects. */
-.wx-toolbar-clear { align-self: flex-end; margin-bottom: 10px; }
+/* On the map card, in its top-right corner above Leaflet's panes. Plain
+   text, like Clear on the overview sheet: the corner is the card's own
+   background in both layouts, so it needs no chip to be read. */
+.wx-map-card { position: relative; box-shadow: none; }
+/* How to use the map, under it: the one instruction the page needs. */
+.wx-map-hint { margin: 10px 18px 0; }
+.wx-map-clear { position: absolute; top: 12px; right: 16px; z-index: 1000; }
 .wx-scan-lede p {
   font-size: 13.5px; color: var(--text-muted); max-width: var(--scan-width);
   margin: 14px 0 0; line-height: 1.55;
@@ -1149,7 +1239,7 @@ html[data-theme="wxops"] {
   .wx-scan-actions { margin-left: 0; }
 }
 
-/* Comparison as two maps rather than a crossfade (Joe's ruling, Aug 2026):
+/* Comparison as two maps rather than a crossfade:
    one measure, one alert history, drawn at the same size on the same page.
    A fade shows one picture at a time and asks the reader to remember the
    other; two maps let the eye travel between them. */
@@ -1207,10 +1297,10 @@ html[data-theme="wxops"] {
 
 .wx-landing-page .content { max-width: 1180px; margin: 0 auto; }
 
-/* ============ WxDash navbar refinement (2026-08-06) ===================== */
+/* ============ WxDash navbar ============================================= */
 /* Scoped to the WxDash themes: full-height text links whose active underline
    docks onto the viridis spectrum strip; institutional brand lockup; ghost
-   theme button. Other themes keep the pill navbar (S3OK approved look). */
+   theme button. The greyscale theme keeps the base navbar. */
 
 html[data-theme="wxdash"] #navbar,
 html[data-theme="wxops"] #navbar { height: 60px; gap: 26px; }
@@ -1265,10 +1355,10 @@ html[data-theme="wxops"] #theme-btn {
 html[data-theme="wxdash"] #theme-btn:hover,
 html[data-theme="wxops"] #theme-btn:hover { background: rgba(255, 255, 255, 0.08); }
 
-/* ============ Responsive pass (2026-08-06) ============================== */
+/* ============ Responsive ================================================ */
 /* Base rules first (all themes): wrap the
    navbar, keep tables scrollable instead of crushed. Then WxDash-specific
-   tuning. Desktop rendering is unchanged. */
+   tuning. Desktop widths are unaffected. */
 
 @media (max-width: 900px) {
   /* align-items:flex-start is right for the row layout, but in a column it
@@ -1321,7 +1411,7 @@ html[data-theme="wxops"] #theme-btn:hover { background: rgba(255, 255, 255, 0.08
   .wx-legend { padding: 8px 12px; }
 }
 
-/* ============ Methodology affordances (2026-08-06) ====================== */
+/* ============ Methodology affordances =================================== */
 /* "What does this number mean?" popovers — text from config.explainers.
    Panels open BELOW their trigger (house preference). */
 .tip-wrap { position: relative; display: inline-block; }
@@ -1354,7 +1444,7 @@ html[data-theme="wxops"] #theme-btn:hover { background: rgba(255, 255, 255, 0.08
 .wx-whatis { margin: 10px 0 0; font-size: 12.5px; }
 
 
-/* ============ Nav dropdowns + footer + table page-size (2026-08-12) ===== */
+/* ============ Nav dropdowns + footer + table page-size ================== */
 
 /* Dropdown group: panel opens under the navbar; menu links use panel colors
    regardless of theme (html prefix out-specifies the theme nav rules). */
@@ -1400,18 +1490,74 @@ html #nav-pages .nav-menu a.active { background: var(--row-selected); color: var
 /* Test Your Knowledge quiz: one question at a time, options as full-width
    quiet buttons; the correct answer keeps the accent, a wrong pick fades.
    Marks (✓/✗) carry the state — never color alone. */
-.wx-quiz-card { max-width: 760px; margin: 12px auto 0; padding: 28px 32px 30px; }
+.wx-quiz { scroll-margin-top: 80px; }
+/* The same 2px inset the explore pages give their headings and controls,
+   so everything but the card lines up under the page title. */
+.wx-quiz .wx-quiz-progress, .wx-quiz .wx-result-survey, .wx-quiz .wx-quiz-q,
+.wx-quiz .wx-quiz-opts, .wx-quiz .wx-quiz-reveal, .wx-quiz .wx-quiz-lede,
+.wx-quiz .wx-result-head, .wx-quiz > .wx-quiz-nav,
+.wx-quiz .wx-quiz-step > .wx-quiz-nav { margin-left: 2px; }
+/* Answers, reveal and buttons keep a reading width; the chart card takes
+   the column, as the explore pages' figures do. */
+.wx-quiz .wx-quiz-opts, .wx-quiz .wx-quiz-reveal, .wx-quiz .wx-quiz-lede,
+.wx-quiz .wx-quiz-progress { max-width: 820px; }
+.wx-quiz-lede { margin: 0; font-size: 15.5px; line-height: 1.6; color: var(--text-muted); }
+.wx-quiz-cap .wx-caption-bars { margin-bottom: 0; }
+/* The survey question over the reveal chart, set as the survey page sets
+   one: a small label, the stem quiet, the item in weight. */
+.wx-quiz-asked { margin: 0 4px 16px; max-width: 900px; }
+.wx-quiz-asked-label {
+  margin: 0 0 6px; font-family: var(--mono, monospace); font-size: 10.5px;
+  font-weight: 600; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--text-muted);
+}
+.wx-quiz-asked-stem { margin: 0 0 4px; font-size: 13.5px; line-height: 1.5; color: var(--text-muted); }
+.wx-quiz-asked-item { margin: 0; font-size: 15px; font-weight: 600; line-height: 1.45; color: var(--text); }
+.wx-quiz-asked-items { margin: 4px 0 0; padding-left: 18px; font-size: 14px; font-weight: 600; color: var(--text); }
+.wx-quiz-asked-items li { margin: 2px 0; }
+.wx-result-downloads .wx-foot-link {
+  font-size: 13px; font-weight: 600; color: var(--accent);
+  text-decoration: underline; text-decoration-color: transparent;
+  text-underline-offset: 3px;
+}
+.wx-result-downloads .wx-foot-link:hover { text-decoration-color: currentColor; }
 /* The title sits over the card's left edge, not the page's, so the two read
    as one column. */
-.wx-quiz-page .wx-page-head { width: 100%; max-width: 760px; margin: 0 auto; }
-.wx-quiz-intro { margin-bottom: 18px; }
+
 .wx-quiz-q {
   font-family: var(--font-display);
-  font-size: 20px; font-weight: 650; line-height: 1.35;
+  font-size: 26px; font-weight: 700; line-height: 1.3;
   letter-spacing: -0.01em; color: var(--display-ink, var(--text));
-  margin: 6px 0 16px;
+  margin: 0 0 18px; max-width: 820px;
 }
+@media (max-width: 700px) { .wx-quiz-q { font-size: 21px; } }
+.wx-quiz .wx-result-survey { margin-bottom: 10px; }
 .wx-quiz-opts { display: flex; flex-direction: column; gap: 8px; }
+.wx-quiz-setup {
+  margin: 0 0 10px 2px; max-width: 820px; font-size: 16px; line-height: 1.55;
+  color: var(--text-muted);
+}
+.wx-quiz-quote strong { font-style: normal; }
+/* The pairs respondents compared, one row per example. */
+.wx-quiz-asked-table {
+  width: 100%; margin: 6px 0 0; border-collapse: collapse; font-size: 13.5px;
+  line-height: 1.45;
+}
+.wx-quiz-asked-table th, .wx-quiz-asked-table td {
+  padding: 6px 10px 6px 0; text-align: left; vertical-align: top;
+  border-bottom: 1px solid var(--control-border);
+}
+.wx-quiz-asked-table thead th {
+  font-family: var(--mono, monospace); font-size: 10.5px; font-weight: 700;
+  letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted);
+  white-space: nowrap;
+}
+.wx-quiz-asked-table tbody th { font-weight: 600; white-space: nowrap; }
+.wx-quiz-quote {
+  margin: 0 0 16px 2px; max-width: 800px; padding: 2px 0 2px 16px;
+  border-left: 3px solid var(--control-border);
+  font-size: 16px; line-height: 1.55; font-style: italic; color: var(--text);
+}
 .wx-quiz-opt {
   text-align: left; font: inherit; font-size: 15px;
   padding: 12px 16px; cursor: pointer;
@@ -1422,8 +1568,25 @@ html #nav-pages .nav-menu a.active { background: var(--row-selected); color: var
 .wx-quiz-opt:disabled { cursor: default; }
 .wx-quiz-opt.correct { border-color: var(--accent); border-width: 2px; font-weight: 600; }
 .wx-quiz-opt.wrong { opacity: 0.55; }
-.wx-quiz-reveal { margin-top: 16px; }
-.wx-quiz-reveal p { margin: 0; line-height: 1.55; }
+/* The answer, set off as a callout so it is the first thing read after
+   answering: a tinted panel with an accent rule, the verdict on its own line
+   in bold, the finding under it at reading size. */
+.wx-quiz-reveal {
+  margin-top: 18px; padding: 16px 20px 17px;
+  border-left: 4px solid var(--accent); border-radius: 0 8px 8px 0;
+  background: color-mix(in srgb, var(--accent) 9%, var(--panel));
+}
+.wx-quiz-reveal p { margin: 0; }
+.wx-quiz-verdict {
+  font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+  font-family: var(--mono, monospace); color: var(--text-muted); margin-bottom: 6px;
+}
+.wx-quiz-reveal.is-right .wx-quiz-verdict { color: var(--accent); }
+.wx-quiz-answer {
+  font-family: var(--font-display); font-size: 19px; line-height: 1.45;
+  font-weight: 600; color: var(--display-ink, var(--text));
+}
+.wx-caption-hl { color: var(--text); }
 .wx-quiz-nav { display: flex; align-items: center; gap: 18px; margin-top: 18px; flex-wrap: wrap; }
 .wx-quiz-explore { color: var(--accent); font-size: 14.5px; }
 .wx-quiz-again {
@@ -1436,20 +1599,50 @@ html #nav-pages .nav-menu a.active { background: var(--row-selected); color: var
 /* Progress: one segment per prompt. State is carried by the ✓/✗ glyph, not
    color alone (greyscale theme: correct=accent bg vs wrong=muted bg are both
    near-black there — the glyphs do the work). */
-.wx-quiz-progress { display: flex; gap: 4px; margin: 0 0 16px; }
+/* The progress bar as a table of sections: the name in the first column,
+   its prompts' segments in the second, one row per section. */
+.wx-quiz-progress {
+  display: grid; grid-template-columns: max-content 1fr;
+  gap: 5px 14px; align-items: center; margin: 0 0 18px;
+}
+.wx-quiz-theme-label {
+  all: unset; cursor: pointer; text-align: left;
+  font-family: var(--mono, monospace); font-size: 10px; font-weight: 700;
+  letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted);
+}
+.wx-quiz-theme-label:hover, .wx-quiz-theme-label.current { color: var(--accent); }
+.wx-quiz-theme-label:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.wx-quiz-theme-row { display: flex; gap: 12px; flex-wrap: wrap; }
+.wx-quiz-seg-group { display: flex; gap: 4px; }
 .wx-quiz-seg {
-  flex: 1 1 0; height: 20px; border-radius: 5px;
+  padding: 0; font: inherit; cursor: pointer;
+  box-sizing: border-box; flex: 0 0 30px; width: 30px; height: 18px;
+  border-radius: 4px;
   border: 1px solid var(--control-border); background: var(--control-bg);
   display: flex; align-items: center; justify-content: center;
   font-size: 12px; line-height: 1; color: var(--accent-contrast);
 }
 .wx-quiz-seg.correct { background: var(--accent); border-color: var(--accent); }
 .wx-quiz-seg.wrong { background: var(--text-muted); border-color: var(--text-muted); }
-.wx-quiz-seg.current { border-color: var(--accent); border-width: 2px; }
+/* The current prompt is marked inside its own box, so it stays the same
+   size as its neighbours rather than pushing into them. */
+/* Twelve hazards read better in two columns than in one long list. */
+.wx-quiz-opts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+@media (max-width: 560px) { .wx-quiz-opts-grid { grid-template-columns: 1fr; } }
+/* The community look-up's picker, sized like the answer buttons. */
+.wx-quiz-place {
+  display: block; width: 100%; max-width: 820px; margin: 0 0 18px 2px;
+  padding: 12px 14px; font: inherit; font-size: 15px;
+  border: 1px solid var(--control-border); border-radius: 8px;
+  background: var(--control-bg); color: var(--text);
+}
+.wx-quiz-seg.current { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.wx-quiz-seg:hover { border-color: var(--accent); }
+.wx-quiz-seg:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 /* Reveal chart: the real distribution, rendered with the explorer's own
    chart machinery. .grouped = follow-up subgroup split (more bars + legend). */
-.wx-quiz-chart { margin-top: 16px; border-top: 1px solid var(--panel-border); padding-top: 14px; }
+.wx-quiz-chart { margin-top: 18px; }
 .wx-quiz-chart .wx-eyebrow { margin-bottom: 4px; }
 .wx-quiz-chartwrap { position: relative; height: 250px; }
 .wx-quiz-chartwrap.grouped { height: 360px; }
@@ -1464,6 +1657,14 @@ html #nav-pages .nav-menu a.active { background: var(--row-selected); color: var
 }
 .wx-quiz-recap-marks { font-family: var(--mono, monospace); color: var(--text-muted); white-space: nowrap; }
 .wx-quiz-recap-topic { flex: 1 1 auto; }
+/* Theme heads in the recap, set like the question label above each
+   question so the two read as the same scheme. */
+.wx-quiz-recap-theme {
+  margin: 10px 0 0; font-family: var(--mono, monospace); font-size: 11.5px;
+  font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--accent);
+}
+.wx-quiz-recap-theme:first-child { margin-top: 0; }
 .wx-quiz-recap-row .wx-quiz-explore { white-space: nowrap; font-size: 13.5px; }
 
 /* Question/reveal entrances (charts animate via Chart.js on draw). */
@@ -1487,4 +1688,11 @@ html #nav-pages .nav-menu a.active { background: var(--row-selected); color: var
   padding: 4px 6px; font-size: 13px;
   background: var(--control-bg); color: var(--text);
   border: 1px solid var(--control-border); border-radius: 6px;
+}
+
+/* Text for screen readers only: on the page for assistive technology, off
+   the screen for everyone else (the tables behind each chart and map). */
+.wx-sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
 }

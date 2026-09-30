@@ -94,3 +94,73 @@ Winter Weather (WW),rand_evnt_svr_vis_snow,rand_evnt_snow
 Winter Weather (WW),rand_evnt_svr_wrk_snow,rand_evnt_snow
 Winter Weather (WW),rand_evnt_svr_wtr_snow,rand_evnt_snow
 Winter Weather (WW),rand_evnt_trav_snow,rand_evnt_snow
+Severe Weather (WX),tor_em_seek_shelt,tor_em_rare
+Severe Weather (WX),tor_em_shelt_type,tor_em_rare
+Severe Weather (WX),tom_warn_trust,lead_time
+Severe Weather (WX),tom_warn_conf,lead_time
+Severe Weather (WX),tom_day1_trust,add_time
+Severe Weather (WX),tom_day1_conf,add_time
+Severe Weather (WX),short_torhit_resp_confidence,short_torhit_time
+Severe Weather (WX),short_torhit_resp_protect,short_torhit_time
+Severe Weather (WX),long_torhit_resp_confidence,long_torhit_time
+Severe Weather (WX),long_torhit_resp_protect,long_torhit_time
+Winter Weather (WW),range_decide,range_max
+Winter Weather (WW),fcst_conf_acc,fcst_conf
+Winter Weather (WW),fcst_conf_trust,fcst_conf
+Winter Weather (WW),fcst_conf_inform,fcst_conf
+Winter Weather (WW),fcst_conf_value,fcst_conf
+Winter Weather (WW),exp1_chal,exp1_cond_rand
+Winter Weather (WW),exp1_conf_fcst,exp1_cond_rand
+Winter Weather (WW),exp1_use,exp1_cond_rand
+Winter Weather (WW),exp1_conf_me,exp1_cond_rand
+Winter Weather (WW),exp2_conf_fcst,exp2_cond_rand
+Winter Weather (WW),exp2_conf_me,exp2_cond_rand
+Winter Weather (WW),exp1_1_resp,exp1_cond_tue
+Winter Weather (WW),exp1_2_resp,exp1_cond_wed
+Winter Weather (WW),exp2_1_resp,exp2_cond_tue
+Winter Weather (WW),exp2_2_resp,exp2_cond_wed
+Winter Weather (WW),rand_evnt_cncrn,rand_evnt
+Winter Weather (WW),rand_evnt_exc,rand_evnt
+Winter Weather (WW),rand_evnt_trav,rand_evnt
+Winter Weather (WW),rand_evnt_car,rand_evnt
+Winter Weather (WW),rand_evnt_food,rand_evnt
+Winter Weather (WW),rand_evnt_supp,rand_evnt
+Winter Weather (WW),rand_evnt_noth,rand_evnt
+Winter Weather (WW),rand_evnt_othr,rand_evnt
+Winter Weather (WW),rand_evnt_imp_sch,rand_evnt
+Winter Weather (WW),rand_evnt_imp_wrk,rand_evnt
+Winter Weather (WW),rand_evnt_imp_road,rand_evnt
+Winter Weather (WW),rand_evnt_imp_vis,rand_evnt
+Winter Weather (WW),rand_evnt_imp_pwr,rand_evnt
+Winter Weather (WW),rand_evnt_imp_wtr,rand_evnt
+Winter Weather (WW),rand_evnt_imp_dmg,rand_evnt
+Winter Weather (WW),rand_evnt_imp_harm_you,rand_evnt
+Winter Weather (WW),rand_evnt_imp_harm_othr,rand_evnt
+Winter Weather (WW),rank_evnt_imp_sch,rand_evnt
+Winter Weather (WW),rank_evnt_imp_wrk,rand_evnt
+Winter Weather (WW),rank_evnt_imp_road,rand_evnt
+Winter Weather (WW),rank_evnt_imp_vis,rand_evnt
+Winter Weather (WW),rank_evnt_imp_pwr,rand_evnt
+Winter Weather (WW),rank_evnt_imp_wtr,rand_evnt
+Winter Weather (WW),rank_evnt_imp_dmg,rand_evnt
+Flooding (FL),adopt_indiv_down_disc,rand_prog
+Flooding (FL),adopt_indiv_ext_tree,rand_prog
+Flooding (FL),adopt_indiv_depav,rand_prog
+Flooding (FL),adopt_indiv_perm_pav,rand_prog
+Flooding (FL),adopt_indiv_storm_pond,rand_prog
+Flooding (FL),adopt_indiv_biosw,rand_prog
+Flooding (FL),adopt_indiv_rain_garden,rand_prog
+Flooding (FL),adopt_indiv_zero_scap,rand_prog
+Flooding (FL),adopt_munc_gr_roof,rand_prog
+Flooding (FL),adopt_munc_down_disc,rand_prog
+Flooding (FL),adopt_munc_ext_tree,rand_prog
+Flooding (FL),adopt_munc_depav,rand_prog
+Flooding (FL),adopt_munc_perm_pav,rand_prog
+Flooding (FL),adopt_munc_storm_pond,rand_prog
+Flooding (FL),adopt_munc_biosw,rand_prog
+Flooding (FL),adopt_munc_rain_garden,rand_prog
+Flooding (FL),adopt_munc_zero_scap,rand_prog
+Winter Weather (WW),exp2_chal,exp2_cond_rand
+Winter Weather (WW),exp2_use,exp2_cond_rand
+Tropical Cyclone (TC),amount_format,amount_format_rand1
+Winter Weather (WW),amount_format,amount_format_rand1

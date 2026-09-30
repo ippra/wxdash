@@ -15,8 +15,8 @@ supplies the wording and the older ones only record coverage.
 
 ## Read the instruments. Do not write a parser.
 
-This was attempted with a regex parser first. It reached ~90% and the last 10%
-was silently wrong, which is worse than obviously wrong in a reference table.
+A regex parser gets about 90% of it right and the last 10% silently wrong,
+which is worse than obviously wrong in a reference table.
 Extracting text from the `.docx` is mechanical and scripted below. **Deciding
 what the text means is not.** Five things defeat pattern matching, and every
 instrument contains all five:
@@ -378,24 +378,23 @@ re-save it.
 
 ## Current state
 
-All four hazards are built and coverage-verified against the eleven instruments
-in hand — 1,201 rows, every one classified by reading.
+All four hazards are built and coverage-verified against all 22 instruments
+in hand - 1,599 rows, every one classified by reading.
 
 | hazard | rows | experimental | instruments |
 |---|---|---|---|
-| WX | 370 | 119 | WX23, WX24, WX25 |
-| TC | 268 | 37 | TC23, TC24, TC25 |
-| WW | 313 | 142 | WW23, WW24, WW25 |
-| FL | 250 | 79 | FL24, FL25 |
+| WX | 550 | 184 | WX17-WX25 |
+| TC | 357 | 72 | TC20-TC25 |
+| WW | 442 | 213 | WW21-WW25 |
+| FL | 250 | 79 | FL24-FL25 |
 
-377 rows are experimental. The substantive comparable set —
-`experimental == FALSE & question_focus == "weather"` — is 646 rows. 57 rows
+548 rows are experimental. The substantive comparable set -
+`experimental == FALSE & question_focus == "weather"` - is 842 rows. 95 rows
 carry `wording_varies`.
 
-The older instruments are experiment-heavy: WW23 and WW24 together contribute
-most of WW's 142 experimental rows, and WX23 alone adds four separate
-randomized risk-scale studies. Filtering them out is what makes the trend
-series usable.
+Experiments are concentrated in a few instruments: WW22, WW23 and WX24
+contribute the most experimental rows, and nearly half of WW's rows are
+experimental. Filtering them out is what makes the trend series usable.
 
 The next run will be an update, not a build: follow **Adding a newly fielded
 instrument** above.

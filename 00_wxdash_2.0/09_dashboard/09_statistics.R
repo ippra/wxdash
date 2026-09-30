@@ -18,8 +18,8 @@ source(here::here("00_wxdash_2.0", "09_dashboard", "09_rcode.R"))
 # directory and nothing else.
 #
 # That directory is committed, so assembly runs from a plain clone. This half
-# does not: it needs both roots and the pipeline outputs, and it is the reason
-# they are still required anywhere.
+# does not: it needs both roots and the pipeline outputs, and it is the only
+# part of 09 that requires them.
 #
 # The two halves are separate because they change on different cadences and
 # cost three orders of magnitude apart: this one reads a 400 MB file and runs
@@ -70,7 +70,7 @@ if (nrow(bad_topic_data) > 0) {
 
 # Bar plot of response shares only makes sense for a closed set of options.
 # Open text, drop-downs and randomization assignments are dropped by the option
-# count; 11 is the cutoff the 1.0 dashboard used.
+# count, with the cutoff at 11.
 #
 # question_focus keeps the dashboard to questions about weather. The background
 # items - age, gender, race, income, education, household size, tenure,
@@ -104,8 +104,8 @@ questions <- questions |>
       coalesce(question_intro, ""), coalesce(question_text, "")
     )),
     # The two halves are also kept apart, because the stem is the same sentence
-    # on every item of a battery and the item is what changes. The front ends
-    # quiet the stem and show the item, so a row reads "Tornadoes" under the
+    # on every item of a battery and the item is what changes. The front end
+    # quiets the stem and shows the item, so a row reads "Tornadoes" under the
     # question it answers rather than on its own.
     #
     # A question with no item of its own is one whose stem is the whole
@@ -137,7 +137,7 @@ questions <- questions |>
 # below.
 # `script_value` is the same version as the wave file spells it, for the rare
 # column where that differs from the pooled table: the hour randomizers are
-# "10:00:00" here and "10:00" there, because 05 parsed them as times on the way
+# "10:00:00" here and "10:00" there, because 05 parses them as times on the way
 # through. Left empty everywhere else, and nothing checks it directly - the
 # generated script is run against the wave file and compared with the chart it
 # claims to rebuild, so a wrong spelling fails as a script that matches no rows.
@@ -180,9 +180,9 @@ response_columns <- names(read_csv(
   show_col_types = FALSE
 ))
 
-# The reference covers 11 instruments and the pipeline pools 22 waves, so some
-# reference variables were never fielded in a wave 05 reads. Report the gap
-# rather than letting the build fail on an empty column.
+# Not every reference variable arrives as a column of 05's pooled table (05
+# drops some, such as WX17's 1-7 batteries). Report the gap rather than letting
+# the build fail on an empty column.
 missing <- setdiff(unique(questions$variable), response_columns)
 message("Questions: ", nrow(questions), " rows, ",
         n_distinct(questions$variable), " variables, ",
@@ -379,7 +379,7 @@ write_json(
 # here is the second crosswalk that drifts from the first.
 #
 # These are model estimates, not weighted response shares like the two files
-# above. The map tab says so, because the difference matters: every CWA has a
+# above. The map page says so, because the difference matters: every CWA has a
 # number here, including the ones where few people were surveyed.
 cwa_path <- paste0(outputs, "07_cwa_estimates_sf.rds")
 
@@ -594,7 +594,7 @@ measure_menu <- measure_menu |> mutate(group = fct_inorder(group))
 
 # Splits -----------------------------------------------------------------------
 # The same twelve the front end offers, plus Everyone. Declared here and again
-# in site/engine.js, which is the one duplication left in the split roster.
+# in site/engine.js, the split roster's one duplication across languages.
 groups <- c(
   "Everyone" = "All",
   "Age" = "AGE_GROUP",
@@ -664,11 +664,11 @@ question_id <- function(variable, hazard) {
 # One srvyr call per split, not two. Two estimators are in play - proportion =
 # TRUE when intervals are shown and FALSE when they are not - but the second
 # only dodges the logit warning on a cell at 0 or 100%; the point estimates are
-# the same. Checked across 3,109 cells: the largest difference was 2.9e-09,
+# the same. Checked across 3,109 cells: the largest difference is 2.9e-09,
 # which is eleven orders below the two decimal places the page prints.
 #
 # It matters because the second call is most of the build. With both, a full
-# run took over an hour; with one it is about fifteen minutes.
+# run takes over an hour; with one it takes about fifteen minutes.
 distribution <- function(narrow, grouping) {
   d <- narrow |>
     transmute(
@@ -708,7 +708,11 @@ respondent_summary <- function(narrow, grouping) {
     n = nrow(d),
     years = year_runs(d$survey_year),
     smallest = str_remove(names(counts)[which.min(counts)], "^\\(\\d+\\) "),
-    smallest_n = as.integer(min(counts))
+    smallest_n = as.integer(min(counts)),
+    # Every group's count, so a figure drawn from one group - a single
+    # survey year, say - can state its own sample rather than the pooled one.
+    group_n = as.list(setNames(as.integer(counts),
+                               str_remove(names(counts), "^\\(\\d+\\) ")))
   )
 }
 
@@ -810,48 +814,6 @@ if (length(absent_columns) > 0) {
 wx17_columns <- if ("WX17" %in% wave_codes) wave_headers[["WX17"]] else
   character(0)
 
-# Hidden Questions -------------------------------------------------------------
-# Questions the dashboard should not list. Flagged in the browser with `?flag=1`
-# and exported from there, so triage happens where the problem is visible rather
-# than against a list of variable names.
-#
-# Only `hide` drops a question. The other dispositions are notes kept beside it
-# - a question that needs context it does not have, or one that belongs on a
-# page built for experiments - so one pass through the site does not have to be
-# made twice.
-hidden <- read_csv(
-  here::here("00_wxdash_2.0", "09_dashboard", "hidden_questions.csv"),
-  col_types = cols(.default = col_character())
-)
-
-dispositions <- c("hide", "needs-context", "experiments-page")
-question_ids <- question_id(questions$variable, questions$hazard)
-
-# A stale entry is worse than no entry: it looks like the question is hidden
-# while the question is on the page.
-unknown_hidden <- setdiff(hidden$id, question_ids)
-
-if (length(unknown_hidden) > 0) {
-  print(unknown_hidden)
-  stop("Ids above are listed in hidden_questions.csv but are not questions.")
-}
-
-bad_disposition <- setdiff(hidden$disposition, dispositions)
-
-if (length(bad_disposition) > 0) {
-  print(bad_disposition)
-  stop("Dispositions above are not one of: ", paste(dispositions,
-                                                    collapse = ", "))
-}
-
-drop_ids <- hidden$id[hidden$disposition == "hide"]
-questions <- questions[!question_ids %in% drop_ids, ]
-
-if (nrow(hidden) > 0) {
-  message("Hidden questions: ", length(drop_ids), " dropped, ",
-          nrow(hidden) - length(drop_ids), " flagged without dropping")
-}
-
 rcode <- new_rcode_tally()
 
 # Which scripts get run. Every hazard by every split is checked once - each
@@ -909,7 +871,7 @@ for (i in seq_len(nrow(questions))) {
 
   # A question with nothing to draw under any split is dropped rather than
   # listed and then failing to open. So is a split-sample question left with
-  # one version, which is no longer a comparison.
+  # one version, which is not a comparison.
   if (length(per_arm) == 0) next
   if (!is.null(arms) && length(per_arm) < 2) next
 
@@ -921,7 +883,7 @@ for (i in seq_len(nrow(questions))) {
 
   # The R that rebuilds each of these charts, written by the script that just
   # computed them. Keyed by split the same way the splits themselves are, so
-  # the front ends do a lookup and compose nothing.
+  # the front end does a lookup and composes nothing.
   q_options <- option_labels(row$response_options)
   years <- sort(unique(narrow$survey_year[!is.na(narrow$resp)]))
   waves <- wave_of(row$hazard, years)
@@ -1060,8 +1022,8 @@ write_json(index, paste0(data_dir, "questions.json"),
            auto_unbox = TRUE, na = "null")
 
 # Map Data ---------------------------------------------------------------------
-# GeoJSON because that is what MapLibre reads directly, with the estimates as
-# feature properties so the page needs one request rather than two.
+# One GeoJSON file carrying the geometry with the estimates as feature
+# properties; assembly splits it into the map values and simplified outlines.
 # ALERT_ columns are the alert counts 07 carries: the exposure the models are
 # fitted on, not predicted measures. Held out of measure_columns because the
 # check below requires survey wording for every measure and these have none.

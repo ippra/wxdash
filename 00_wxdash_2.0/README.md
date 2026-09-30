@@ -69,7 +69,8 @@ county estimates reproduces its CWA estimate.
 ## Data sources
 
 All inputs are downloaded manually into a single `downloads/` directory, except
-the ACS county tables, which are pulled through the Census API at run time.
+the ACS county tables, which are pulled through the Census API at run time, and
+the survey waves, which are read from the `wxsurveys` repository.
 None of it is stored in this repository — the one thing that is, and the only
 large thing here, is `09_dashboard/data/`, which the dashboard's assembly half
 reads so that building and deploying the site needs nothing but a clone.
@@ -142,11 +143,12 @@ reads only committed data, runs without either root. Not a pipeline step.
 
 Assigns each county to one NWS County Warning Area.
 
-Counties spanning multiple CWAs are assigned to the first listed. Two
+Counties spanning multiple CWAs are assigned to the first listed. Three
 corrections are applied by hand: mainland Monroe County, Florida is assigned to
-Key West, and Connecticut's nine planning regions are assigned individually,
+Key West; Connecticut's nine planning regions are assigned individually,
 because the NWS county file uses Connecticut's pre-2022 county geography and
-would otherwise leave the entire state unmatched.
+would otherwise leave the entire state unmatched; and Kalawao County, Hawaii,
+which the NWS file lacks, is assigned to Honolulu.
 
 **Writes** `01_county_cwa_crosswalk.csv` — 3,222 counties and their CWA.
 
@@ -234,7 +236,7 @@ other three, so a uniform rule would mis-key it in one or the other.
 
 This script is the single definition of those scales — which items go into each,
 and which are reverse coded. It writes that definition out alongside the
-responses, so the dashboards can show the questions behind a scale from one
+responses, so the dashboard can show the questions behind a scale from one
 source rather than a second copy.
 
 **Writes** `05_survey_responses.csv` — 35,457 respondents — and
@@ -334,20 +336,30 @@ statistics: every percentage, interval and estimate is carried over verbatim,
 so the site cannot disagree with what was computed. Two seconds, which is why
 front-end work does not pay for the statistics.
 
-What the front end adds: themes, a landing page, and a knowledge quiz whose
-answer keys are derived from the distributions. Every chart carries a
-**Download R code** button beside its PDF download. On the map, choosing an
-alert history draws it as a second map beside the measure its model was fitted
-on, and clicking an area opens an overview sheet — every measure for that area,
-each row stretched to its own range — as a panel on the page. Map and chart
-downloads are standalone PDF documents, carrying the plot, its legends and the
-page's own notes, so a download says what was asked, how it was scored and
-where it came from; the sheet has a one-page printable form of its own.
+The site has five pages. **Home** says what the project is and why it
+matters, with four figures and a dot field of every respondent counted from
+the data. **Explore Survey Questions** charts any of the 915 questions under
+any of thirteen splits, with a search over every question's wording and a
+browser filtered by survey, topic and question type; each chart downloads as
+PNG or PDF, and as the **R code** that rebuilds it from the released wave
+files. **Explore Communities** maps the 24 estimates and nine alert-day counts
+across the 116 CWAs; choosing an alert history draws it as a second map beside
+the measure its model was fitted on, and clicking an area (or choosing it from
+the Forecast office list) opens an overview sheet: every measure for that
+area, each row stretched to its own range. The map and the sheet download as
+PNG or PDF too. **Test Your Knowledge** is a thirteen-question quiz in six
+sections (Receiving, Understanding, Trust, Warning Decisions, Risk,
+Responding) whose answer keys are derived from the distributions at build
+time. **About** covers the survey, how to read its results, the community
+estimates, the alert history, the methods papers and publications using the
+data. Charts and maps carry text alternatives for screen readers, and three
+themes (light, dark, high-contrast greyscale) restyle the chrome.
 
 Preview with
 `python3 -m http.server --directory "$WXDASH_LOCAL/outputs/09_site"`.
 
-**Writes** `outputs/09_site/`.
+**Writes** `outputs/09_site/` under `WXDASH_LOCAL`, or `09_dashboard/_site/`
+on a machine without one. `09_dashboard/README.md` is the fuller account.
 
 ---
 
@@ -378,9 +390,9 @@ reads `09_dashboard/data/` and writes beside it, so a clone with no `.Renviron`
 at all produces the site. The roots are what `01`–`07` and `09 --data` need.
 
 **Packages.** Estimation: `tidyverse`, `data.table`, `sf`, `lubridate`,
-`readxl`, `here`, `ipumsr`, `tidycensus`, `mipfp`, `lme4`, `psych`,
-`rmapshaper`. Dashboards: `shiny`, `DT`, `srvyr`, `ggtext`, `mapgl`,
-`viridisLite`, `htmltools`, `jsonlite`.
+`here`, `ipumsr`, `tidycensus`, `mipfp`, `lme4`, `psych`, `rmapshaper`.
+Dashboard: `tidyverse`, `sf`, `jsonlite` and `here` to assemble the site, and
+`srvyr` as well for `--data`.
 
 ---
 
@@ -404,7 +416,8 @@ Rscript 00_wxdash_2.0/09_dashboard/09_build_dashboard.R --data
 
 `01` through `03` depend only on downloaded data and can run in any order. `04`
 needs `01`. `05` needs `01` through `04`. `06` needs `05`. `07` needs `02`,
-`03`, `04` and `06`. `09 --data` needs `05`, `07` and `08`.
+`03`, `04` and `06`. `09 --data` needs `02`, `05`, `07` and `08`, and reads
+the wave files again to check the R scripts it generates.
 
 Re-running only the tail is common and safe: if the survey data has not changed,
 `06` and `07` can be run on their own.
@@ -449,8 +462,8 @@ spread, and the two are not comparable. A shared 1–5 scale keeps measures
 comparable to each other. Stretching each measure to its own range instead shows
 where places differ on that measure, at the cost of comparability — necessary
 for the warning measures, which on a shared scale render as a single flat tone.
-The dashboards stretch, and name the range beneath every map so the span is
-stated rather than assumed.
+The dashboard stretches, and states the range under every map so the span is
+read rather than assumed.
 
 **Estimates carry no uncertainty.** Given that most counties contribute no
 respondents, the interval around a county estimate is substantially wider than
