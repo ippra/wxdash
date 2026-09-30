@@ -1,0 +1,68 @@
+# Builds the WxDash site from the committed data and publishes it to GitHub
+# Pages as the beta. Only the assembly half of 09 runs here: it reads
+# 00_wxdash_2.0/09_dashboard/data/, which is committed for exactly this, and
+# needs no survey waves and no ~/.Renviron. The statistics (--data) are run
+# locally and their output committed; this never recomputes them.
+#
+# The production site at ippra.net/wxdash is not deployed from here. It is
+# built from a release tag and copied to our own server; see
+# 00_wxdash_2.0/09_dashboard/README.md, "Deploying".
+name: Deploy beta
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "00_wxdash_2.0/09_dashboard/**"
+      - "00_wxdash_2.0/00_paths.R"
+      - ".github/workflows/deploy-beta.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time; a newer push supersedes one still building.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+
+      # Binary packages from Posit's package manager, with the system
+      # libraries sf needs installed alongside; cached between runs.
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          packages: |
+            any::tidyverse
+            any::sf
+            any::jsonlite
+            any::here
+
+      - name: Build the site
+        env:
+          WXDASH_CHANNEL: beta
+        run: Rscript 00_wxdash_2.0/09_dashboard/09_build_dashboard.R
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: 00_wxdash_2.0/09_dashboard/_site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

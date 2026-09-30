@@ -46,7 +46,9 @@ About 70 MB on disk, about 7 MB packed. It holds:
 machine without one. Outside the repo either way, like every pipeline output.
 Plain static files, fully self-contained: no server code, no third-party
 requests, every library vendored. Upload the directory to any web host.
-Deployed at http://c.itation.net/wxdash.
+The same build runs in two places: a beta on GitHub Pages
+(https://ippra.github.io/wxdash/), rebuilt on every push, and production at
+https://ippra.net/wxdash, copied from a tagged release. See Deploying.
 
 ## Data flow
 
@@ -131,27 +133,54 @@ total, built files that differ from `site/`, and R sources in the output.
 
 ## Deploying
 
-The built site directory is the rsync unit:
+Two deployments of one build. The beta shows what is on master; production
+shows a release that has already run as the beta.
+
+**Beta: GitHub Pages, automatic.** `.github/workflows/deploy-beta.yml` runs
+the builder on every push to master that touches `09_dashboard/` (or on
+demand from the Actions tab) and publishes `_site/` to
+https://ippra.github.io/wxdash/. It runs the assembly half only, from the
+committed `data/`, which is why `data/` is versioned: a `--data` run happens
+locally and reaches the beta when its output is committed and pushed. The
+workflow sets `WXDASH_CHANNEL=beta`, which puts a Beta label beside the
+masthead title, adds a `noindex` tag to `index.html` and writes a
+`robots.txt` that disallows everything, so the beta is never found in place
+of production. Pages serves every file, `index.html` included, with a
+ten-minute cache it does not let a site change, so a new deploy can take that
+long to appear; the `?v=` stamp still makes it load the new assets when it
+does. The repository's Pages source must be set to GitHub Actions (Settings,
+Pages).
+
+**Production: ippra.net, by release.** Tag the commit the beta is showing,
+build that tag without the channel variable, and copy the build to the
+server:
 
 ```
-rsync -av --delete "$WXDASH_LOCAL/outputs/09_site/" <host>:<docroot>/wxdash/
+git tag v2026.10 && git push origin v2026.10
+git checkout v2026.10
+Rscript 00_wxdash_2.0/09_dashboard/09_build_dashboard.R
+rsync -av --delete "$WXDASH_LOCAL/outputs/09_site/" <ippra.net host>:<docroot>/wxdash/
+git checkout master
 ```
+
+The build is from the tag, not from a working tree, so production carries
+exactly the code and data the beta showed under that commit. Tags are named
+`v<year>.<month>`, with a `.1`, `.2` suffix for a second release in a month.
 
 The site is static and self-contained with relative URLs and hash routing
-(`#home`, `#survey`, `#map`, `#quiz`, `#about`), so moving it to a different
-host or domain needs no changes to the site itself: DNS, a server block, and a
-certificate. Every asset URL carries a `?v=<build>` stamp, filled into
-`index.html` at build time, so long-lived host caches roll over on each deploy.
+(`#home`, `#survey`, `#map`, `#quiz`, `#about`), so it runs unchanged under
+any path on any host. Every asset URL carries a `?v=<build>` stamp, filled
+into `index.html` at build time, so long-lived host caches roll over on each
+deploy.
 
-One hosting requirement makes that stamping work: `index.html` itself must be
-served with `Cache-Control: no-cache` (cache but revalidate; the server
-answers 304 via Last-Modified when unchanged). The HTML is the one file that
-cannot version-stamp itself; if the host serves it with a long max-age,
+One requirement on the production server makes that stamping work:
+`index.html` itself must be served with `Cache-Control: no-cache` (cache but
+revalidate; the server answers 304 via Last-Modified when unchanged). The HTML
+is the one file that cannot version-stamp itself; served with a long max-age,
 browsers keep the old HTML, and therefore the old `?v=` references, and new
 deploys are invisible until a hard refresh. Everything else can be cached as
-long as the host likes. On the current host, nginx sets no-cache on the three
-HTML entry URLs (`/wxdash`, `/wxdash/`, `/wxdash/index.html`); any other host
-needs the equivalent.
+long as the server likes. On ippra.net, nginx sets no-cache on the three HTML
+entry URLs (`/wxdash`, `/wxdash/`, `/wxdash/index.html`).
 
 ## What the builder adds on top of the computed data
 

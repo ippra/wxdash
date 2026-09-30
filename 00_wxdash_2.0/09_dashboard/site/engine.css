@@ -97,6 +97,12 @@ html[data-entry="referred"] .ippra-bar-back { display: inline; }
   box-shadow: var(--shadow);
 }
 #nav-title { font-weight: 700; font-size: 17px; letter-spacing: 0.02em; font-family: var(--font-display); }
+.brand-beta {
+  display: inline-block; margin-left: 8px; padding: 1px 6px; vertical-align: 2px;
+  border: 1px solid currentColor; border-radius: 4px;
+  font-family: var(--mono, monospace); font-size: 10px; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.85;
+}
 #nav-pages { display: flex; gap: 4px; flex-wrap: wrap; }
 #nav-pages a, #nav-pages .nav-group-btn {
   color: var(--text-muted); text-decoration: none;

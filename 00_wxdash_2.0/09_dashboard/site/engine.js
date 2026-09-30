@@ -3401,7 +3401,11 @@ async function boot() {
   // Brand lockup: wordmark + optional small institutional subtitle line.
   const navTitle = document.getElementById("nav-title");
   navTitle.textContent = "";
-  navTitle.append(el("span", { class: "brand-name" }, CONFIG.project.nav_title || CONFIG.project.title));
+  const brandName = el("span", { class: "brand-name" }, CONFIG.project.nav_title || CONFIG.project.title);
+  // The GitHub Pages build says so, so a link to it is not taken for the
+  // production site.
+  if (CONFIG.project.beta) brandName.append(el("span", { class: "brand-beta" }, "Beta"));
+  navTitle.append(brandName);
   if (CONFIG.project.nav_subtitle)
     navTitle.append(el("span", { class: "brand-sub" }, CONFIG.project.nav_subtitle));
   const nav = document.getElementById("nav-pages");

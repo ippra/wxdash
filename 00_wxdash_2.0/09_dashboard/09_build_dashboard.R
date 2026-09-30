@@ -58,6 +58,15 @@ out <- if (wxdash_local == "") {
 
 site_src <- here::here("00_wxdash_2.0", "09_dashboard", "site")
 
+# Which deployment this build is for. The beta on GitHub Pages is built with
+# WXDASH_CHANNEL=beta, which labels the masthead and asks search engines not
+# to index it, so the beta never competes with the production site in search.
+# Unset, the build is production: the same site with neither.
+channel <- Sys.getenv("WXDASH_CHANNEL", "production")
+if (!channel %in% c("production", "beta")) {
+  stop("WXDASH_CHANNEL is `", channel, "`; use `beta` or leave it unset.")
+}
+
 if ("--data" %in% commandArgs(trailingOnly = TRUE)) {
   source(here::here("00_wxdash_2.0", "09_dashboard", "09_statistics.R"))
 }
@@ -2300,7 +2309,8 @@ config <- list(
     slug = "wxdash",
     title = "WxDash — Extreme Weather and Society Dashboard",
     nav_title = "WxDash",
-    nav_subtitle = "Extreme Weather & Society Project"
+    nav_subtitle = "Extreme Weather & Society Project",
+    beta = channel == "beta"
   ),
   theme = list(default = "wxdash", allow_viewer_switch = TRUE),
   groupings = groupings_cfg,
@@ -2539,8 +2549,17 @@ wjson(config, "config.json", pretty = TRUE)
 BUILD <- format(Sys.time(), "%Y%m%d%H%M%S")
 invisible(file.copy(list.files(site_src, full.names = TRUE), out,
                     recursive = TRUE, overwrite = TRUE))
-index_html <- readLines(file.path(site_src, "index.html"))
-writeLines(gsub("__BUILD__", BUILD, index_html), paste0(out, "index.html"))
+index_html <- gsub("__BUILD__", BUILD,
+                   readLines(file.path(site_src, "index.html")))
+if (channel == "beta") {
+  viewport <- grep("name=\"viewport\"", index_html, fixed = TRUE)
+  if (length(viewport) != 1) stop("index.html has no single viewport line.")
+  index_html <- append(index_html,
+                       "<meta name=\"robots\" content=\"noindex, nofollow\">",
+                       after = viewport)
+  writeLines(c("User-agent: *", "Disallow: /"), paste0(out, "robots.txt"))
+}
+writeLines(index_html, paste0(out, "index.html"))
 
 # list.files() skips dotfiles at the top of site/, but the copy above descends
 # into assets/ as whole directories, so macOS's .DS_Store rides along and is
@@ -2564,8 +2583,7 @@ same_bytes <- function(a, b) {
 stale <- carried[!map_lgl(carried, ~same_bytes(file.path(site_src, .x),
                                                paste0(out, .x)))]
 
-if (!identical(readLines(paste0(out, "index.html")),
-               gsub("__BUILD__", BUILD, index_html))) {
+if (!identical(readLines(paste0(out, "index.html")), index_html)) {
   stale <- c(stale, "index.html")
 }
 

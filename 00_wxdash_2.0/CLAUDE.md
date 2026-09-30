@@ -361,7 +361,13 @@ refuses to publish a built site containing `.R` files, missing a required file,
 or with fewer R-code files than questions (a Download R code link that 404s
 looks to the page exactly like a network failure). It writes
 `outputs/09_site/` under `WXDASH_LOCAL`, or `09_dashboard/_site/` on a machine
-without one; either is the rsync unit. A run takes seconds.
+without one; either is the rsync unit. A run takes seconds. It is deployed twice:
+GitHub Actions (`.github/workflows/deploy-beta.yml`) builds it on every push
+to master with `WXDASH_CHANNEL=beta` and publishes it to GitHub Pages as the
+beta, which carries a Beta label, a `noindex` tag and a disallow-all
+`robots.txt`; production at ippra.net/wxdash is a build of a release tag,
+with the variable unset, copied to our own server. The workflow runs only the
+assembly half, so a `--data` run reaches the beta by being committed.
 
 ### Look and chrome
 
