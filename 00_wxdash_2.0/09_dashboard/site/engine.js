@@ -2962,10 +2962,27 @@ components.wx_quiz = async function (page, container) {
   // reads as part of its question. ✓/✗ glyphs carry the state (greyscale
   // theme, never color alone); the outlined segment is where you are.
   const progress = el("div", { class: "wx-quiz-progress" });
+  // Back to the first question with every answer cleared, and the saved
+  // session with it. From the score page directly; mid-quiz behind a
+  // confirmation, since one stray click would otherwise lose every answer.
+  function startOver() {
+    idx = 0;
+    choices.forEach(c => { c.length = 0; });
+    renderQ(0);
+    card.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  const resetBtn = el("button", { class: "wx-quiz-reset", type: "button",
+    onclick: () => {
+      if (window.confirm("Start the quiz over? Your answers will be cleared.")) startOver();
+    } }, "\u21ba Start over");
+
   function drawProgress() {
     saveQuiz();
     progress.textContent = "";
     const t = tally();
+    // Offered once there is something to clear, and not on the score page,
+    // which has its own.
+    resetBtn.style.display = t.answered > 0 && idx < quiz.length ? "" : "none";
     progress.setAttribute("aria-label",
       `${t.answered} of ${totalPrompts} answered, ${t.score} right`);
     // One row per section, read top to bottom: the section's name, then a
@@ -3043,7 +3060,7 @@ components.wx_quiz = async function (page, container) {
   function renderQ(startPart = 0) {
     card.textContent = "";
     part = startPart;
-    card.append(progress);
+    card.append(progress, resetBtn);
     drawProgress();
     if (idx >= quiz.length) {
       const t = tally();
@@ -3087,11 +3104,7 @@ components.wx_quiz = async function (page, container) {
       card.append(el("div", { class: "wx-quiz-nav" },
         previousButton(),
         el("a", { class: "wx-cta-button", href: "#survey" }, "Explore the survey questions"),
-        el("button", { class: "wx-quiz-again", onclick: () => {
-          idx = 0;
-          choices.forEach(c => { c.length = 0; });
-          renderQ();
-        } }, "Start over")));
+        el("button", { class: "wx-quiz-again", onclick: startOver }, "Start over")));
       return;
     }
     const q = quiz[idx];

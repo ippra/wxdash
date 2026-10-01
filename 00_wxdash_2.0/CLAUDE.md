@@ -750,7 +750,9 @@ into the explorer and coming back, or reloading, resumes where they left off;
 a new visit starts afresh. The saved state carries a signature of the quiz's
 questions and parts, and one that no longer matches is ignored, so a deploy
 that changes the quiz cannot resume into the wrong place. "Start over" clears
-it.
+it: a quiet link under the progress grid once anything is answered, behind a
+confirmation so a stray click cannot lose every answer, and a button on the
+score page; both go through `startOver()`.
 
 The score counts first answers only. "← Previous Question" steps back one
 prompt and shows it as it was answered, locked, so going back is for
