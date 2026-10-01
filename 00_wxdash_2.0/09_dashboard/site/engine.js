@@ -505,6 +505,34 @@ function setParams(obj) {
   history.replaceState(null, "", location.pathname + "?" + q.toString() + location.hash);
 }
 
+// A link to another page carrying exactly the state it names. The reader's
+// theme and color scheme come along; anything else in the address (a version,
+// an area, a split left from an earlier page) is left behind. The full
+// address is the href, so the link works opened in a new tab or copied as
+// well as clicked; a plain click moves in place without reloading.
+const CARRIED_PARAMS = ["theme", "scheme", "flag"];
+function pageLink(hash, params, attrs, label) {
+  const query = () => {
+    const now = new URLSearchParams(location.search);
+    const q = new URLSearchParams();
+    for (const k of CARRIED_PARAMS) if (now.get(k)) q.set(k, now.get(k));
+    for (const [k, v] of Object.entries(params || {}))
+      if (v != null && v !== "") q.set(k, v);
+    return q.toString();
+  };
+  const a = el("a", Object.assign({}, attrs, { href: "?" + query() + hash }), label);
+  a.addEventListener("click", (e) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return;
+    e.preventDefault();
+    history.replaceState(null, "", location.pathname + "?" + query() + location.hash);
+    location.hash = hash;
+  });
+  // Kept current for a copy made after the theme or scheme changes.
+  a.addEventListener("mouseenter", () => { a.href = "?" + query() + hash; });
+  a.addEventListener("focus", () => { a.href = "?" + query() + hash; });
+  return a;
+}
+
 /* ------------------------------------------------------ shared widgets -- */
 
 function groupingSelect(onChange, initial, labelText = "Select a grouping") {
@@ -677,6 +705,20 @@ function readableWording(text, id, armLabel = null, armId = null) {
       ? items.slice(0, -1).join(", ") + (items.length > 2 ? "," : "") + " or " + items[items.length - 1]
       : items.join("");
   };
+  // With no version chosen, the slot names the versions: a run of numbers or
+  // times as its two ends ("1:00 AM to 9:00 AM"), a few short words as a list,
+  // and anything longer as a count, since a list of sentences is not wording.
+  const versionsOf = (v) => {
+    const all = ((CONFIG.arm_versions || {})[v] || []).map(String);
+    const xs = all.filter(Boolean);
+    if (xs.length < 2) return null;
+    if (xs.some(x => x.length > 40) || xs.length < all.length)
+      return `one of ${all.length} versions`;
+    if (xs.length > 4 && xs.every(x => /^\d/.test(x)))
+      return `${xs[0]} to ${xs[xs.length - 1]}`;
+    return xs.slice(0, -1).join(", ") + (xs.length > 2 ? "," : "") +
+      " or " + xs[xs.length - 1];
+  };
   const pickFor = (spec) => {
     if (!/\sif\s/.test(spec)) return null;
     const alts = [...spec.matchAll(
@@ -688,7 +730,9 @@ function readableWording(text, id, armLabel = null, armId = null) {
   while ((m = re.exec(text))) {
     push(text.slice(last, m.index));
     const name = m[1] || m[3];
-    if (armVar && name === armVar && armLabel != null) {
+    if (armVar && name === armVar && armLabel == null && versionsOf(armVar)) {
+      push("[" + versionsOf(armVar) + "]");
+    } else if (armVar && name === armVar && armLabel != null) {
       if (armLabel) { nodes.push(el("strong", {}, armLabel)); plain += armLabel; }
     } else if (m[2] && armVar && armId != null && pickFor(m[2]) != null) {
       // A value keyed to the version shown ("10 and 14 if
@@ -745,7 +789,7 @@ function chartAlt(canvas, { cats, groups, lookup, valueLabel, title, highlight }
     const v = r ? (r.label != null ? String(r.label) : String(r.value)) : "\u2014";
     return highlight && r && highlight(g, c) ? v + " (highlighted)" : v;
   };
-  const table = el("table", { class: "wx-sr-only" },
+  const table = el("table", {},
     el("caption", {}, clean(title || valueLabel || "Chart values")),
     el("thead", {}, el("tr", {},
       el("th", { scope: "col" }, "Category"),
@@ -754,8 +798,12 @@ function chartAlt(canvas, { cats, groups, lookup, valueLabel, title, highlight }
     el("tbody", {}, ...cats.map(c => el("tr", {},
       el("th", { scope: "row" }, clean(c)),
       ...groups.map(g => el("td", {}, cell(g, c)))))));
-  canvas.insertAdjacentElement("afterend", table);
-  canvas._altTable = table;
+  // Hidden by its wrapper rather than by its own class: a table will not
+  // shrink to the one-pixel box that hides it, and on a phone its full width
+  // would widen the page.
+  const hidden = el("div", { class: "wx-sr-only" }, table);
+  canvas.insertAdjacentElement("afterend", hidden);
+  canvas._altTable = hidden;
 }
 
 // A color at reduced opacity, for bars a highlight leaves in the background.
@@ -865,6 +913,7 @@ components.explore = async function (page, container) {
   const saveBtn = el("button", { class: "wx-save-btn", type: "button" }, "\u2606 Save question");
   const savedPanel = el("section", { class: "card wx-saved" });
   let currentSave = null;   // the question on screen, as a saved entry
+  let shownStem = "", shownItem = "", shownQuestion = "";
 
   function syncSaveBtn() {
     const on = readSaved().some(x => x.id === currentKey);
@@ -904,7 +953,8 @@ components.explore = async function (page, container) {
       const open = listed
         ? el("button", { class: "wx-saved-open", type: "button", onclick: () => {
             currentKey = x.id;
-            setParams({ q: currentKey });
+            currentArm = null;
+            setParams({ q: currentKey, arm: null });
             qTable.selectRow(r => keyOf(r) === currentKey);
             resultSection.scrollIntoView({ behavior: "smooth", block: "start" });
             draw();
@@ -1130,7 +1180,7 @@ components.explore = async function (page, container) {
     const survey = String(v.hazard || "").replace(/\s*\([A-Z]+\)$/, "");
     const years = String(s.years || "").replace(/-/g, "\u2013");
     caption.append(el("p", { class: "wx-caption-meta" }, fillTpl(tpl.meta, {
-      n: Number(s.n).toLocaleString(), survey, years })));
+      who: countedAs(s.years), n: Number(s.n).toLocaleString(), survey, years })));
     const gcfg = CONFIG.groupings.find(x => x.id === g);
     let bars = g === "All" ? tpl.bars
       : fillTpl(tpl.bars_split, { group_phrase: (gcfg && gcfg.phrase) || "group" });
@@ -1209,6 +1259,11 @@ components.explore = async function (page, container) {
     qIntro.textContent = ""; qIntro.append(...wi.nodes);
     qIntro.style.display = v.question_intro ? "" : "none";
     qHead.textContent = ""; qHead.append(...wt.nodes);
+    // The wording as shown, for everything that repeats it off the page: the
+    // chart's spoken label and the downloaded figure.
+    shownStem = v.question_intro ? wi.text : "";
+    shownItem = wt.text;
+    shownQuestion = [shownStem, shownItem].filter(Boolean).join(" ");
     renderCaption2(v, g, summaries,
       [...new Set(wi.varied.concat(wt.varied, v.options_varied || []))]);
     syncFlagBtn();
@@ -1239,7 +1294,7 @@ components.explore = async function (page, container) {
     const gLabel = (CONFIG.groupings.find(x => x.id === g) || {}).label;
     const chartOpts = {
       title: "",
-      altTitle: v.question || v.question_text || "",
+      altTitle: shownQuestion,
       xLabel: page.chart.x_label, yLabel: page.chart.y_label,
       showCI,
       legend: nGroups > 1, legendTitle: gLabel || "Group",
@@ -1248,8 +1303,8 @@ components.explore = async function (page, container) {
     };
     groupedBarChart(canvas, rows, chartOpts);
     lastChart = { rows, opts: chartOpts, g,
-                  survey: qSurvey.textContent, stem: v.question_intro || "",
-                  item: v.question_text || v.question || currentKey };
+                  survey: qSurvey.textContent, stem: shownStem,
+                  item: shownItem };
   }
 
   const tableCard = el("section", { class: "card wx-browse" });
@@ -1260,7 +1315,8 @@ components.explore = async function (page, container) {
     flagCell: flaggingOn() ? flagCell : null,
     onPick: (r) => {
       currentKey = keyOf(r);
-      setParams({ q: currentKey });   // keep the URL shareable
+      currentArm = null;
+      setParams({ q: currentKey, arm: null });   // keep the URL shareable
       // The chart sits well above the list: bring it into view so the click
       // visibly loads the new question.
       resultSection.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -1278,7 +1334,8 @@ components.explore = async function (page, container) {
   // to it so the two never disagree about which question is showing.
   const search = questionSearch(questions, (r) => {
     currentKey = keyOf(r);
-    setParams({ q: currentKey });
+    currentArm = null;
+    setParams({ q: currentKey, arm: null });
     qTable.selectRow(x => keyOf(x) === currentKey);
     draw();
   });
@@ -1287,7 +1344,13 @@ components.explore = async function (page, container) {
   // a link has already set one of them, so a shared view shows its settings.
   const bar = el("div", { class: "wx-result-controls" });
   const resultSection = el("section", { class: "wx-result" });
-  const gWrap = groupingSelect(g => { grouping = g; draw(); }, grouping, "Compare responses by");
+  // The URL carries the comparison, so a reload or a copied link shows the
+  // same split, and a link that arrived with one does not keep it stale.
+  const gWrap = groupingSelect(g => {
+    grouping = g;
+    setParams({ grouping: g === "All" ? null : g });
+    draw();
+  }, grouping, "Compare responses by");
   gWrap.classList.add("wx-compare");
   groupingSel = gWrap.querySelector("select");
   bar.append(gWrap);
@@ -1355,6 +1418,7 @@ components.explore = async function (page, container) {
   resultSection.append(resultHead, bar, chartCard);
   renderFlagPanel();
   renderSaved();
+  pageRestyle = () => draw();
   await draw();
 };
 
@@ -1606,6 +1670,12 @@ const catalogByCode = () => new Map(CONFIG.catalog.map(c => [c.code, c]));
  * "What does this number mean?" popovers rather than walls of sidebar prose.
  * All text is authored by the builder in config.explainers (templated with
  * {tokens}), so the engine stays generic. Panels open BELOW their trigger. */
+
+// The page's twin of the builder's counted_as(): a count from one survey
+// year is adults, a count across several is responses.
+function countedAs(years) {
+  return /[-,\u2013]/.test(String(years || "")) ? "responses" : "U.S. adults";
+}
 
 function fillTpl(s, vals) {
   return String(s || "").replace(/\{(\w+)\}/g, (_, k) => (vals && vals[k] != null) ? vals[k] : "");
@@ -2596,6 +2666,7 @@ components.wx_map_explorer = async function (page, container) {
     }
   }
   let firstDraw = true;
+  pageRestyle = () => redraw();
   await redraw();
 };
 
@@ -2889,8 +2960,8 @@ components.wx_quiz = async function (page, container) {
     if (!q.explore) return null;
     const params = Object.assign({}, q.explore.params,
       grouping ? { grouping } : null);
-    return el("a", { class: "wx-quiz-explore", href: q.explore.href,
-      onclick: () => q.explore.params && setParams(params) },
+    if (params.grouping === "All") delete params.grouping;
+    return pageLink(q.explore.href, params, { class: "wx-quiz-explore" },
       label || q.explore.label || "See the data");
   }
 
@@ -3090,7 +3161,7 @@ components.wx_quiz = async function (page, container) {
         const tpl = CONFIG.explore_caption, sm = summaries && summaries[g];
         if (tpl && sm) {
           const survey = String(v.hazard || "").replace(/\s*\([A-Z]+\)$/, "");
-          cap.append(el("p", { class: "wx-caption-meta" }, fillTpl(tpl.meta, {
+          cap.append(el("p", { class: "wx-caption-meta" }, fillTpl(tpl.meta, { who: countedAs(sm.years),
             n: Number(sm.n).toLocaleString(), survey,
             years: String(sm.years || "").replace(/-/g, "\u2013") })));
           const gcfg = CONFIG.groupings.find(x => x.id === g);
@@ -3208,8 +3279,8 @@ components.wx_quiz = async function (page, container) {
                 el("p", { class: "wx-caption-meta" }, fillTpl(pp.meta, { place })),
                 el("p", { class: "wx-caption-bars" }, pp.bars)),
               el("div", { class: "wx-toolbar-actions wx-result-downloads" },
-                el("a", { class: "wx-quiz-explore wx-foot-link", href: "#map",
-                  onclick: () => setParams({ place: code, measure: vals[0].code }) },
+                pageLink("#map", { place: code, measure: vals[0].code },
+                  { class: "wx-quiz-explore wx-foot-link" },
                   fillTpl(pp.map_link, { place }))));
             out.append(panel);
             groupedBarChart(canvas, rows, { yLabel: "Perceived risk (1\u20135)",
@@ -3286,6 +3357,7 @@ components.wx_quiz = async function (page, container) {
     }
     renderPart();
   }
+  pageRestyle = () => renderQ(part);
   renderQ();
 };
 
@@ -3318,7 +3390,13 @@ function currentPageId() {
   return location.hash.replace(/^#/, "") || CONFIG.pages[0].id;
 }
 
+// Set by a page that can repaint itself in a new theme without being rebuilt,
+// so changing colors keeps what the reader has done there (filters, search,
+// a quiz in progress, a chosen area). Cleared on every page change.
+let pageRestyle = null;
+
 async function renderPage() {
+  pageRestyle = null;
   const app = document.getElementById("app");
   const id = currentPageId();
   const page = CONFIG.pages.find(p => p.id === id) || CONFIG.pages[0];
@@ -3367,7 +3445,7 @@ function applyTheme(id, { rerender = false } = {}) {
   document.querySelectorAll("#theme-menu button").forEach(b =>
     b.classList.toggle("active", b.dataset.theme === id));
   // Charts capture label colors at creation — redraw the page so they follow.
-  if (rerender) renderPage();
+  if (rerender) { if (pageRestyle) pageRestyle(); else renderPage(); }
 }
 
 function themeSwitcher() {

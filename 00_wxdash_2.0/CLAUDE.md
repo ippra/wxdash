@@ -150,7 +150,10 @@ Each question file's `summaries` carry, per split, the respondent count `n`,
 the `years` as runs ("2018-2021, 2024"), the `smallest` group with its
 `smallest_n`, and `group_n`, every group's own count. A figure drawn from one
 group, such as a single survey year, states that group's count rather than the
-pooled one.
+pooled one. A count over one survey year is labelled U.S. adults and a count
+over several is labelled responses, since each year is its own sample and a
+total across them is not a count of distinct people; `counted_as()` in the
+builder and `countedAs()` on the page make that choice the same way.
 
 **Every chart carries the R that rebuilds it.** `09_rcode.R` holds the
 generator, and the question loop runs it: one concrete script per (question,
@@ -264,7 +267,12 @@ where it is the text respondents read (`flooding event`); the label.
 and the respondent read a sentence) or whose label would not fit the sentence
 ("15 minutes" in "the next [lead_time] minutes"). Once any row of a
 randomizer has it, every row is read from it and an empty one means the
-version added nothing, so fill the whole randomizer or none of it. Every other
+version added nothing, so fill the whole randomizer or none of it. Where no version is
+chosen (the question browser, search, saved questions) the menu's own slot
+names its versions instead, from `arm_versions` in `config.json`: a run of
+times or numbers as its two ends ("[1:00 AM to 9:00 AM]"), a few short values
+as a list, longer ones as a count, so the morning, afternoon and evening
+variants of one item read differently in a list. Every other
 placeholder is put into words: a listed set as "[15, 30, or 60]", a range as
 "[5 to 100]", a named one from `placeholders` in the builder's config
 ("[the respondent's state]"). The names move to the note under the chart,
@@ -531,6 +539,20 @@ options, Map options); the figure as the one card, with its downloads, or the
 quiz's way into the explorer, at its foot; then the page's notes and its
 browser or overview sheet. The downloads carry the same label and title the
 page shows. Change one page's skeleton and the others should follow.
+
+### Page state
+
+What a reader has chosen lives in the query string, so a reload or a copied
+address shows the same view: the question, its version (`arm`), the
+comparison (`grouping`, absent for Everyone), the color scheme and the map's
+measure, comparison and area. Changing the question clears `arm`. A link from
+one page to another is built by `pageLink()`, which carries the theme and
+scheme and nothing else and puts the full address in the `href`, so it works
+opened in a new tab or copied as well as clicked. Changing the theme does not
+rebuild the page: a page that can repaint itself sets `pageRestyle` (the
+explorer redraws its chart, the quiz its current prompt, the map its layers),
+which keeps browse filters, search text, a quiz in progress and a chosen area.
+Jump targets carry `scroll-margin-top` to clear the sticky menu bar.
 
 ### Accessibility
 

@@ -138,6 +138,30 @@ arm_wording <- local({
          function(x) as.list(setNames(x$wording, x$value)))
 })
 
+# Every version's words for the slot, in roster order, for wording shown with
+# no version chosen (the question browser, search, saved questions), so the
+# morning, afternoon and evening variants of one item read differently there.
+# The same choice the page makes for a chosen version: the roster's wording,
+# else the survey value where it is the text respondents read, else the label.
+arm_versions <- local({
+  roster <- read_csv(
+    here::here("00_wxdash_2.0", "09_dashboard", "arms.csv"),
+    col_types = cols(arm_order = col_integer(), .default = col_character())
+  ) |>
+    arrange(arm_variable, arm_order) |>
+    mutate(
+      worded = any(!is.na(wording)),
+      readable = str_detect(value, "[A-Za-z]") & !str_detect(value, "[_<]"),
+      slot = case_when(
+        worded   ~ coalesce(wording, ""),
+        readable ~ value,
+        TRUE     ~ label
+      ),
+      .by = arm_variable
+    )
+  lapply(split(roster$slot, roster$arm_variable), as.list)
+})
+
 # What a version put on the screen before the question rather than into it
 # (`tor_em_rare` decided whether a definition came first). The question reads
 # the same under every version, so without this the menu would change the
@@ -186,6 +210,7 @@ if (anyDuplicated(hidden$id)) {
 }
 
 drop_ids <- hidden$id[hidden$disposition == "hide"]
+n_listed <- sum(!question_ids %in% drop_ids)
 writeLines(
   toJSON(question_list[!question_ids %in% drop_ids], auto_unbox = TRUE,
          null = "null", na = "null", digits = NA),
@@ -725,8 +750,8 @@ split_chart <- function(id, split, values, y_label, fmt, bars,
                       highest_first = split == "CENSUS_REGION"),
     asked = asked_of(id),
     caption = list(
-      meta = paste0(format(s$n, big.mark = ","), " U.S. adults \u00b7 ",
-                    survey, " Survey \u00b7 ",
+      meta = paste0(format(s$n, big.mark = ","), " ", counted_as(s$years),
+                    " \u00b7 ", survey, " Survey \u00b7 ",
                     str_replace_all(s$years, "-", "\u2013")),
       bars = paste0("Bars show the weighted ", bars, " The smallest ",
                     if (split == "survey_year") "year" else "group", ", ",
@@ -747,12 +772,18 @@ compare_caption <- function(ids, bars) {
                      ") no longer share one survey and span of years"))
   n <- range(vapply(s, function(x) x$n, double(1)))
   n <- unique(format(n, big.mark = ","))
-  list(meta = paste0(paste(n, collapse = "\u2013"), " U.S. adults \u00b7 ",
-                     surveys, " Survey \u00b7 ",
+  list(meta = paste0(paste(n, collapse = "\u2013"), " ", counted_as(years),
+                     " \u00b7 ", surveys, " Survey \u00b7 ",
                      str_replace_all(years, "-", "\u2013")),
        bars = paste("Bars show the weighted", bars))
 }
 pct_fmt <- function(v) paste0(v, "%")
+# A count from one survey year is that many adults. Across several it is a
+# count of responses: each year is its own sample, and a total across them is
+# not a count of distinct people. The page makes the same choice ({who}).
+counted_as <- function(years) {
+  if (any(str_detect(years, "[-,\u2013]"))) "responses" else "U.S. adults"
+}
 mean_fmt <- function(v) sprintf("%.1f", v)
 `%|%` <- function(x, y) if (length(x) == 1 && !is.na(x)) unname(x) else y
 
@@ -779,7 +810,7 @@ quiz <- local({
 
   # The whole battery in the latest year, so the chart shows every source
   # respondents rated; the options are the five rated highest that year.
-  source_vars <- c(`Automated phone alerts` = "WX_wx_info7",
+  source_vars <- c(`Text or phone notifications` = "WX_wx_info7",
                    `Outdoor warning sirens` = "WX_wx_info8",
                    `Internet web pages` = "WX_wx_info4",
                    Television = "WX_wx_info3",
@@ -792,7 +823,7 @@ quiz <- local({
   source_top <- decisive(source_latest, "Q1 most-relied source, latest year")
   source_offered <- names(sort(source_latest, decreasing = TRUE))[1:5]
   # Offered in a fixed order, not ranked, so the order gives nothing away.
-  source_offered <- intersect(c("Television", "Automated phone alerts",
+  source_offered <- intersect(c("Television", "Text or phone notifications",
                                 "Weather radio", "Outdoor warning sirens",
                                 "Internet web pages", "Broadcast radio",
                                 "Word of mouth", "Social media"),
@@ -820,7 +851,7 @@ quiz <- local({
   # main question's list.
   winter_vars <- c(`Internet weather websites` = "WW_rely_int",
                    Television = "WW_rely_tv",
-                   `Automated phone alerts` = "WW_rely_phone",
+                   `Text or phone notifications` = "WW_rely_phone",
                    `Broadcast radio` = "WW_rely_bdrad",
                    `Word of mouth` = "WW_rely_wom",
                    `Weather radio` = "WW_rely_wxrad",
@@ -831,14 +862,14 @@ quiz <- local({
   winter_latest <- vapply(winter_vars, function(v)
     share_of(v, c(4, 5), "survey_year")[[winter_year]], double(1))
   winter_top <- decisive(winter_latest, "Q1 follow-up top winter channel")
-  winter_offered <- c("Television", "Automated phone alerts",
+  winter_offered <- c("Television", "Text or phone notifications",
                       "Internet weather websites", "Weather radio",
                       "Social media")
   check_prose(all(names(sort(winter_latest, decreasing = TRUE))[1:3] %in%
                     winter_offered),
               "Q1 follow-up no longer offers the three most-relied sources")
   winter_second <- sort(winter_latest[-winter_top], decreasing = TRUE)[1]
-  winter_phone_rank <- rank(-winter_latest)[["Automated phone alerts"]]
+  winter_phone_rank <- rank(-winter_latest)[["Text or phone notifications"]]
   winter_n <- range(vapply(winter_vars, function(v)
     q_data(v)$summaries$survey_year$group_n[[winter_year]], double(1)))
   winter_n <- unique(format(winter_n, big.mark = ","))
@@ -1019,9 +1050,10 @@ quiz <- local({
                       "right and wrong"))
     accepted <- which(v >= top - close_margin)
     accepted <- accepted[order(-v[accepted])]
-    # The runner-up comes from the whole battery, offered or not, so the
-    # reveal never skips a hazard that sits between.
-    ordered <- sort(c(v, risk_unoffered[r, ]), decreasing = TRUE)
+    # The runner-up is among the six hazards on the chart, so the reveal
+    # names nothing the reader cannot see; the guard above keeps any hazard
+    # left out well below the top.
+    ordered <- sort(v, decreasing = TRUE)
     names_lc <- str_to_lower(names(v))
     listed <- paste0(names_lc[accepted], " (", shown_pct(v[accepted]), "%)")
     listed <- if (length(listed) == 2) paste(listed, collapse = " and ") else
@@ -1029,7 +1061,7 @@ quiz <- local({
              listed[length(listed)])
     n <- range(vapply(region_vars, function(x)
       q_data(x)$summaries$CENSUS_REGION$group_n[[r]], double(1)))
-    list(
+    part <- list(
       prompt = if (first) paste0("Which hazard do adults in the ", r,
                                  " most often rate as a high or extreme ",
                                  "risk where they live?")
@@ -1043,7 +1075,8 @@ quiz <- local({
         paste0(shown_pct(top), "% of adults in the ", r, " rate ",
                names_lc[which.max(v)], " as a high or extreme risk, ahead ",
                "of ", str_to_lower(names(ordered)[2]), " at ",
-               shown_pct(ordered[[2]]), "%.")
+               shown_pct(ordered[[2]]), "%, the next of the six hazards ",
+               "shown.")
       else paste0("Adults in the ", r, " rate ", listed, " as their top ",
                   "risks, close enough that ",
                   if (length(accepted) == 2) "either" else "any of them",
@@ -1058,7 +1091,9 @@ quiz <- local({
       caption = list(
         meta = paste0(paste(unique(format(n, big.mark = ",")),
                             collapse = "\u2013"),
-                      " U.S. adults in the ", r,
+                      if (counted_as(risk_years) == "responses")
+                        " responses from adults in the " else
+                        " U.S. adults in the ", r,
                       " \u00b7 Severe Weather Survey \u00b7 ", risk_years),
         bars = paste0("Bars show the weighted percentage of adults in the ",
                       r, " rating each hazard ",
@@ -1070,6 +1105,13 @@ quiz <- local({
                                    grouping = "CENSUS_REGION")),
       highlight = highlight(category = names(v)[accepted])
     )
+    # The scoring rule before the first answer, not only after it. Left off
+    # the later regions entirely, since a NULL field serialises as {}.
+    if (first) {
+      part$setup <- paste0("Hazards within ", close_margin, " points of the ",
+                           "top all count as correct.")
+    }
+    part
   }
   risk_parts <- Map(risk_region_part, regions, seq_along(regions) == 1)
 
@@ -1258,8 +1300,8 @@ quiz <- local({
     list(
       part1 = list(
         prompt = paste0("About what percentage of U.S. adults say ",
-                        "they understand the difference between a tornado ",
-                        "WATCH and a tornado WARNING?"),
+                        "they understand the difference between weather ",
+                        "watches and warnings?"),
         options = q1_opts, answer = q1_ans,
         reveal = paste0(shown_pct(q1_all), "% say they probably or ",
                         "definitely ",
@@ -1301,7 +1343,10 @@ quiz <- local({
                         "adults relied ",
                         "on ", str_to_lower(names(source_vars)[source_top]),
                         " much or a great deal in ", latest_year,
-                        ", compared with ", source_rest, "."),
+                        ", compared with ", source_rest, ". Respondents ",
+                        "rated each source separately, so this is the ",
+                        "share relying on each, not one main source per ",
+                        "person."),
         chart = cmp_chart(shown_pct(source_latest),
                           "Much or a great deal (%)", pct_fmt),
         asked = asked_of(source_vars),
@@ -1329,10 +1374,10 @@ quiz <- local({
                         " very much or extensively when winter weather ",
                         "threatened, compared with ",
                         shown_pct(winter_second), "% for ",
-                        str_to_lower(names(winter_second)), ". Automated ",
-                        "phone alerts ranked ",
+                        str_to_lower(names(winter_second)), ". Text or ",
+                        "phone notifications ranked ",
                         ordinal[winter_phone_rank], ", at ",
-                        shown_pct(winter_latest[["Automated phone alerts"]]),
+                        shown_pct(winter_latest[["Text or phone notifications"]]),
                         "%."),
         chart = cmp_chart(shown_pct(winter_latest),
                           "Very much or extensively (%)", pct_fmt),
@@ -1401,8 +1446,8 @@ quiz <- local({
                           pct_fmt),
         asked = c(asked_of(format_vars), list(table = format_table)),
         caption = list(
-          meta = paste0(paste(format_n, collapse = "\u2013"),
-                        " U.S. adults \u00b7 ",
+          meta = paste0(paste(format_n, collapse = "\u2013"), " ",
+                        counted_as(format_years), " \u00b7 ",
                         paste(format_surveys, collapse = " and "),
                         " Surveys \u00b7 ",
                         paste(format_years, collapse = "\u2013")),
@@ -1685,8 +1730,9 @@ quiz <- local({
                         "than an hour, while ", shown_pct(q10_day),
                         "% think they have 1 to 24 hours, even though ",
                         shown_pct(q1_all), "% say they understand the ",
-                        "difference between a tornado watch and a tornado ",
-                        "warning."),
+                        "difference between weather watches and warnings. ",
+                        "A tornado warning means take protective action ",
+                        "now."),
         result = paste0(shown_pct(q10_all), "%"),
         miss = paste("Only about half know tornado warnings generally",
                      "provide less than an hour"),
@@ -1796,8 +1842,9 @@ quiz <- local({
                           pct_fmt, highest_first = FALSE),
         asked = asked_of("WX_last_act"),
         caption = list(
-          meta = paste0(format(act_q$summaries$All$n, big.mark = ","),
-                        " U.S. adults \u00b7 Severe Weather Survey \u00b7 ",
+          meta = paste0(format(act_q$summaries$All$n, big.mark = ","), " ",
+                        counted_as(act_q$summaries$All$years),
+                        " \u00b7 Severe Weather Survey \u00b7 ",
                         str_replace_all(act_q$summaries$All$years, "-",
                                         "\u2013")),
           bars = paste("Bars show the weighted percentage giving each",
@@ -2291,7 +2338,7 @@ about_html <- paste0(
 
   "<hr>",
   "<h3>Support</h3>",
-  "<p>The University of Oklahoma, the U.S. Weather Program Office (WPO), and ",
+  "<p>The University of Oklahoma, the NOAA Weather Program Office (WPO), and ",
   "the National Weather Service (NWS) have supported the development of this ",
   "project and continue to support data collection, analysis, programming, ",
   "and maintenance.</p>",
@@ -2325,7 +2372,7 @@ config <- list(
   # reader needs to find the question again. Every {token} is filled from
   # the question file, so no line states a figure the data does not carry.
   explore_caption = list(
-    meta = "{n} U.S. adults \u00b7 {survey} Survey \u00b7 {years}",
+    meta = "{n} {who} \u00b7 {survey} Survey \u00b7 {years}",
     bars = "Bars show the weighted percentage selecting each response.",
     bars_split = paste0("Bars show the weighted percentage of each ",
                         "{group_phrase} selecting each response."),
@@ -2355,6 +2402,7 @@ config <- list(
   arm_variables = arm_variables,
   arm_wording = arm_wording,
   arm_shown = arm_shown,
+  arm_versions = arm_versions,
   arm_shown_label = "Shown on the screen before this question:",
   # Placeholders in question wording that are not a version menu's own
   # variable, in words a reader can follow. Anything not listed here reads
@@ -2481,11 +2529,12 @@ config <- list(
          label = "Explore Survey Questions",
          title = "Explore Survey Questions",
          questions = "data/questions.json", default_grouping = "All",
-         # The count is read, not typed: rounded down to the hundred below
-         # it, so "more than" stays true as questions are added or hidden.
+         # The count is read, not typed: the questions the browser lists,
+         # hidden ones left out, rounded down to the hundred below so "more
+         # than" stays true as questions are added or hidden.
          intro = paste0("Explore what Americans know, believe, and do when ",
                         "it comes to extreme weather. Browse more than ",
-                        floor((length(q_files) - 1) / 100) * 100, " survey ",
+                        floor((n_listed - 1) / 100) * 100, " survey ",
                         "questions across severe weather, tropical weather, ",
                         "winter weather, and flooding. Select any question ",
                         "to see national results or compare responses ",
@@ -2540,7 +2589,7 @@ config <- list(
       "Survey data (Dataverse)</a>",
       "<a href=\"https://ippra.net\">OU IPPRA</a>",
       "<a href=\"mailto:jtr@ou.edu\">Contact</a>"),
-    funding = paste0("Supported by the University of Oklahoma, the US ",
+    funding = paste0("Supported by the University of Oklahoma, the NOAA ",
                      "Weather Program Office (WPO), and the National ",
                      "Weather Service (NWS).")
   )

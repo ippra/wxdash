@@ -948,6 +948,8 @@ html[data-theme="wxops"] {
    rows divided by hairlines rather than spreadsheet cells. Dense on purpose,
    because people scan many questions here. */
 .wx-result { scroll-margin-top: 80px; }
+/* Every jump target clears the sticky menu bar. */
+.wx-scan-card { scroll-margin-top: 80px; }
 .wx-browse { padding: 26px 28px 20px; }
 .wx-browse-title {
   margin: 0 0 4px; font-family: var(--font-display); font-size: 21px;
