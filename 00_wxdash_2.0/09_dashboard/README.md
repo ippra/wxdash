@@ -195,8 +195,10 @@ entry URLs (`/wxdash`, `/wxdash/`, `/wxdash/index.html`).
   percentile = share strictly below), in `data/map/cwa_values.json`.
 - **The map notes** - for each measure, what respondents were asked (read
   from `measures.json`), how the answers become a score, the observed range the
-  colors span, and where the estimates come from. Alert counts get the same
-  parts in their own terms. Every number is read off the data.
+  colors span, and where the estimates come from. Alert days get the same
+  parts in their own terms, as days per year: the data half divides each
+  category's total by the years it covers before writing the map file. Every
+  number is read off the data.
 - **The alert-history pairing** - which alert layer each measure is offered
   against, in `compare_pairing`, transcribed from `06_fit_models.R`. Drought,
   hail and lightning have no NWS alert product (`06` fits them on FEMA NRI

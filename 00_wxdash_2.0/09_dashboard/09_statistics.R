@@ -6,6 +6,7 @@ library(jsonlite)
 source(here::here("00_wxdash_2.0", "00_paths.R"))
 require_roots()
 source(here::here("00_wxdash_2.0", "09_dashboard", "09_rcode.R"))
+source(here::here("00_wxdash_2.0", "09_dashboard", "09_wording.R"))
 
 # Statistics -------------------------------------------------------------------
 # Every number the dashboard shows is computed here, and nowhere else. Sourced
@@ -909,6 +910,21 @@ for (i in seq_len(nrow(questions))) {
 
   for (ak in names(per_arm)) {
     arm_row <- if (armed) arms$roster |> filter(value == ak) else NULL
+    # The question as this version's respondents read it, for the script's
+    # comment and plot title: the words the page puts in the slot, from the
+    # roster's wording, else the value where it is text, else the label.
+    shown_question <- if (armed) {
+      slot <- if (any(!is.na(arms$roster$wording))) {
+        coalesce(arm_row$wording, "")
+      } else if (str_detect(ak, "[A-Za-z]") && !str_detect(ak, "[_<]")) {
+        ak
+      } else {
+        arm_row$label
+      }
+      readable_wording(row$question, arms$variable, slot, ak)
+    } else {
+      readable_wording(row$question)
+    }
     per_split <- list()
     for (g in names(per_arm[[ak]]$splits)) {
       # Instrument order, which is what the prefixes in the data encode, rather
@@ -921,7 +937,8 @@ for (i in seq_len(nrow(questions))) {
         lv[lv %in% per_arm[[ak]]$splits[[g]]$group]
       }
       per_split[[g]] <- r_script(
-        question = row$question, variable = row$variable, hazard = row$hazard,
+        question = shown_question, variable = row$variable,
+        hazard = row$hazard,
         waves = waves, years = years, split = g,
         split_label = names(groups)[match(g, groups)],
         level_values = resp_levels$value, level_labels = resp_levels$label,
@@ -1032,7 +1049,28 @@ alert_columns <- grep("^ALERT_", all_columns, value = TRUE)
 measure_columns <- setdiff(all_columns,
                            c("CWA", "CWA_NAME", "geometry", alert_columns))
 
+# Alert days per year. 07 carries each category's total over the years it
+# covers, the numbers the models were scaled against; the map shows the yearly
+# average instead, which reads more easily and puts storm surge, counted over
+# nine years where the rest cover sixteen, on the same footing as the others.
+# The models are untouched: 06 standardizes each count, and dividing one
+# category by a constant leaves its standardized values, and so every
+# estimate, exactly as they were. Each archive year is complete, 1 January to
+# 31 December, and a category's span is the years it appears in, so for storm
+# surge it starts with 2017, the first season the product was issued.
+alert_n_years <- alert_years |>
+  transmute(measure, n_years = last_year - first_year + 1L) |>
+  deframe()
+
+if (!setequal(names(alert_n_years), alert_columns) ||
+    any(is.na(alert_n_years) | alert_n_years < 1)) {
+  print(alert_n_years)
+  stop("Alert categories and their spans do not line up - rerun 02 and 07.")
+}
+
 cwa_site <- cwa_estimates |>
+  mutate(across(all_of(alert_columns),
+                function(x) x / alert_n_years[[cur_column()]])) |>
   mutate(CWA_DISPLAY = paste0(
     "NWS ",
     gsub(" ([A-Za-z]{2})(?=/|$)", ", \\U\\1\\E", CWA_NAME, perl = TRUE)
@@ -1060,6 +1098,9 @@ measures <- imap(map_measures, function(x, group) {
           filter(measure == .env$measure) |>
           transmute(s = paste(first_year, "and", last_year)) |>
           pull(s),
+        # The years each value is averaged over, for anything that says so.
+        years = unname(alert_n_years[[measure]]),
+        per_year = TRUE,
         hazard = NA_character_, response_options = NA_character_,
         n_intros = 1L, shared_intro = FALSE, intro = NA_character_,
         items = tibble(question_intro = character(),

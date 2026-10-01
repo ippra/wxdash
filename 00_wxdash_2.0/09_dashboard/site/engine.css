@@ -102,7 +102,11 @@ html[data-entry="referred"] .ippra-bar-back { display: inline; }
   border: 1px solid currentColor; border-radius: 4px;
   font-family: var(--mono, monospace); font-size: 10px; font-weight: 700;
   letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.85;
+  line-height: 1.3;
 }
+/* The badge's border makes the title line taller, so the subtitle under it
+   gets a little more room to clear it. */
+.brand-name:has(.brand-beta) ~ .brand-sub { margin-top: 4px; }
 #nav-pages { display: flex; gap: 4px; flex-wrap: wrap; }
 #nav-pages a, #nav-pages .nav-group-btn {
   color: var(--text-muted); text-decoration: none;
@@ -743,7 +747,15 @@ html[data-theme="wxops"] {
 .wx-save-wrap:hover .wx-hover-tip,
 .wx-save-btn:focus-visible + .wx-hover-tip { display: block; }
 .wx-save-btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
-.wx-saved { margin-top: 18px; }
+.wx-saved { margin-top: 18px; scroll-margin-top: 80px; }
+.wx-quiz-other { margin-top: 18px; }
+.wx-quiz-other-label { display: block; font-size: 13.5px; color: var(--text-muted); }
+.wx-quiz-other-label select { margin-left: 6px; }
+.wx-saved-jump {
+  display: inline-block; margin: 2px 0 0 2px; font-size: 13px; font-weight: 600;
+  color: var(--accent); text-decoration: none;
+}
+.wx-saved-jump:hover { text-decoration: underline; text-underline-offset: 3px; }
 .wx-saved-title { font-size: 18px; margin: 0 0 4px; }
 .wx-saved-lede { margin: 0 0 12px; font-size: 13.5px; color: var(--text-muted); }
 .wx-saved-list { list-style: none; margin: 0; padding: 0; }
@@ -1660,10 +1672,16 @@ html #nav-pages .nav-menu a.active { background: var(--row-selected); color: var
 .wx-quiz-score { font-size: 26px; }
 .wx-quiz-recap { display: flex; flex-direction: column; gap: 9px; margin-top: 18px; }
 .wx-quiz-recap-row {
-  display: flex; gap: 12px; align-items: baseline;
+  display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline;
   font-size: 14px; line-height: 1.4;
 }
-.wx-quiz-recap-marks { font-family: var(--mono, monospace); color: var(--text-muted); white-space: nowrap; }
+/* One labelled mark per part, wrapping within a fixed column. */
+.wx-quiz-recap-marks {
+  flex: 0 0 220px; display: flex; flex-wrap: wrap; gap: 2px 10px;
+  font-size: 12.5px; color: var(--text-muted);
+}
+.wx-quiz-recap-mark { white-space: nowrap; }
+.wx-quiz-recap-mark.is-right { color: var(--text); }
 .wx-quiz-recap-topic { flex: 1 1 auto; }
 /* Theme heads in the recap, set like the question label above each
    question so the two read as the same scheme. */

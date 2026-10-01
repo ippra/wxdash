@@ -23,12 +23,12 @@ order,group,label,measure
 22,Risk perceptions,Drought risk perceptions,RISK_DROUGHT
 23,Risk perceptions,Hail risk perceptions,RISK_HAIL
 24,Risk perceptions,Lightning risk perceptions,RISK_LIGNT
-25,Alert frequency,Tornado alert days,ALERT_TORN
-26,Alert frequency,Hurricane alert days,ALERT_HURR
-27,Alert frequency,Storm surge alert days,ALERT_SURG
-28,Alert frequency,Flood alert days,ALERT_FLOOD
-29,Alert frequency,Snow alert days,ALERT_SNOW
-30,Alert frequency,Ice alert days,ALERT_ICE
-31,Alert frequency,Extreme cold alert days,ALERT_COLD
-32,Alert frequency,Extreme heat alert days,ALERT_HEAT
-33,Alert frequency,Fire weather alert days,ALERT_FIRE
+25,Alert frequency,Tornado alert days per year,ALERT_TORN
+26,Alert frequency,Hurricane alert days per year,ALERT_HURR
+27,Alert frequency,Storm surge alert days per year,ALERT_SURG
+28,Alert frequency,Flood alert days per year,ALERT_FLOOD
+29,Alert frequency,Snow alert days per year,ALERT_SNOW
+30,Alert frequency,Ice alert days per year,ALERT_ICE
+31,Alert frequency,Extreme cold alert days per year,ALERT_COLD
+32,Alert frequency,Extreme heat alert days per year,ALERT_HEAT
+33,Alert frequency,Fire weather alert days per year,ALERT_FIRE

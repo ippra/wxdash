@@ -34,7 +34,8 @@ than long:
 
 The CWA file also carries the nine alert counts the models are fitted on, under
 an `ALERT_` prefix, so exposure can be read beside the estimate it helps
-explain. They are counts of days, not a 1–5 scale.
+explain. They are total days over each category's years, as the models use
+them; the dashboard shows them as days per year (see `09_dashboard`).
 
 Twenty-four measures in four families. Twelve are composite scales, each the
 mean of several 1–5 survey items; twelve are single 1–5 risk perception items.
@@ -342,7 +343,7 @@ the data. **Explore Survey Questions** charts any of the 915 questions under
 any of thirteen splits, with a search over every question's wording and a
 browser filtered by survey, topic and question type; each chart downloads as
 PNG or PDF, and as the **R code** that rebuilds it from the released wave
-files. **Explore Communities** maps the 24 estimates and nine alert-day counts
+files. **Explore Communities** maps the 24 estimates and nine alert histories (days per year)
 across the 116 CWAs; choosing an alert history draws it as a second map beside
 the measure its model was fitted on, and clicking an area (or choosing it from
 the Forecast office list) opens an overview sheet: every measure for that

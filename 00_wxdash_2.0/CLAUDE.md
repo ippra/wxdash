@@ -76,7 +76,14 @@ deliberate and easy to undo by accident:
 
 `07` carries the nine alert counts the models fit onto the CWA map file under an
 `ALERT_` prefix, so exposure can be read beside the estimate it helps explain.
-They are counts of days, not a 1-5 scale, and the front end branches on that.
+They are total days over each category's years, the numbers the models are
+scaled against. The map shows them as days per year instead: `09_statistics.R`
+divides each by its category's years from `02_alert_years.csv` (16 for most,
+9 for storm surge, which was first issued in 2017) as it writes the map file,
+which puts surge on the same footing as the rest and leaves every model and
+estimate as it was, since `06` standardizes each count. Every archive year is
+complete, 1 January to 31 December. They are days, not a 1-5 scale, and the
+front end branches on that.
 
 ## The variable reference
 
@@ -145,6 +152,16 @@ confidence intervals and the one without. `proportion = FALSE` gives the same
 point estimates (at most 2.9e-09 apart across 3,109 cells) and only avoids the
 logit warning on a cell at 0 or 100%, and computing both would roughly
 quadruple the build.
+
+The design is weights only (`ids = 1`, no strata or clusters), so the 95%
+intervals are logit intervals for a weighted proportion treating respondents
+as independent draws; the caption says so while they are drawn, and that they
+leave out the other errors of a nonprobability sample, and the screen-reader
+table then carries each bound. Each wave's weights average exactly one, so a
+pooled estimate counts every year in proportion to its respondents (the
+2018-2020 severe weather waves, near 3,000 each, count about twice the later
+ones); a caption over several years says the years are pooled and describe
+that span together, not the latest year, the quiz's included.
 
 Each question file's `summaries` carry, per split, the respondent count `n`,
 the `years` as runs ("2018-2021, 2024"), the `smallest` group with its
@@ -277,7 +294,11 @@ placeholder is put into words: a listed set as "[15, 30, or 60]", a range as
 "[5 to 100]", a named one from `placeholders` in the builder's config
 ("[the respondent's state]"). The names move to the note under the chart,
 "Randomization:" for the menu's variable and "Wording varies with:" for the
-rest, so a reader who wants the column has it.
+rest, so a reader who wants the column has it. The same rule in R is
+`readable_wording()` in `09_dashboard/09_wording.R`, which both halves source:
+the builder sends its `placeholder_words` to the page, and the statistics use
+it for the comment and plot title of each generated script, so a script names
+the version it rebuilds in the words the page shows.
 
 Where a version changed what came *before* the question rather than the
 question itself (`tor_em_rare` decided whether a definition of a tornado
@@ -444,7 +465,9 @@ topics, rather than guessing them from the wording. Question type is `kind`:
 Standard, Experiment, Graphic, or Experiment, graphic.
 
 Readers can keep a list of questions, and the page does not push it. "Save
-question" is a link beside Download R code at the foot of the chart; the "Saved questions"
+question" is a link beside Download R code at the foot of the chart, and
+"Saved questions (n)" under the search box jumps to the list once it has
+anything in it; the "Saved questions"
 panel at the foot of the page appears only once something is saved, opens a
 question on a click, and downloads the list as CSV (survey, years, question,
 variable), which is how a list is kept: it lives in `localStorage` under
@@ -504,6 +527,20 @@ Drought, hail and lightning are fitted on FEMA NRI frequencies rather than an
 NWS product, so they have no pairing and the page says so. `?measure=`,
 `?compare=` and `?place=` deep-link the page.
 
+The estimates are point estimates with no uncertainty: `07` predicts from the
+`06` fits for an average year (the year effect dropped) and keeps no standard
+errors. The page says so rather than suggesting separation it cannot show.
+The popup calls the value a modeled estimate and its rank and percentile a
+ranking of estimates, where close ones may not differ; the estimate note says
+the same, that each estimate pools every year that asked the question, and
+that every area has an estimate for every hazard, which where the hazard is
+rare describes how adults answer, not local experience. The legend names the
+scale and that its colors span the observed range, and an alert legend its
+counting period ("Alert days per year, 2010-2025"). The alert note says a partial
+alert counts, so not every resident was under it, and that because the models
+use these counts as predictors, an estimate map that resembles the alert map
+partly reflects the model.
+
 The map surface carries no color of its own: the choropleth sits directly on
 the card. Two things follow from that and are easy to undo by accident. Polygon
 borders are a theme token (`--map-hairline`), because white borders against a
@@ -545,7 +582,11 @@ page shows. Change one page's skeleton and the others should follow.
 What a reader has chosen lives in the query string, so a reload or a copied
 address shows the same view: the question, its version (`arm`), the
 comparison (`grouping`, absent for Everyone), the color scheme and the map's
-measure, comparison and area. Changing the question clears `arm`. A link from
+measure, comparison and area. Changing the question clears `arm`. A reader's
+own choice is a step in the browser's history (`setParams(..., true)`), so
+Back undoes it; a Back or Forward that changes only the query redraws the page
+from the address it then shows, so the selection, the chart and the URL
+agree. A link from
 one page to another is built by `pageLink()`, which carries the theme and
 scheme and nothing else and puts the full address in the `href`, so it works
 opened in a new tab or copied as well as clicked. Changing the theme does not
@@ -689,7 +730,9 @@ the 116 areas have their top two that close. `reveal_one`, `reveal_tied`,
 `{either}` are filled on the page; `bars` is the caption. Because the right
 answer depends on the office, the choice is stored as `{code, guess, right}`
 with its verdict. The chart's foot links to the map at that office and its top
-measure.
+measure. Once answered, "See another office (not scored)" draws any other
+office's ranking below it, `alongside` the first chart rather than replacing
+it, and leaves the stored answer as it was.
 
 ### Layout and scoring
 
@@ -700,6 +743,14 @@ reveal as a callout (`role="status"`), then the chart as the one card: the
 survey question as respondents read it, the bars, the caption, and "Open in
 the survey explorer →" at its foot. The next button reads the next part's
 `lead`, or "Try a Follow-Up →", "Next Question →", "See Your Score →".
+
+Progress is kept for the browser session in `sessionStorage` under
+`wxdash-quiz` (where the reader is and every answer), so following a link
+into the explorer and coming back, or reloading, resumes where they left off;
+a new visit starts afresh. The saved state carries a signature of the quiz's
+questions and parts, and one that no longer matches is ignored, so a deploy
+that changes the quiz cannot resume into the wrong place. "Start over" clears
+it.
 
 The score counts first answers only. "← Previous Question" steps back one
 prompt and shows it as it was answered, locked, so going back is for
@@ -715,8 +766,9 @@ alone. Rows are short, so it fits a phone. There is no "Question N of M" label:
 the rows say where the reader is.
 
 The score page reads "You got X of Y right" and recaps every question under its
-section, with a count per section, the marks for each prompt, and an explorer
-link, then "Explore the survey questions" and "Start over".
+section, with a count per section, a labelled mark for each prompt ("✓
+Question ✗ Follow-up", or a series' own tags), and an explorer link, then
+"Explore the survey questions" and "Start over".
 
 ## Seeing the site headless
 

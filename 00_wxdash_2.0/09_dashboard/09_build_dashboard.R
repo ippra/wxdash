@@ -3,6 +3,7 @@ library(sf)
 library(jsonlite)
 
 source(here::here("00_wxdash_2.0", "00_paths.R"))
+source(here::here("00_wxdash_2.0", "09_dashboard", "09_wording.R"))
 
 # Dashboard Assembly -----------------------------------------------------------
 # The whole dashboard, from 08 to the deployable site. Two halves that change
@@ -263,7 +264,8 @@ measure_values <- setNames(lapply(menu, function(m) {
   code <- m$measure
   is_alert <- isTRUE(m$alert)
   v <- df[[code]]
-  fmt <- if (is_alert) function(x) round(x) else r2
+  # Alert values are days per year, carried to two decimals and shown to one.
+  fmt <- if (is_alert) function(x) round(x, 2) else r2
   vals <- fmt(v)
   rank <- vapply(v, function(x) sum(v > x, na.rm = TRUE) + 1L, integer(1))
   pct <- vapply(v, function(x) round(100 * sum(v < x, na.rm = TRUE) /
@@ -275,7 +277,8 @@ measure_values <- setNames(lapply(menu, function(m) {
     domain = c(min(vals, na.rm = TRUE), max(vals, na.rm = TRUE)),
     median = fmt(median(v, na.rm = TRUE)),
     alert = is_alert,
-    span = if (is_alert) m$span else NA
+    span = if (is_alert) m$span else NA,
+    years = if (is_alert) m$years else NA
   )
 }), offered)
 
@@ -356,7 +359,7 @@ scale_anchors <- function(options) {
 hazard_of_label <- function(label) {
   str_to_lower(str_remove(label, paste0(
     "( warning (reception|comprehension|response)",
-    "| risk perceptions| alert days)$")))
+    "| risk perceptions| alert days per year)$")))
 }
 
 # Every measure's note has the same parts, in the same order: the measure as
@@ -372,6 +375,13 @@ about_estimates <- paste0(
   "Community estimates come from multilevel models fitted to survey ",
   "responses and reweighted to the adult population of each county, then ",
   "combined to the National Weather Service County Warning Area.</p>",
+  "<p><strong>Reading them:</strong> Each estimate pools every survey year ",
+  "that asked the question and describes an average year. The models give ",
+  "no measure of uncertainty for each area, so ranks and percentiles order ",
+  "point estimates, and areas with close estimates may not differ in any ",
+  "meaningful way. Every area has an estimate for every hazard, including ",
+  "places where that hazard is rare; there it describes how adults answer ",
+  "the question, not local experience of the hazard.</p>",
   "<p>Survey data: <a href=\"https://dataverse.harvard.edu/dataverse/",
   "wxsurvey\">Extreme Weather and Society Survey Dataverse</a></p>")
 
@@ -390,22 +400,27 @@ for (m in menu) {
   if (isTRUE(m$alert)) {
     map_notes[[code]] <- paste0(
       heading,
-      "<p class=\"wx-note-intro\">Counts show ", esc_html(label_lower),
+      "<p class=\"wx-note-intro\">Values show ", esc_html(label_lower),
       across, "</p>",
       "<div class=\"wx-note-cols\"><div>",
-      "<p><strong>What is counted:</strong> The number of days from ",
-      str_replace(m$span, " and ", " to "), " on which the National Weather ",
-      "Service issued at least one VTEC-enabled ",
+      "<p><strong>What is counted:</strong> The average number of days a ",
+      "year, from ", str_replace(m$span, " and ", " to "), ", on which the ",
+      "National Weather Service issued at least one VTEC-enabled ",
       esc_html(hazard_of_label(m$label)), " watch, warning, or advisory ",
-      "anywhere in the area. Each day is counted once, regardless of how many ",
-      "products were issued.</p></div><div>",
-      "<p>The map colors span the observed range, from ", lo, " to ",
-      format(hi, big.mark = ","), " alert days. This makes differences across ",
-      "areas easier to see.</p>",
-      "<p><strong>About the counts:</strong> Alert counts are observed data, ",
+      "anywhere in the area: the days counted over those ", m$years,
+      " years, divided by ", m$years, ". Each day is counted once, regardless ",
+      "of how many products were issued. An alert covering part of the area ",
+      "counts, so not every resident was under it.</p></div><div>",
+      "<p>The map colors span the observed range, from ",
+      sprintf("%.1f", lo), " to ", sprintf("%.1f", hi), " days a year. ",
+      "This makes differences across areas easier to see.</p>",
+      "<p><strong>About the counts:</strong> Alert days are observed data, ",
       "not survey estimates, from the ", MESONET_LINK, " archive. They are ",
       "used as measures of local alert exposure in the community models and ",
-      "are shown here to provide context for the survey-based estimates.</p>",
+      "are shown here to provide context for the survey-based estimates. ",
+      "Because the models use them as predictors, an estimate map that ",
+      "resembles this one partly reflects the model, not independent ",
+      "agreement.</p>",
       "</div></div>")
     next
   }
@@ -482,14 +497,14 @@ odd_alerts <- alert_menu[alert_spans != common_span]
 as_range <- function(s) str_replace(s, " and ", "\u2013")
 
 alert_span_sentence <- if (length(odd_alerts) == 0) {
-  paste0("Alert counts cover ", as_range(common_span), ".")
+  paste0("Alert days are averaged over ", as_range(common_span), ".")
 } else {
   odd_labels <- vapply(odd_alerts, function(m) {
-    str_to_lower(str_remove(m$label, " alert days$"))
+    str_to_lower(str_remove(m$label, " alert days per year$"))
   }, character(1))
   paste0(
-    "Alert counts cover ", as_range(common_span), ", except ",
-    paste(odd_labels, collapse = ", "), ", which covers ",
+    "Alert days are averaged over ", as_range(common_span), ", except ",
+    paste(odd_labels, collapse = ", "), ", which is averaged over ",
     as_range(odd_alerts[[1]]$span),
     " because the product did not exist before then."
   )
@@ -514,9 +529,10 @@ scan_note <- paste0(
   "County Warning Area. This allows us to estimate each measure for U.S. ",
   "adults across all ", measures_meta$areas, " areas, including places ",
   "where relatively few people were surveyed.</p>",
-  "<p>Alert counts are observed data, not survey estimates. They represent ",
-  "the number of days on which the National Weather Service issued at least ",
-  "one VTEC-enabled watch, warning, or advisory of that type, using data from ",
+  "<p>Alert days are observed data, not survey estimates. They represent ",
+  "the average number of days a year on which the National Weather Service ",
+  "issued at least one VTEC-enabled watch, warning, or advisory of that type, ",
+  "using data from ",
   "the ", MESONET_LINK, " archive. These counts are also used as exposure ",
   "measures in the models. ", alert_span_sentence, "</p>",
   "<p>Survey data: <a href=\"https://dataverse.harvard.edu/dataverse/",
@@ -1233,6 +1249,14 @@ quiz <- local({
   })
   risk_scale <- vapply(q_data("WX_risk_heat")$options, function(o) o$label,
                        "")
+  # The question behind the estimates and the years they draw on, for the
+  # reveal's evidence like every other question's: the risk battery's stem,
+  # and the span across every risk item the models are fitted to.
+  risk_files <- list.files(paste0(data_dir, "q"), "^WX_risk_.*\\.json$")
+  risk_item_years <- unlist(str_extract_all(vapply(
+    str_remove(risk_files, "\\.json$"),
+    function(v) q_data(v)$summaries$All$years, ""), "\\d{4}"))
+  community_years <- paste(range(risk_item_years), collapse = "\u2013")
 
   # What people did at their most recent tornado warning. Asked only of those
   # who remembered one received at home, work, school or a business. The
@@ -1708,7 +1732,11 @@ quiz <- local({
                              "counts."),
         miss_one = "{Top} is the highest-rated risk in the {place} area",
         miss_tied = "{Tied} are nearly tied in the {place} area",
-        meta = "Modeled estimates \u00b7 {place} forecast area",
+        meta = paste0("Modeled estimates \u00b7 {place} forecast area \u00b7 ",
+                      "Severe Weather Survey \u00b7 ", community_years),
+        asked = list(stem = q_data("WX_risk_heat")$question_intro,
+                     items = vapply(community_measures, function(m) m$label,
+                                    "")),
         bars = paste0("Bars show each hazard's estimated average rating on ",
                       "the survey's scale from 1 (\u201c", risk_scale[1],
                       "\u201d) to 5 (\u201c", risk_scale[5], "\u201d). ",
@@ -1897,6 +1925,39 @@ quiz <- local({
   })
 })
 
+# A quiz chart over several survey years says how they were pooled, as the
+# explorer's does, unless it is drawn by survey year and shows each one. The
+# years are read off the caption's own facts line, which ends with them.
+pooled_note <- function(years) {
+  paste0(" Survey years are pooled, each counted in proportion to its ",
+         "respondents, so this describes ", years, " together rather than ",
+         "the latest year.")
+}
+quiz <- lapply(quiz, function(q) {
+  for (k in c("part1", "part2")) {
+    p <- q[[k]]
+    if (is.null(p$caption$meta)) next
+    by_year <- identical(p$grouping, "survey_year") ||
+      (k == "part2" && is.null(p$chart) &&
+         identical(q$explore$params$grouping, "survey_year")) ||
+      identical(p$explore$params$grouping, "survey_year")
+    years <- str_extract(p$caption$meta, "[0-9]{4}([\u2013-][0-9]{4})?$")
+    if (!by_year && !is.na(years) && str_detect(years, "[\u2013-]")) {
+      q[[k]]$caption$bars <- paste0(p$caption$bars, pooled_note(years))
+    }
+  }
+  if (!is.null(q$more)) {
+    q$more <- lapply(q$more, function(p) {
+      years <- str_extract(p$caption$meta %||% "", "[0-9]{4}([\u2013-][0-9]{4})?$")
+      if (!is.na(years) && str_detect(years, "[\u2013-]")) {
+        p$caption$bars <- paste0(p$caption$bars, pooled_note(years))
+      }
+      p
+    })
+  }
+  q
+})
+
 # The explorer opens a linked question only if it is on the list, and falls
 # back to the first question otherwise, so a quiz link to a hidden question
 # would open the wrong chart under "Open in the survey explorer".
@@ -2030,8 +2091,9 @@ about_link <- function(id, name, body) {
 alert_common <- as_range(common_span)
 alert_exceptions <- if (length(odd_alerts) == 0) "" else paste0(
   " ", str_to_sentence(paste(vapply(odd_alerts, function(m)
-    str_to_lower(str_remove(m$label, " alert days$")), ""), collapse = ", ")),
-  " counts cover ", as_range(odd_alerts[[1]]$span), " because the relevant ",
+    str_to_lower(str_remove(m$label, " alert days per year$")), ""), collapse = ", ")),
+  " alert days are averaged over ", as_range(odd_alerts[[1]]$span),
+  " because the relevant ",
   "product did not exist before then."
 )
 n_areas <- length(places)
@@ -2263,18 +2325,20 @@ about_html <- paste0(
 
   "<hr>",
   "<h3>Alert history</h3>",
-  "<p>The alert-day counts shown in Explore Communities are observed records, ",
-  "not survey estimates. They represent the number of days on which the ",
-  "National Weather Service issued at least one relevant VTEC-enabled watch, ",
-  "warning, or advisory within a County Warning Area.</p>",
+  "<p>The alert days shown in Explore Communities are observed records, not ",
+  "survey estimates. They represent the average number of days a year on ",
+  "which the National Weather Service issued at least one relevant ",
+  "VTEC-enabled watch, warning, or advisory within a County Warning Area: ",
+  "the days counted over the years covered, divided by the number of ",
+  "years.</p>",
   "<p>Alert records come from the ", MESONET_LINK, " archive. Most alert ",
-  "counts cover ", alert_common, ".", alert_exceptions, " A day is counted ",
-  "once regardless of how many qualifying products were issued on that ",
-  "day.</p>",
-  "<p>These counts provide information about the warning and alert ",
-  "environments experienced by different communities. They are also used as ",
-  "exposure measures in the models used to produce the community ",
-  "estimates.</p>",
+  "days are averaged over ", alert_common, ".", alert_exceptions, " A day is ",
+  "counted once regardless of how many qualifying products were issued on ",
+  "that day.</p>",
+  "<p>These records provide information about the warning and alert ",
+  "environments experienced by different communities. The same days, as ",
+  "totals over the years covered, are also used as exposure measures in the ",
+  "models used to produce the community estimates.</p>",
 
   "<hr>",
   "<h3>Using this site</h3>",
@@ -2378,6 +2442,19 @@ config <- list(
                         "{group_phrase} selecting each response."),
     smallest = paste0(" The smallest group, {smallest}, includes ",
                       "{smallest_n} respondents."),
+    # Each wave's weights average one, so pooled years count in proportion to
+    # their respondents; said under any chart that spans more than one year.
+    pooled = paste0(" Survey years are pooled, each counted in proportion ",
+                    "to its respondents, so this describes {years} together ",
+                    "rather than the latest year; compare by survey year to ",
+                    "see change."),
+    # What the intervals are, said only while they are drawn. srvyr's
+    # survey_prop() on a design with weights and no strata or clusters.
+    ci = paste0(" Error bars are 95% confidence intervals for a weighted ",
+                "proportion (logit method), treating respondents as ",
+                "independent draws. They reflect sampling variation only and ",
+                "do not capture every source of error in a nonprobability ",
+                "sample."),
     provenance = paste0(
       "Results are from the Extreme Weather and Society Survey at the ",
       "<a href=\"https://ippra.net\">University of Oklahoma\u2019s ",
@@ -2407,27 +2484,23 @@ config <- list(
   # Placeholders in question wording that are not a version menu's own
   # variable, in words a reader can follow. Anything not listed here reads
   # "[varied between respondents]".
-  placeholders = list(
-    state = "the respondent\u2019s state",
-    ice_thrsh = "the amount the respondent gave earlier",
-    snow_thrsh = "the amount the respondent gave earlier",
-    cold_thrsh = "the temperature the respondent gave earlier",
-    range_max = "an upper amount that varied",
-    .default = "varied between respondents"
-  ),
+  placeholders = as.list(placeholder_words),
   catalog = catalog,
   map = list(
     notes = map_notes,
     scan = list(lede = scan_lede, note = scan_note),
     popup = list(
-      estimate = paste0("The estimate for this area is {value} out of 5 for ",
-                        "{quantity}. The median estimate across the {n} ",
-                        "County Warning Areas is {median}. This area ",
-                        "{standing}, at the {percentile} percentile."),
+      estimate = paste0("The modeled estimate for this area is {value} out ",
+                        "of 5 for {quantity}. The median estimate across the ",
+                        "{n} County Warning Areas is {median}. Ranked by ",
+                        "estimate, this area {standing}, at the {percentile} ",
+                        "percentile; the models give no uncertainty for each ",
+                        "area, so close estimates may not differ."),
       alert = paste0("The National Weather Service issued {quantity} on ",
-                     "{value} days in this area between {span}. The median ",
-                     "across the {n} County Warning Areas is {median} days. ",
-                     "This area {standing}, at the {percentile} percentile.")
+                     "an average of {value} days a year in this area between ",
+                     "{span}. The median across the {n} County Warning Areas ",
+                     "is {median} days a year. This area {standing}, at the ",
+                     "{percentile} percentile.")
     ),
     quantities = list(
       ALERT = "{hazard} watch, warning, and advisory events",

@@ -497,12 +497,17 @@ const ErrorBarsPlugin = {
 // URL state helpers — page id stays in the hash, per-page state lives in the
 // query string (merged, so dev's ?bundle= survives).
 function getParam(k) { return new URLSearchParams(location.search).get(k); }
-function setParams(obj) {
+// `push` makes the change a step in the browser's history, for a reader's own
+// choices (a question, a comparison, a version, a measure, an area), so Back
+// undoes it; housekeeping replaces the entry it is tidying.
+function setParams(obj, push = false) {
   const q = new URLSearchParams(location.search);
   for (const [k, v] of Object.entries(obj)) {
     if (v == null || v === "") q.delete(k); else q.set(k, v);
   }
-  history.replaceState(null, "", location.pathname + "?" + q.toString() + location.hash);
+  const url = location.pathname + "?" + q.toString() + location.hash;
+  if (url === location.pathname + location.search + location.hash) return;
+  history[push ? "pushState" : "replaceState"](null, "", url);
 }
 
 // A link to another page carrying exactly the state it names. The reader's
@@ -552,7 +557,7 @@ function groupingSelect(onChange, initial, labelText = "Select a grouping") {
    data (which preserves R's factor-level ordering from the compiler), unless
    an explicit categoryOrder is supplied by config. */
 let activeChart = null;
-function groupedBarChart(canvas, rows, { title = "", xLabel = "", yLabel = "", categoryOrder = null, showCI = false, horizontal = false, colors = null, legend = true, legendTitle = "Group", standalone = false, pixelRatio = null, labelSize = null, highlight = null, altTitle = "" }) {
+function groupedBarChart(canvas, rows, { title = "", xLabel = "", yLabel = "", categoryOrder = null, showCI = false, horizontal = false, colors = null, legend = true, legendTitle = "Group", standalone = false, pixelRatio = null, labelSize = null, highlight = null, altTitle = "", alongside = false }) {
   const groupsSeen = [], catsSeen = [];
   for (const r of rows) {
     const g = naLabel(r.group), c = naLabel(r.category);
@@ -605,7 +610,9 @@ function groupedBarChart(canvas, rows, { title = "", xLabel = "", yLabel = "", c
 
   // A standalone chart is drawn for export: fixed size, no animation, at the
   // pixel ratio asked for, and it leaves the chart on screen alone.
-  if (!standalone && activeChart) { activeChart.destroy(); activeChart = null; }
+  // A chart drawn `alongside` the page's main one (a second office in the
+  // quiz) leaves it standing and is cleared with the page instead.
+  if (!standalone && !alongside && activeChart) { activeChart.destroy(); activeChart = null; }
   const chart = new Chart(canvas, {
     type: "bar",
     data: { labels: cats.map(tickLines), datasets },
@@ -667,11 +674,12 @@ function groupedBarChart(canvas, rows, { title = "", xLabel = "", yLabel = "", c
     plugins: [ChartDataLabels, ErrorBarsPlugin]   // ErrorBarsPlugin no-ops without errorLow
   });
   if (!standalone) {
-    activeChart = chart;
+    if (alongside) trackChart(chart); else activeChart = chart;
     // altTitle names what the chart answers (the question) for the spoken
     // label, where the drawn chart has no title of its own.
     chartAlt(canvas, { cats, groups: groupsSeen, lookup, valueLabel: yLabel,
-      title: altTitle || title, highlight: highlight ? lit : null });
+      title: altTitle || title, highlight: highlight ? lit : null,
+      ci: showCI });
   }
   return chart;
 }
@@ -772,7 +780,7 @@ async function fetchQuestion(id) {
    canvas and, beside it, a table of the same numbers that is hidden on
    screen. Nothing is computed here - the table repeats the bars' own labels.
    Redrawing the chart replaces its table. */
-function chartAlt(canvas, { cats, groups, lookup, valueLabel, title, highlight }) {
+function chartAlt(canvas, { cats, groups, lookup, valueLabel, title, highlight, ci = false }) {
   const clean = (t) => String(t).replace(/\n/g, " ");
   const multi = groups.length > 1;
   canvas.setAttribute("role", "img");
@@ -786,7 +794,10 @@ function chartAlt(canvas, { cats, groups, lookup, valueLabel, title, highlight }
   if (canvas._altTable) canvas._altTable.remove();
   const cell = (g, c) => {
     const r = lookup.get(g + "\x1F" + c);
-    const v = r ? (r.label != null ? String(r.label) : String(r.value)) : "\u2014";
+    let v = r ? (r.label != null ? String(r.label) : String(r.value)) : "\u2014";
+    // The interval the chart draws, when it draws one.
+    if (ci && r && r.low != null && r.upp != null)
+      v += ` (95% CI ${Number(r.low).toFixed(1)}\u2013${Number(r.upp).toFixed(1)})`;
     return highlight && r && highlight(g, c) ? v + " (highlighted)" : v;
   };
   const table = el("table", {},
@@ -932,8 +943,19 @@ components.explore = async function (page, container) {
     renderSaved();
   };
 
+  // A quiet way down to the list from the search, shown once something is
+  // saved, so a reader with a list does not have to scroll the browser to
+  // find it.
+  const savedJump = el("a", { class: "wx-saved-jump", href: "#",
+    onclick: (e) => {
+      e.preventDefault();
+      savedPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+    } });
+
   function renderSaved() {
     const list = readSaved();
+    savedJump.textContent = `Saved questions (${list.length}) \u2193`;
+    savedJump.style.display = list.length ? "" : "none";
     savedPanel.textContent = "";
     savedPanel.style.display = list.length ? "" : "none";
     if (!list.length) return;
@@ -954,7 +976,7 @@ components.explore = async function (page, container) {
         ? el("button", { class: "wx-saved-open", type: "button", onclick: () => {
             currentKey = x.id;
             currentArm = null;
-            setParams({ q: currentKey, arm: null });
+            setParams({ q: currentKey, arm: null }, true);
             qTable.selectRow(r => keyOf(r) === currentKey);
             resultSection.scrollIntoView({ behavior: "smooth", block: "start" });
             draw();
@@ -1074,7 +1096,7 @@ components.explore = async function (page, container) {
     if (!arms) return;
     const sel = el("select", { class: "wx-arm-select", onchange: () => {
       currentArm = sel.value;
-      setParams({ arm: currentArm });   // keep the URL shareable
+      setParams({ arm: currentArm }, true);   // keep the URL shareable
       draw();
     } });
     for (const a of arms) sel.append(el("option", { value: a.id }, a.label));
@@ -1192,6 +1214,9 @@ components.explore = async function (page, container) {
     const armVar = (CONFIG.arm_variables || {})[v.id];
     if (v.arms) bars += tpl.randomized || "";
     else if (varied.length) bars += tpl.varied || "";
+    if (g !== "survey_year" && countedAs(s.years) === "responses")
+      bars += fillTpl(tpl.pooled || "", { years });
+    if (showCI) bars += tpl.ci || "";
     caption.append(el("p", { class: "wx-caption-bars" }, bars));
     caption.append(el("p", { class: "wx-caption-provenance", html: tpl.provenance }));
     const others = varied.filter(x => x !== armVar)
@@ -1316,7 +1341,7 @@ components.explore = async function (page, container) {
     onPick: (r) => {
       currentKey = keyOf(r);
       currentArm = null;
-      setParams({ q: currentKey, arm: null });   // keep the URL shareable
+      setParams({ q: currentKey, arm: null }, true);   // keep the URL shareable
       // The chart sits well above the list: bring it into view so the click
       // visibly loads the new question.
       resultSection.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -1335,7 +1360,7 @@ components.explore = async function (page, container) {
   const search = questionSearch(questions, (r) => {
     currentKey = keyOf(r);
     currentArm = null;
-    setParams({ q: currentKey, arm: null });
+    setParams({ q: currentKey, arm: null }, true);
     qTable.selectRow(x => keyOf(x) === currentKey);
     draw();
   });
@@ -1348,7 +1373,7 @@ components.explore = async function (page, container) {
   // same split, and a link that arrived with one does not keep it stale.
   const gWrap = groupingSelect(g => {
     grouping = g;
-    setParams({ grouping: g === "All" ? null : g });
+    setParams({ grouping: g === "All" ? null : g }, true);
     draw();
   }, grouping, "Compare responses by");
   gWrap.classList.add("wx-compare");
@@ -1410,7 +1435,7 @@ components.explore = async function (page, container) {
       "are stored only in this browser and may be removed if you clear your " +
       "browsing data.")));
   container.append(el("div", { class: "page wx-explore-page" },
-    el("div", { class: "content" }, intro, search,
+    el("div", { class: "content" }, intro, search, savedJump,
        resultSection,
        tableCard,
        savedPanel,
@@ -1882,7 +1907,7 @@ function hazardOfLabel(label) {
   return String(label)
     .replace(/ warning (reception|comprehension|response)$/, "")
     .replace(/ risk perceptions$/, "")
-    .replace(/ alert days$/, "")
+    .replace(/ alert days per year$/, "")
     .toLowerCase();
 }
 
@@ -1955,12 +1980,11 @@ components.wx_map_explorer = async function (page, container) {
   const N = cwaValues.areas;
   const M = (code) => cwaValues.measures[code];
   const isAlert = (code) => byCode.get(code).kind === "alert";
-  // Estimates print as "3.42 out of 5"; alert counts as whole days — never
-  // "342.00 days".
+  // Estimates print as "3.42 out of 5"; alert days per year to one decimal,
+  // "4.2", with none of the false precision of the two the file carries.
   const fmtVal = (code) => (v) => isAlert(code)
-    ? Math.round(v).toLocaleString() : Number(v).toFixed(2);
-  const fmtRange = (code) => (v) => isAlert(code)
-    ? Math.round(v).toLocaleString() : Number(v).toFixed(1);
+    ? Number(v).toFixed(1) : Number(v).toFixed(2);
+  const fmtRange = (code) => (v) => Number(v).toFixed(1);
 
   // Comparison state: one alert layer, drawn as a second map beside the
   // first, so the reader compares two pictures rather than holding one in
@@ -1984,7 +2008,7 @@ components.wx_map_explorer = async function (page, container) {
   // chart; the map is the one card.
   const bar = el("div", { class: "wx-result-controls wx-map-toolbar" });
   const measureSel = el("select", { class: "grouping", id: "measure-sel", onchange: () => {
-    measure = measureSel.value; setParams({ measure });
+    measure = measureSel.value; setParams({ measure }, true);
     // A live comparison follows the measure to ITS paired alert history
     // (the exposure its model is fitted on) — or turns off when there is
     // none (drought, hail, lightning have no NWS alert product).
@@ -2009,7 +2033,7 @@ components.wx_map_explorer = async function (page, container) {
   const compareWrap = el("div");
   const compareSel = el("select", { class: "grouping", id: "compare-sel", onchange: async () => {
     compare = compareSel.value;
-    setParams({ compare: compare || null });
+    setParams({ compare: compare || null }, true);
     await redraw();
   } });
   compareWrap.append(el("label", { class: "field-label", for: "compare-sel" },
@@ -2159,7 +2183,7 @@ components.wx_map_explorer = async function (page, container) {
                 const quantity = fillTpl(CONFIG.map.quantities[constructOf(code)],
                   { hazard: hazardOfLabel(byCode.get(code).label) });
                 const says = isAlert(code)
-                  ? `colors show the number of days with ${quantity} in each area` +
+                  ? `colors show the average number of days a year with ${quantity} in each area` +
                     (M(code).span ? ` between ${M(code).span}` : "") + "."
                   : `colors show each area's estimate of ${quantity}, on a 1 to 5 scale.`;
                 return { text: cmp ? `${byCode.get(code).label}: ${says}`
@@ -2240,7 +2264,7 @@ components.wx_map_explorer = async function (page, container) {
   function clearPlace() {
     place = "";
     placeSel.value = "";
-    setParams({ place: null });
+    setParams({ place: null }, true);
     if (activeLayer) activeLayer.clearSelection();
     if (compareLayer) compareLayer.clearSelection();
     map.closePopup();
@@ -2271,10 +2295,10 @@ components.wx_map_explorer = async function (page, container) {
       const rows = cats.filter(c => c.group === g);
       return {
         group: g,
-        // A whole group of alert layers is counted days rather than a 1-5
+        // A whole group of alert layers is days a year rather than a 1-5
         // estimate, and the Estimate column heading would otherwise read as
         // a claim about the counts.
-        unit: rows.every(c => c.kind === "alert") ? "days" : "",
+        unit: rows.every(c => c.kind === "alert") ? "days per year" : "",
         rows
       };
     });
@@ -2424,7 +2448,7 @@ components.wx_map_explorer = async function (page, container) {
           onclick: () => {
             measure = cat.code;
             measureSel.value = cat.code;
-            setParams({ measure });
+            setParams({ measure }, true);
             if (compare) {
               compare = byCode.get(measure).compare_default || "";
               syncCompare();
@@ -2483,7 +2507,7 @@ components.wx_map_explorer = async function (page, container) {
     if (!link) return;
     e.preventDefault();
     place = String(link.dataset.place || "").toUpperCase();
-    setParams({ place });
+    setParams({ place }, true);
     // Through the layers rather than straight to renderScan, so the area is
     // outlined on the maps as well as filled in below them.
     selectPlace(place);
@@ -2523,7 +2547,7 @@ components.wx_map_explorer = async function (page, container) {
   function selectPlace(id) {
     place = String(id);
     placeSel.value = place;
-    setParams({ place });
+    setParams({ place }, true);
     renderScan();
     if (syncing) return;
     syncing = true;
@@ -2576,12 +2600,21 @@ components.wx_map_explorer = async function (page, container) {
   // only what the numbers are; alone, it has to carry the label itself.
   function drawLegend(holder, code, stops, withLabel) {
     holder.textContent = "";
-    const kind = isAlert(code) ? "Alert days" : "Estimate (1\u20135 scale)";
     const m = M(code);
+    // The counting period beside the alert colors, and the modeled nature of
+    // an estimate beside its colors, so neither is read without it.
+    const kind = isAlert(code)
+      ? "Alert days per year" + (m.span ? ", " + String(m.span).replace(" and ", "\u2013") : "")
+      : "Modeled estimate (1\u20135 scale; colors span the observed range)";
+    // An alert legend already says "alert days per year", so its label adds
+    // only the hazard rather than repeating the phrase.
+    const named = isAlert(code)
+      ? (h => h.charAt(0).toUpperCase() + h.slice(1))(hazardOfLabel(byCode.get(code).label))
+      : byCode.get(code).label;
     holder.append(gradientLegend(
-      withLabel ? kind + " \u2014 " + esc(byCode.get(code).label) : kind,
+      withLabel ? kind + " \u2014 " + esc(named) : kind,
       m.domain, stops, fmtRange(code)));
-    return { title: kind + " \u2014 " + byCode.get(code).label,
+    return { title: kind + " \u2014 " + named,
              domain: m.domain, stops, fmt: fmtRange(code) };
   }
 
@@ -2879,6 +2912,34 @@ components.wx_quiz = async function (page, container) {
   // the score counts first answers only.
   let idx = 0, part = 0;
   const choices = quiz.map(() => []);
+  // Kept for the browser session, so a reader who follows a link into the
+  // explorer and comes back resumes where they were, with their answers.
+  // sessionStorage rather than localStorage: a new visit starts a new quiz.
+  // Keyed to the quiz's own questions and parts, so a deploy that changes
+  // the quiz starts it afresh rather than resuming into the wrong place.
+  const QUIZ_KEY = "wxdash-quiz";
+  const quizSig = quiz.map(q => (q.id || (q.explore && q.explore.params &&
+    q.explore.params.q) || "") + ":" + partsOf(q).length).join("|");
+  const saveQuiz = () => {
+    try {
+      sessionStorage.setItem(QUIZ_KEY,
+        JSON.stringify({ sig: quizSig, idx, part, choices }));
+    } catch { /* no storage: the quiz still works, it just does not resume */ }
+  };
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(QUIZ_KEY) || "null");
+    if (saved && saved.sig === quizSig && Array.isArray(saved.choices)) {
+      saved.choices.forEach((c, i) => {
+        if (Array.isArray(c) && choices[i]) c.forEach((v, j) => {
+          if (v !== null && v !== undefined) choices[i][j] = v;
+        });
+      });
+      idx = Math.min(Math.max(0, saved.idx | 0), quiz.length);
+      part = idx < quiz.length
+        ? Math.min(Math.max(0, saved.part | 0), partsOf(quiz[idx]).length - 1)
+        : 0;
+    }
+  } catch { /* unreadable: start from the beginning */ }
   // A community part stores its own verdict with the guess, since what is
   // right depends on the office picked.
   const results = () => quiz.map((q, i) => partsOf(q)
@@ -2902,6 +2963,7 @@ components.wx_quiz = async function (page, container) {
   // theme, never color alone); the outlined segment is where you are.
   const progress = el("div", { class: "wx-quiz-progress" });
   function drawProgress() {
+    saveQuiz();
     progress.textContent = "";
     const t = tally();
     progress.setAttribute("aria-label",
@@ -3009,9 +3071,15 @@ components.wx_quiz = async function (page, container) {
             `${q.theme} \u00b7 ${mine.filter(Boolean).length} of ` +
             `${mine.length} right`));
         }
+        // Each mark names its part, so a follow-up's result is not read as
+        // the question's: "✓ Question ✗ Follow-up", or a series' own tags.
+        const ps = partsOf(q);
         recap.append(el("div", { class: "wx-quiz-recap-row" },
           el("span", { class: "wx-quiz-recap-marks" },
-            r[i].map(ok => ok ? "✓" : "✗").join(" ")),
+            ...r[i].map((ok, j) => el("span", { class: "wx-quiz-recap-mark" +
+              (ok ? " is-right" : " is-wrong") },
+              (ok ? "\u2713 " : "\u2717 ") +
+              (j === 0 ? (ps[0].tag || "Question") : (ps[j].tag || "Follow-up"))))),
           el("span", { class: "wx-quiz-recap-topic" }, topicOf(q)),
           exploreLink(q, null, "explore ↗")));
       });
@@ -3203,7 +3271,8 @@ components.wx_quiz = async function (page, container) {
     function renderCommunity(pp, step) {
       const nav = el("div", { class: "wx-quiz-nav" });
       if (hasPrevious()) nav.append(previousButton());
-      const pick = el("select", { class: "wx-quiz-place" });
+      const pick = el("select", { class: "wx-quiz-place",
+        "aria-label": "Your forecast office" });
       const guessZone = el("div");
       const out = el("div");
       step.append(pick, guessZone, out, nav);
@@ -3223,6 +3292,44 @@ components.wx_quiz = async function (page, container) {
           idx++; renderQ();
           card.scrollIntoView({ behavior: "smooth", block: "start" });
         } }, idx + 1 < quiz.length ? "Next Question \u2192" : "See Your Score \u2192");
+        // One office's hazards ranked, as the reveal chart, with its way into
+        // the map at its foot.
+        const officeChart = (code, alongside = false) => {
+          const vals = rank(code);
+          const tied = vals.filter(m => vals[0].v - m.v < pp.tie);
+          const place = cv.places[code].label;
+          const panel = el("div", { class: "card wx-result-chart wx-quiz-chart" });
+          const wrap = el("div", { class: "wx-quiz-chartwrap" });
+          const canvas = el("canvas");
+          wrap.append(canvas);
+          wrap.style.height = Math.max(250, 60 + vals.length * 34) + "px";
+          const rows = vals.map(m => ({ group: "All", category: m.label,
+            value: m.v, label: fmt(m.v) }));
+          // The question behind the estimates, as every reveal shows it.
+          const asked = el("div", { class: "wx-quiz-asked" });
+          if (pp.asked) {
+            asked.append(el("p", { class: "wx-quiz-asked-label" }, "Survey question"));
+            if (pp.asked.stem) asked.append(el("p", { class: "wx-quiz-asked-stem" }, pp.asked.stem));
+            if (pp.asked.items) asked.append(el("ul", { class: "wx-quiz-asked-items" },
+              ...[].concat(pp.asked.items).map(t => el("li", {}, t))));
+          }
+          panel.append(asked, wrap,
+            el("div", { class: "wx-caption wx-explore-caption wx-quiz-cap" },
+              el("p", { class: "wx-caption-meta" }, fillTpl(pp.meta, { place })),
+              el("p", { class: "wx-caption-bars" }, pp.bars)),
+            el("div", { class: "wx-toolbar-actions wx-result-downloads" },
+              pageLink("#map", { place: code, measure: vals[0].code },
+                { class: "wx-quiz-explore wx-foot-link" },
+                fillTpl(pp.map_link, { place }))));
+          // Drawn once the panel is on the page, which Chart.js needs to size.
+          setTimeout(() => groupedBarChart(canvas, rows, {
+            yLabel: "Perceived risk (1\u20135)",
+            altTitle: fillTpl(pp.meta, { place }),
+            horizontal: true, legend: false, colors: quizColors(rows),
+            highlight: { categories: new Set(tied.map(m => m.label)) },
+            alongside }), 0);
+          return panel;
+        };
         // The options for an office, then, once guessed, the verdict, the
         // reveal and the chart.
         const showGuess = (code) => {
@@ -3267,26 +3374,21 @@ components.wx_quiz = async function (page, container) {
               role: "status" },
               el("p", { class: "wx-quiz-verdict" }, right ? "You got it." : miss),
               el("p", { class: "wx-quiz-answer" }, text)));
-            const panel = el("div", { class: "card wx-result-chart wx-quiz-chart" });
-            const wrap = el("div", { class: "wx-quiz-chartwrap" });
-            const canvas = el("canvas");
-            wrap.append(canvas);
-            wrap.style.height = Math.max(250, 60 + vals.length * 34) + "px";
-            const rows = vals.map(m => ({ group: "All", category: m.label,
-              value: m.v, label: fmt(m.v) }));
-            panel.append(wrap,
-              el("div", { class: "wx-caption wx-explore-caption wx-quiz-cap" },
-                el("p", { class: "wx-caption-meta" }, fillTpl(pp.meta, { place })),
-                el("p", { class: "wx-caption-bars" }, pp.bars)),
-              el("div", { class: "wx-toolbar-actions wx-result-downloads" },
-                pageLink("#map", { place: code, measure: vals[0].code },
-                  { class: "wx-quiz-explore wx-foot-link" },
-                  fillTpl(pp.map_link, { place }))));
-            out.append(panel);
-            groupedBarChart(canvas, rows, { yLabel: "Perceived risk (1\u20135)",
-              altTitle: fillTpl(pp.meta, { place }),
-              horizontal: true, legend: false, colors: quizColors(rows),
-              highlight: { categories: new Set(tied.map(m => m.label)) } });
+            out.append(officeChart(code));
+            // Other offices can be looked up once this one is answered; the
+            // look-up redraws the chart below it and leaves the score alone.
+            const other = el("select", { class: "wx-quiz-place" },
+              el("option", { value: "" }, "Choose another office"),
+              ...places.filter(([c]) => c !== code)
+                .map(([c, p]) => el("option", { value: c }, p.label)));
+            const otherOut = el("div");
+            other.addEventListener("change", () => {
+              otherOut.textContent = "";
+              if (other.value) otherOut.append(officeChart(other.value, true));
+            });
+            out.append(el("div", { class: "wx-quiz-other" },
+              el("label", { class: "wx-quiz-other-label" },
+                "See another office (not scored): ", other), otherOut));
             if (!nav.querySelector(".wx-cta-button")) nav.append(nextButton());
           };
           pp.measures.forEach(m => opts.append(el("button", { class: "wx-quiz-opt",
@@ -3349,6 +3451,7 @@ components.wx_quiz = async function (page, container) {
       pp.options.forEach((o, i) => {
         opts.append(el("button", { class: "wx-quiz-opt", onclick: () => {
           choices[idx][part] = i;
+          saveQuiz();
           show(i);
         } }, o));
       });
@@ -3358,7 +3461,7 @@ components.wx_quiz = async function (page, container) {
     renderPart();
   }
   pageRestyle = () => renderQ(part);
-  renderQ();
+  renderQ(part);
 };
 
 /* Static page (About): builder-authored HTML from config, under the same
@@ -3395,8 +3498,12 @@ function currentPageId() {
 // a quiz in progress, a chosen area). Cleared on every page change.
 let pageRestyle = null;
 
+// The hash the page on screen was drawn for.
+let shownHash = location.hash;
+
 async function renderPage() {
   pageRestyle = null;
+  shownHash = location.hash;
   const app = document.getElementById("app");
   const id = currentPageId();
   const page = CONFIG.pages.find(p => p.id === id) || CONFIG.pages[0];
@@ -3555,6 +3662,13 @@ async function boot() {
     document.body.append(el("footer", { id: "site-footer" }, cols));
   }
   window.addEventListener("hashchange", renderPage);
+  // Back and Forward within a page change only the query, which fires no
+  // hashchange; the page is drawn again from the address it now shows, so
+  // the selection, the chart and the URL agree. A step across pages changes
+  // the hash, and hashchange draws that.
+  window.addEventListener("popstate", () => {
+    if (location.hash === shownHash) renderPage();
+  });
   await renderPage();
 }
 
