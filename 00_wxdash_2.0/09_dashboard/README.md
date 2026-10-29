@@ -5,7 +5,8 @@ The deployed dashboard, and the last step of the pipeline. It reads what
 static site from those numbers and a hand-edited front end.
 
 - **Beta:** https://ippra.github.io/wxdash/
-- **Release:** https://ippra.net/wxdash
+- **Release:** https://ippra.net/products/dataviz/wxdash/ (short link:
+  https://ippra.net/wxdash)
 
 ## Four parts, kept separate
 
@@ -51,7 +52,8 @@ Plain static files, fully self-contained: no server code, no third-party
 requests, every library vendored. Upload the directory to any web host.
 The same build runs in two places: a beta on GitHub Pages
 (https://ippra.github.io/wxdash/), rebuilt on every push, and production at
-https://ippra.net/wxdash, copied from a tagged release. See Deploying.
+https://ippra.net/products/dataviz/wxdash/, copied from a tagged release. See
+Deploying.
 
 ## Data flow
 
@@ -162,7 +164,7 @@ build to the server:
 git tag v2026.10 && git push origin v2026.10
 git checkout v2026.10
 Rscript 00_wxdash_2.0/09_dashboard/09_build_dashboard.R
-rsync -av --delete "$WXDASH_LOCAL/outputs/09_site/" <ippra.net host>:<docroot>/wxdash/
+rsync -av --delete "$WXDASH_LOCAL/outputs/09_site/" thehills:public_html/wxdash/
 git checkout master
 ```
 
@@ -171,7 +173,19 @@ exactly the code and data the beta showed under that commit. Tags are named
 `v<year>.<month>`, with a `.1`, `.2` suffix for a second release in a month.
 This is the one institute dashboard released from a tag rather than from the
 tip of the main branch, on purpose: what goes live has already run as the
-beta, and any release can be rebuilt later from its tag.
+beta, and any release can be rebuilt later from its tag. v2026.10 (13702a5)
+was the first, deployed 2026-10-29.
+
+`thehills` is Matt's SSH alias for the server that hosts ippra.net. The
+connection details are in his private notes, not in this public repository.
+The dashboard has its own directory, `public_html/wxdash/`, beside the
+ippra.net site's directory rather than inside it, because the site's own
+deploy deletes anything in its directory that it did not build. nginx serves
+that directory at the canonical URL `/products/dataviz/wxdash/`. `/wxdash`,
+`/wxdash/` and `/products/dataviz/wxdash` redirect there (301) and keep the
+query string, so `?from=` survives the short link. The rsync can drop the
+connection partway through a large transfer and leave a partial copy, so run
+it again with `-n --checksum` afterwards: it should list nothing.
 
 The site is static and self-contained with relative URLs and hash routing
 (`#home`, `#survey`, `#map`, `#quiz`, `#about`), so it runs unchanged under
@@ -185,16 +199,20 @@ revalidate; the server answers 304 via Last-Modified when unchanged). The HTML
 is the one file that cannot version-stamp itself; served with a long max-age,
 browsers keep the old HTML, and therefore the old `?v=` references, and new
 deploys are invisible until a hard refresh. Everything else can be cached as
-long as the server likes. On ippra.net, nginx sets no-cache on the three HTML
-entry URLs (`/wxdash`, `/wxdash/`, `/wxdash/index.html`).
+long as the server likes. On ippra.net, nginx sends `no-cache` for
+`index.html` and the directory URL, and a one-year `immutable` for everything
+else. That is safe only because every asset and data fetch carries the stamp.
 
-After deploying, open https://ippra.net/wxdash and check two things: the
-dashboard loads, and there is no Beta label beside "WxDash" in the masthead.
+After deploying, open https://ippra.net/products/dataviz/wxdash/ and check
+two things: the dashboard loads, and there is no Beta label beside "WxDash"
+in the masthead.
 
-Link to it from ippra.net as `/wxdash/?from=<path of the linking page>`, for
-example `/wxdash/?from=/tools`. A visitor who arrives that way gets a "Back to
-IPPRA" link in the black bar that returns them to that page; anyone else sees
-the institute's name there.
+Link to it from ippra.net as
+`/products/dataviz/wxdash/?from=<path of the linking page>`, for example
+`/products/dataviz/wxdash/?from=%2Fproducts%2Fdataviz%2F` (the Data and Tools
+page's Launch link). A visitor who arrives that way gets a "Back to IPPRA"
+link in the black bar that returns them to that page; anyone else sees the
+institute's name there. The `/wxdash` short link is for talks and print.
 
 To publish a newer version, tag the commit the beta is now showing and repeat
 the steps above.

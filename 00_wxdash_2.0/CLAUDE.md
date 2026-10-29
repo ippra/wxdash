@@ -394,7 +394,8 @@ without one; either is the rsync unit. A run takes seconds. It is deployed twice
 GitHub Actions (`.github/workflows/deploy-beta.yml`) builds it on every push
 to master with `WXDASH_CHANNEL=beta` and publishes it to GitHub Pages as the
 beta, which carries a Beta label, a `noindex` tag and a disallow-all
-`robots.txt`; production at ippra.net/wxdash is a build of a release tag,
+`robots.txt`; production at ippra.net/products/dataviz/wxdash/ (short link
+ippra.net/wxdash) is a build of a release tag,
 with the variable unset, copied to our own server. The workflow runs only the
 assembly half, so a `--data` run reaches the beta by being committed.
 
